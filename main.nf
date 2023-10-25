@@ -33,14 +33,15 @@ workflow {
     // WORKFLOW: Run primary workflows for the pipeline
     //
     NF_AGGREGATE (
-        PIPELINE_INITIALISATION.out.ids
+        PIPELINE_INITIALISATION.out.ids,
+        params.workspace
     )
 
     //
     // SUBWORKFLOW: Run completion tasks
     //
     PIPELINE_COMPLETION (
-        NF_AGGREGATE.out.versions,
+        NF_AGGREGATE.out.versions
     )
 }
 
