@@ -1,6 +1,9 @@
 //
 // WORKFLOW: Run main seqeralabs/nf-aggregate workflow
 //
+
+include { UNTAR } from '../modules/nf-core/untar/main'                                                                                                             
+
 workflow NF_AGGREGATE {
 
     take:
