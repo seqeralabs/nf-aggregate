@@ -1,0 +1,22 @@
+{
+    "name": "seqeralabs/nf-aggregate",
+    "homePage": "https://github.com/seqeralabs/nf-aggregate",
+    "repos": {
+        "https://github.com/nf-core/modules.git": {
+            "subworkflows": {
+                "nf-core": {
+                    "nextflowpipelineutils": {
+                        "branch": "master",
+                        "git_sha": "cfd937a668919d948f6fcbf4218e79de50c2f36f",
+                        "installed_by": ["subworkflows"]
+                    },
+                    "nfvalidation_plugin_utils": {
+                        "branch": "master",
+                        "git_sha": "cfd937a668919d948f6fcbf4218e79de50c2f36f",
+                        "installed_by": ["subworkflows"]
+                    }
+                }
+            }
+        }
+    }
+}
