@@ -1,6 +1,6 @@
 process SEQERA_RUNS_DUMP {
     tag "$run_id"
-    secret 'TOWER_ACCESS_TOKEN'
+    //secret 'TOWER_ACCESS_TOKEN'
     conda 'bioconda::tower-cli=0.9.0'
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/tower-cli:0.9.0--h9ee0642_0' :
