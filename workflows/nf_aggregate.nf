@@ -3,7 +3,7 @@
 //
 
 include { SEQERA_RUNS_DUMP            } from '../modules/local/seqera_runs_dump'
-include { PIPELINE_GANTT              } from '../modules/local/pipeline_gantt'
+include { PLOT_RUN_GANTT              } from '../modules/local/plot_run_gantt'
 include { MULTIQC                     } from '../modules/nf-core/multiqc'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/custom/dumpsoftwareversions'
 include { paramsSummaryMultiqc        } from '../subworkflows/local/nf_aggregate_utils'
@@ -43,10 +43,10 @@ workflow NF_AGGREGATE {
     // MODULE: Generate Gantt chart for workflow execution
     //
     if (!params.skip_run_gantt) {
-        PIPELINE_GANTT (
+        PLOT_RUN_GANTT (
             SEQERA_RUNS_DUMP.out.run_dump
         )
-        ch_versions = ch_versions.mix(PIPELINE_GANTT.out.versions.first())
+        ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions.first())
     }
 
     //
