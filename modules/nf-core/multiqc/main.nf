@@ -1,10 +1,6 @@
 process MULTIQC {
     label 'process_single'
-
     conda 'modules/nf-core/multiqc/environment.yml'
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/multiqc:1.17--pyhdfd78af_0' :
-        'docker.io/ewels/multiqc:dev' }"
 
     input:
     path  multiqc_files, stageAs: "?/*"

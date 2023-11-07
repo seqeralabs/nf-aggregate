@@ -1,9 +1,6 @@
 process PIPELINE_GANTT {
     tag "$run_id"
-    conda 'conda-forge::click=8.0.1 conda-forge::pandas=1.1.5 conda-forge::plotly_express=0.4.1 conda-package::procps-ng conda-forge::typing'
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/tower-cli:0.9.0--h9ee0642_0' :
-        'docker.io/drpatelh/pythongantt:dev' }"
+    conda 'click=8.0.1 pandas=1.1.5 plotly_express=0.4.1 procps-ng=4.0.4 typing=3.10.0.0'
 
     input:
     tuple val(run_id), path(run_dump)

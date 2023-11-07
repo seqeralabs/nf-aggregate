@@ -27,6 +27,11 @@
                     "default": "community/showcase",
                     "description": "Workspace on the Seqera Platform to fetch run information.",
                     "fa_icon": "fas fa-folder-open"
+                },                
+                "skip_run_gantt": {
+                    "type": "boolean",
+                    "description": "Skip GANTT chart creation for each run.",
+                    "fa_icon": "fas fa-fast-forward"
                 },
                 "outdir": {
                     "type": "string",
