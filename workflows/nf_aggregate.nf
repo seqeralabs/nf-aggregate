@@ -3,8 +3,9 @@
 //
 
 include { SEQERA_RUNS_DUMP            } from '../modules/local/seqera_runs_dump'
+include { PIPELINE_GANTT              } from '../modules/local/pipeline_gantt'
 include { MULTIQC                     } from '../modules/nf-core/multiqc'
-include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/custom/dumpsoftwareversions'                                                              
+include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/custom/dumpsoftwareversions'
 include { paramsSummaryMultiqc        } from '../subworkflows/local/nf_aggregate_utils'
 include { getWorkflowName             } from '../subworkflows/local/nf_aggregate_utils'
 include { paramsSummaryMap            } from 'plugin/nf-validation'
@@ -37,6 +38,14 @@ workflow NF_AGGREGATE {
         .map { "${it[0]}\t${getWorkflowName(it[1])}" }
         .collectFile(name: 'id_mappings.tsv', newLine: true)
         .set { ch_id_mappings_multiqc }
+
+    //
+    // MODULE: Generate Gantt chart for workflow execution
+    //
+    PIPELINE_GANTT (
+        SEQERA_RUNS_DUMP.out.run_dump
+    )
+    ch_versions = ch_versions.mix(PIPELINE_GANTT.out.versions.first())
 
     //
     // MODULE: Pipeline reporting
