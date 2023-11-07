@@ -10,8 +10,9 @@ process SEQERA_RUNS_DUMP {
     val workspace
 
     output:
-    tuple val(run_id), path("*_run_dump"), emit: run_dump
-    path "versions.yml"                  , emit: versions
+    tuple val(run_id), path("*_run_dump")   , emit: run_dump
+    tuple val(run_id), path("workflow.json"), emit: workflow_json
+    path "versions.yml"                     , emit: versions
 
     script:
     def args = task.ext.args ?: ''
@@ -33,6 +34,8 @@ process SEQERA_RUNS_DUMP {
         -xvf \\
         ${prefix}_run_dump.tar.gz \\
         -C ${prefix}_run_dump
+    
+    cp ${prefix}_run_dump/workflow.json .
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

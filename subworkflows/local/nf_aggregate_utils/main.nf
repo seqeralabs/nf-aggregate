@@ -2,6 +2,8 @@
 // Subworkflow with functionality specific to the nf-aggregate pipeline
 //
 
+import groovy.json.JsonSlurper
+
 /*
 ========================================================================================
     IMPORT MODULES/SUBWORKFLOWS
@@ -89,6 +91,13 @@ workflow PIPELINE_COMPLETION {
     FUNCTIONS
 ========================================================================================
 */
+
+//
+// Function that parses Seqera CLI 'workflow.json' output file to get workflow name
+//
+def getWorkflowName(json_file) {
+    return new JsonSlurper().parseText(json_file.text).get('manifest')['name']
+}
 
 //
 // Get workflow summary for MultiQC

@@ -6,13 +6,17 @@ include { SEQERA_RUNS_DUMP            } from '../modules/local/seqera_runs_dump'
 include { MULTIQC                     } from '../modules/nf-core/multiqc'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/custom/dumpsoftwareversions'                                                              
 include { paramsSummaryMultiqc        } from '../subworkflows/local/nf_aggregate_utils'
+include { getWorkflowName             } from '../subworkflows/local/nf_aggregate_utils'
 include { paramsSummaryMap            } from 'plugin/nf-validation'
 
 workflow NF_AGGREGATE {
 
     take:
-    ids       // channel: run ids read in from --input
-    workspace //  string: workspace name e.g. community/showcase
+    ids                   // channel: run ids read in from --input
+    workspace             //  string: workspace name e.g. community/showcase
+    multiqc_config        // channel: default config file used by MultiQC
+    multiqc_custom_config // channel: user specified custom config file used by MultiQC
+    multiqc_logo          // channel: logo rendered in MultiQC report
 
     main:
 
@@ -26,6 +30,13 @@ workflow NF_AGGREGATE {
         workspace
     )
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions.first())
+
+    SEQERA_RUNS_DUMP
+        .out
+        .workflow_json
+        .map { "${it[0]}\t${getWorkflowName(it[1])}" }
+        .collectFile(name: 'id_mappings.tsv', newLine: true)
+        .set { ch_id_mappings_multiqc }
 
     //
     // MODULE: Pipeline reporting
@@ -45,9 +56,10 @@ workflow NF_AGGREGATE {
     ch_multiqc_files = ch_multiqc_files.mix(SEQERA_RUNS_DUMP.out.run_dump.collect{it[1]})
     MULTIQC (
         ch_multiqc_files.collect(),
-        [],
-        [],
-        []
+        multiqc_config.toList(),
+        multiqc_custom_config.toList(),
+        multiqc_logo.toList(),
+        ch_id_mappings_multiqc.toList()
     )
 
     emit:

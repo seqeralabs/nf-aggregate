@@ -12,7 +12,7 @@ process CUSTOM_DUMPSOFTWAREVERSIONS {
 
     output:
     path "software_versions.yml"    , emit: yml
-    path "software_versions_mqc.yml", emit: mqc_yml
+    path "software_mqc_versions.yml", emit: mqc_yml
     path "versions.yml"             , emit: versions
 
     when:
