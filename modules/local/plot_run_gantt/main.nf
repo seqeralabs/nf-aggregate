@@ -1,4 +1,4 @@
-process PIPELINE_GANTT {
+process PLOT_RUN_GANTT {
     tag "$run_id"
     conda 'click=8.0.1 pandas=1.1.5 plotly_express=0.4.1 procps-ng=4.0.4 typing=3.10.0.0'
 
@@ -12,8 +12,8 @@ process PIPELINE_GANTT {
     script:
     def prefix = task.ext.prefix ?: "${run_id}"
     """
-    pipeline-gantt.py \\
-        --title "GANTT Plot for run: $run_id" \\
+    plot_run_gantt.py \\
+        --title "GANTT plot for run: $run_id" \\
         --input-dir $run_dump \\
         --output-file ./${prefix}_gantt.html
 
