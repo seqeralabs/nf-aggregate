@@ -42,10 +42,12 @@ workflow NF_AGGREGATE {
     //
     // MODULE: Generate Gantt chart for workflow execution
     //
-    PIPELINE_GANTT (
-        SEQERA_RUNS_DUMP.out.run_dump
-    )
-    ch_versions = ch_versions.mix(PIPELINE_GANTT.out.versions.first())
+    if (!params.skip_run_gantt) {
+        PIPELINE_GANTT (
+            SEQERA_RUNS_DUMP.out.run_dump
+        )
+        ch_versions = ch_versions.mix(PIPELINE_GANTT.out.versions.first())
+    }
 
     //
     // MODULE: Pipeline reporting

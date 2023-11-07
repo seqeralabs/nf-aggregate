@@ -28,6 +28,8 @@ def extract_instance(fusion_logs: Path) -> str:
     "--input-dir", type=click.Path(), help="The pipeline dump tar.gz input file."
 )
 @click.option("--output-file", type=click.Path(), help="The HTML output file")
+
+
 def build_gantt(title: str, input_dir: str, output_file: str):
     tasks = []
     instance_ids = {}
@@ -41,7 +43,7 @@ def build_gantt(title: str, input_dir: str, output_file: str):
         instance_ids[task_id] = instance_id
 
     for t in tasks:
-        t["instanceId"] = instance_ids.get(t["taskId"], "unknow")
+        t["instanceId"] = instance_ids.get(t["taskId"], "unknown")
 
     data = [
         {
