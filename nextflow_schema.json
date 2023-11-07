@@ -27,7 +27,7 @@
                     "default": "community/showcase",
                     "description": "Workspace on the Seqera Platform to fetch run information.",
                     "fa_icon": "fas fa-folder-open"
-                },                
+                },
                 "outdir": {
                     "type": "string",
                     "format": "directory-path",

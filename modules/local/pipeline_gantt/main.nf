@@ -17,7 +17,7 @@ process PIPELINE_GANTT {
     """
     pipeline-gantt.py \\
         --title "GANTT Plot for run: $run_id" \\
-        --input-file $run_dump \\
+        --input-dir $run_dump \\
         --output-file ./${prefix}_gantt.html
 
     cat <<-END_VERSIONS > versions.yml

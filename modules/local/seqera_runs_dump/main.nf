@@ -34,7 +34,7 @@ process SEQERA_RUNS_DUMP {
         -xvf \\
         ${prefix}_run_dump.tar.gz \\
         -C ${prefix}_run_dump
-    
+
     cp ${prefix}_run_dump/workflow.json .
 
     cat <<-END_VERSIONS > versions.yml
