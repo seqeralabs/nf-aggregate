@@ -7,7 +7,6 @@ process MULTIQC {
     path(multiqc_config)
     path(extra_multiqc_config)
     path(multiqc_logo)
-    path(replace_names)
 
     output:
     path "*multiqc_report.html", emit: report
@@ -30,7 +29,6 @@ process MULTIQC {
         $config \\
         $extra_config \\
         $logo \\
-        --replace-names $replace_names \\
         .
 
     cat <<-END_VERSIONS > versions.yml
