@@ -3,6 +3,7 @@
 //
 
 import groovy.json.JsonSlurper
+import java.nio.file.Paths
 
 /*
 ========================================================================================
@@ -97,6 +98,28 @@ workflow PIPELINE_COMPLETION {
 //
 def getWorkflowName(json_file) {
     return new JsonSlurper().parseText(json_file.text).get('manifest')['name']
+}
+
+//
+// Function that parses Seqera CLI 'workflow.json' output file to get work directory
+//
+def getWorkflowWorkDir(json_file) {
+    return new JsonSlurper().parseText(json_file.text).get('workDir')
+}
+
+//
+// Function that parses Seqera CLI 'workflow.json' output file to get output directory
+//
+def getWorkflowOutDir(json_file, outdir) {
+    def path = new JsonSlurper().parseText(json_file.text).get('params')[outdir]
+    File file = new File(outdir)
+    if (!file.isAbsolute()) {
+        def workdir = getWorkflowWorkDir(json_file)
+        if (workdir.startsWith('s3://')) {
+            path = Paths.get(workdir, path)
+        }  
+    }
+    return path
 }
 
 //

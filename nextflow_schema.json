@@ -26,18 +26,39 @@
                     "type": "string",
                     "default": "community/showcase",
                     "description": "Workspace on the Seqera Platform to fetch run information.",
-                    "fa_icon": "fas fa-folder-open"
-                },                
-                "skip_run_gantt": {
-                    "type": "boolean",
-                    "description": "Skip GANTT chart creation for each run.",
-                    "fa_icon": "fas fa-fast-forward"
+                    "fa_icon": "fas fa-people-arrows"
                 },
                 "outdir": {
                     "type": "string",
                     "format": "directory-path",
                     "description": "The output directory where the results will be saved. You have to use absolute paths to storage on Cloud infrastructure.",
                     "fa_icon": "fas fa-folder-open"
+                },
+                "pipeline_publishdir": {
+                    "type": "string",
+                    "default": "outdir",
+                    "description": "Parameter used in pipeline runs for output directory. Required to get directory size from run information.",
+                    "fa_icon": "fas fa-folder-open"
+                },
+                "aws_account_id": {
+                    "type": "number",
+                    "description": "AWS account ids to list buckets.",
+                    "fa_icon": "fas fa-cloud-download-alt"
+                },
+                "aws_role_name": {
+                    "type": "string",
+                    "description": "AWS role name.",
+                    "fa_icon": "fas fa-cloud-download-alt"
+                },
+                "skip_run_gantt": {
+                    "type": "boolean",
+                    "description": "Skip GANTT chart creation for each run.",
+                    "fa_icon": "fas fa-fast-forward"
+                },
+                "skip_multiqc": {
+                    "type": "boolean",
+                    "description": "Skip MultiQC.",
+                    "fa_icon": "fas fa-fast-forward"
                 }
             }
         },
