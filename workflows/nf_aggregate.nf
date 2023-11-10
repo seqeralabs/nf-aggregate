@@ -6,12 +6,10 @@ include { SEQERA_RUNS_DUMP            } from '../modules/local/seqera_runs_dump'
 include { PLOT_RUN_GANTT              } from '../modules/local/plot_run_gantt'
 include { MULTIQC                     } from '../modules/nf-core/multiqc'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/custom/dumpsoftwareversions'
+include { AWS_S3_LS_MULTIQC           } from '../subworkflows/local/aws_s3_ls_multiqc'
 include { paramsSummaryMultiqc        } from '../subworkflows/local/nf_aggregate_utils'
 include { getWorkflowName             } from '../subworkflows/local/nf_aggregate_utils'
 include { getWorkflowWorkDir          } from '../subworkflows/local/nf_aggregate_utils'
-include { getWorkflowOutDir           } from '../subworkflows/local/nf_aggregate_utils'
-include { AWS_S3_LS_MULTIQC as AWS_S3_LS_WORKDIR } from '../subworkflows/local/aws_s3_ls_multiqc'
-include { AWS_S3_LS_MULTIQC as AWS_S3_LS_OUTDIR  } from '../subworkflows/local/aws_s3_ls_multiqc'
 include { paramsSummaryMap            } from 'plugin/nf-validation'
 
 workflow NF_AGGREGATE {
@@ -59,40 +57,20 @@ workflow NF_AGGREGATE {
         }
         .set { ch_work_dirs }
 
-    SEQERA_RUNS_DUMP
-        .out
-        .workflow_json
-        .map { 
-            id, json ->
-                [ "${getWorkflowName(json)}_${id}", getWorkflowWorkDir(json) ]
-        }
-        .branch {
-            id, path ->
-                aws  : path.startsWith('s3://')
-                    return [ id, path ]
-                azure: path.startsWith('az://')
-                    return [ id, path ]
-                gcp  : path.startsWith('gs://')
-                    return [ id, path ]
-                local: path.startsWith('/')
-                    return [ id, path ]
-        }
-        .set { ch_out_dirs }
-
     //
     // SUBWORKFLOW: Get size of work directory on AWS
     //
     if (aws_account_id && aws_role_name) {
-        def multiqc_header = [ "# plot_type: 'generalstats'", "Sample Name\tWork Storage (GB)" ]
-        AWS_S3_LS_WORKDIR (
+        def work_multiqc_header = [ "# plot_type: 'generalstats'", "Sample Name\tWork storage (GB)" ]
+        AWS_S3_LS_MULTIQC (
             ch_work_dirs.aws,
             aws_account_id,
             aws_role_name,
-            multiqc_header,
+            work_multiqc_header,
             'work_bucket_listing'
         )
-        ch_versions = ch_versions.mix(AWS_S3_LS_WORKDIR.out.versions.first())
-        ch_multiqc_files = ch_multiqc_files.mix(AWS_S3_LS_WORKDIR.out.bucket_size_multiqc)
+        ch_versions = ch_versions.mix(AWS_S3_LS_MULTIQC.out.versions.first())
+        ch_multiqc_files = ch_multiqc_files.mix(AWS_S3_LS_MULTIQC.out.bucket_size_multiqc)
     }
 
     //

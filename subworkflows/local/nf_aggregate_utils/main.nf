@@ -110,7 +110,7 @@ def getWorkflowWorkDir(json_file) {
 //
 // Function that parses Seqera CLI 'workflow.json' output file to get output directory
 //
-def getWorkflowOutDir(json_file, outdir) {
+def getWorkflowPublishDir(json_file, outdir) {
     def path = new JsonSlurper().parseText(json_file.text).get('params')[outdir]
     File file = new File(outdir)
     if (!file.isAbsolute()) {

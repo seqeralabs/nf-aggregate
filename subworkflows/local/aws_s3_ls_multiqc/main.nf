@@ -52,7 +52,7 @@ workflow AWS_S3_LS_MULTIQC {
         }
         .collectFile(name:"${multiqc_file_prefix}_mqc.tsv")
         .set { ch_bucket_size_multiqc }
-    ch_bucket_size_multiqc.view()
+
     emit:
     bucket_files        = AWS_S3_LS.out.txt
     bucket_size_multiqc = ch_bucket_size_multiqc
