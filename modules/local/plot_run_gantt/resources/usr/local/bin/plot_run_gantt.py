@@ -29,8 +29,6 @@ def extract_instance(fusion_logs: Path) -> str:
     "--input-dir", type=click.Path(), help="The pipeline dump tar.gz input file."
 )
 @click.option("--output-file", type=click.Path(), help="The HTML output file")
-
-
 def build_gantt(title: str, input_dir: str, output_file: str):
     tasks = []
     instance_ids = {}
@@ -70,7 +68,8 @@ def build_gantt(title: str, input_dir: str, output_file: str):
             "name": d["name"],
             "size": f"{d['cpus']}c_{math.ceil(d['memory'] / 1024 ** 3):.0f}GB",
             "start": datetime.strptime(d["start"], "%Y-%m-%dT%H:%M:%SZ"),
-            "complete": datetime.strptime(d["complete"], "%Y-%m-%dT%H:%M:%SZ") + timedelta(seconds=1),
+            "complete": datetime.strptime(d["complete"], "%Y-%m-%dT%H:%M:%SZ")
+            + timedelta(seconds=1),
             "instance": f"{d.get('instanceId', 'HEAD')} ({d.get('machineType', 'unknown')})",
         }
         for d in data
