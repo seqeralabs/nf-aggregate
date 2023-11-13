@@ -78,7 +78,7 @@ def getTotalBucketSize(file) {
 def multiqcTsvFromList(tsv_data, header) {
     def tsv_string = ""
     if (tsv_data.size() > 0) {
-        tsv_string = header + tsv_data.join('\n')
+        tsv_string =  ([ header ] + tsv_data).join('\n')
     }
     return tsv_string
 }

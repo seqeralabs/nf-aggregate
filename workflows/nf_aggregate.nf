@@ -65,7 +65,7 @@ workflow NF_AGGREGATE {
         def work_multiqc_header = """
             # plot_type: 'generalstats'
             Sample Name\tWork storage (GB)
-            """.stripIndent()
+            """.stripIndent().trim()
         AWS_S3_LS_MULTIQC (
             ch_work_dirs.aws,
             aws_account_id,
