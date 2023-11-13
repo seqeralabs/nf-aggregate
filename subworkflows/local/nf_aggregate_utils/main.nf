@@ -3,6 +3,7 @@
 //
 
 import groovy.json.JsonSlurper
+import org.yaml.snakeyaml.Yaml
 import java.nio.file.Paths
 
 /*
@@ -120,6 +121,27 @@ def getWorkflowPublishDir(json_file, outdir) {
         }  
     }
     return path
+}
+
+//
+// Get software versions from pipeline
+//
+def getProcessVersions(yaml_file) {
+    Yaml parser = new Yaml()
+    versions = parser.load(yaml_file).collectEntries { k,v -> [ k.tokenize(':')[-1], v ] }
+    Yaml yaml = new Yaml()
+    return yaml.dumpAsMap(versions)
+}
+
+//
+// Get workflow versions from pipeline
+//
+def getWorkflowVersions() {
+    return """
+    'Workflow':
+      "Nextflow": "$workflow.nextflow.version",
+      "$workflow.manifest.name": "$workflow.manifest.version"
+    """.stripIndent().trim()
 }
 
 //
