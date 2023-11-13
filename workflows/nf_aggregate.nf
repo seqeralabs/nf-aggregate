@@ -94,7 +94,7 @@ workflow NF_AGGREGATE {
         .unique()
         .map { getProcessVersions(it) }
         .mix(Channel.of(getWorkflowVersions()))
-        .collectFile(name: 'collated_mqc_versions.yml')
+        .collectFile(name: 'collated_mqc_versions.yml', newLine: true)
         .set { ch_collated_versions }
 
     //

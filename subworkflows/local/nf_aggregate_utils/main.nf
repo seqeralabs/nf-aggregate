@@ -130,7 +130,7 @@ def getProcessVersions(yaml_file) {
     Yaml parser = new Yaml()
     versions = parser.load(yaml_file).collectEntries { k,v -> [ k.tokenize(':')[-1], v ] }
     Yaml yaml = new Yaml()
-    return yaml.dumpAsMap(versions)
+    return yaml.dumpAsMap(versions).trim()
 }
 
 //
@@ -139,7 +139,7 @@ def getProcessVersions(yaml_file) {
 def getWorkflowVersions() {
     return """
     'Workflow':
-      "Nextflow": "$workflow.nextflow.version",
+      "Nextflow": "$workflow.nextflow.version"
       "$workflow.manifest.name": "$workflow.manifest.version"
     """.stripIndent().trim()
 }
