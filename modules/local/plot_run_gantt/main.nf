@@ -1,6 +1,6 @@
 process PLOT_RUN_GANTT {
     tag "$run_id"
-    conda 'click=8.0.1 pandas=1.1.5 plotly_express=0.4.1 procps-ng=4.0.4 typing=3.10.0.0'
+    conda 'click=8.0.1 pandas=1.1.5 plotly_express=0.4.1 typing=3.10.0.0'
 
     input:
     tuple val(run_id), path(run_dump)
