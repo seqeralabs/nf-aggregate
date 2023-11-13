@@ -61,7 +61,10 @@ workflow NF_AGGREGATE {
     // SUBWORKFLOW: Get size of work directory on AWS
     //
     if (aws_account_id && aws_role_name) {
-        def work_multiqc_header = [ "# plot_type: 'generalstats'", "Sample Name\tWork storage (GB)" ]
+        def work_multiqc_header = """
+            # plot_type: 'generalstats'
+            Sample Name\tWork storage (GB)
+            """.stripIndent()
         AWS_S3_LS_MULTIQC (
             ch_work_dirs.aws,
             aws_account_id,
