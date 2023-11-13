@@ -44,7 +44,7 @@ workflow AWS_S3_LS_MULTIQC {
         .txt
         .map { 
             id, listing ->
-                "${id}\t${getTotalBucketSize(listing).toGiga()}"
+                "${id}\t${getTotalBucketSize(listing).toBytes() / 1073741824}"
         }
         .collect()
         .map {
@@ -78,8 +78,7 @@ def getTotalBucketSize(file) {
 def multiqcTsvFromList(tsv_data, header) {
     def tsv_string = ""
     if (tsv_data.size() > 0) {
-        tsv_list = header + tsv_data
-        tsv_string = tsv_list.join('\n')
+        tsv_string = header + tsv_data.join('\n')
     }
     return tsv_string
 }
