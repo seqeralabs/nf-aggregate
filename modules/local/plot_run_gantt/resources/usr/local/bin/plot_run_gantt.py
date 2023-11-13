@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import json
-from datetime import datetime
+import math
+from datetime import datetime, timedelta
 from typing import IO
 from pathlib import Path
 
@@ -67,10 +68,10 @@ def build_gantt(title: str, input_dir: str, output_file: str):
         {
             "id": f"T{d['taskId']}",
             "name": d["name"],
-            "size": f"{d['cpus']}c_{d['memory'] / 1024 ** 3:.0f}GB",
+            "size": f"{d['cpus']}c_{math.ceil(d['memory'] / 1024 ** 3):.0f}GB",
             "start": datetime.strptime(d["start"], "%Y-%m-%dT%H:%M:%SZ"),
-            "complete": datetime.strptime(d["complete"], "%Y-%m-%dT%H:%M:%SZ"),
-            "instance": f"{d['instanceId']} ({d['machineType']})",
+            "complete": datetime.strptime(d["complete"], "%Y-%m-%dT%H:%M:%SZ") + timedelta(seconds=1),
+            "instance": f"{d.get('instanceId', 'HEAD')} ({d.get('machineType', 'unknown')})",
         }
         for d in data
     )
@@ -83,7 +84,6 @@ def build_gantt(title: str, input_dir: str, output_file: str):
         y="id",
         color="instance",
         text="name",
-        pattern_shape="size",
     )
     fig.write_html(output_file)
 
