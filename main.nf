@@ -26,7 +26,6 @@ ch_multiqc_logo          = params.multiqc_logo   ? Channel.fromPath(params.multi
 */
 
 include { PIPELINE_INITIALISATION } from './subworkflows/local/nf_aggregate_utils'
-include { PIPELINE_COMPLETION     } from './subworkflows/local/nf_aggregate_utils'
 include { NF_AGGREGATE            } from './workflows/nf_aggregate'
 
 //
@@ -50,13 +49,6 @@ workflow {
         ch_multiqc_logo,
         params.aws_account_id,
         params.aws_role_name
-    )
-
-    //
-    // SUBWORKFLOW: Run completion tasks
-    //
-    PIPELINE_COMPLETION (
-        NF_AGGREGATE.out.versions
     )
 }
 

@@ -65,31 +65,6 @@ workflow PIPELINE_INITIALISATION {
 
 /*
 ========================================================================================
-    SUBWORKFLOW FOR PIPELINE COMPLETION
-========================================================================================
-*/
-
-workflow PIPELINE_COMPLETION {
-
-    take:
-    versions // channel: software tools versions
-
-    main:
-
-    //
-    // MODULE: Dump software versions for all tools used in the workflow
-    //
-    pipeline_version_info = Channel.of("""\"workflow\":
-        nextflow: ${workflow.nextflow.version}
-        ${workflow.manifest.name}: ${workflow.manifest.version}
-    """.stripIndent())
-
-    versions = versions.mix(pipeline_version_info)
-    versions.collectFile(name: 'nf_aggregate_mqc_versions.yml', storeDir: "${params.outdir}/pipeline_info")
-}
-
-/*
-========================================================================================
     FUNCTIONS
 ========================================================================================
 */
