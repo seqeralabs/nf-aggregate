@@ -2,15 +2,15 @@
 // WORKFLOW: Run main seqeralabs/nf-aggregate workflow
 //
 
-include { SEQERA_RUNS_DUMP            } from '../modules/local/seqera_runs_dump'
-include { PLOT_RUN_GANTT              } from '../modules/local/plot_run_gantt'
-include { MULTIQC                     } from '../modules/nf-core/multiqc'
-include { AWS_S3_LS_MULTIQC           } from '../subworkflows/local/aws_s3_ls_multiqc'
-include { paramsSummaryMultiqc        } from '../subworkflows/local/nf_aggregate_utils'
-include { getWorkflowName             } from '../subworkflows/local/nf_aggregate_utils'
-include { getWorkflowWorkDir          } from '../subworkflows/local/nf_aggregate_utils'
-include { getProcessVersions          } from '../subworkflows/local/nf_aggregate_utils'
-include { getWorkflowVersions         } from '../subworkflows/local/nf_aggregate_utils'
+include { SEQERA_RUNS_DUMP            } from '../../modules/local/seqera_runs_dump'
+include { PLOT_RUN_GANTT              } from '../../modules/local/plot_run_gantt'
+include { MULTIQC                     } from '../../modules/nf-core/multiqc'
+include { AWS_S3_LS_MULTIQC           } from '../../subworkflows/local/aws_s3_ls_multiqc'
+include { paramsSummaryMultiqc        } from '../../subworkflows/local/nf_aggregate_utils'
+include { getWorkflowName             } from '../../subworkflows/local/nf_aggregate_utils'
+include { getWorkflowWorkDir          } from '../../subworkflows/local/nf_aggregate_utils'
+include { getProcessVersions          } from '../../subworkflows/local/nf_aggregate_utils'
+include { getWorkflowVersions         } from '../../subworkflows/local/nf_aggregate_utils'
 include { paramsSummaryMap            } from 'plugin/nf-validation'
 
 workflow NF_AGGREGATE {
