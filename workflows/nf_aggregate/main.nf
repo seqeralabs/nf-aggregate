@@ -5,7 +5,6 @@
 include { SEQERA_RUNS_DUMP     } from '../../modules/local/seqera_runs_dump'
 include { PLOT_RUN_GANTT       } from '../../modules/local/plot_run_gantt'
 include { MULTIQC              } from '../../modules/nf-core/multiqc'
-include { AWS_S3_LS_MULTIQC    } from '../../subworkflows/local/aws_s3_ls_multiqc'
 include { paramsSummaryMultiqc } from '../../subworkflows/local/nf_aggregate_utils'
 include { getWorkflowName      } from '../../subworkflows/local/nf_aggregate_utils'
 include { getWorkflowWorkDir   } from '../../subworkflows/local/nf_aggregate_utils'
@@ -21,8 +20,6 @@ workflow NF_AGGREGATE {
     multiqc_config        // channel: default config file used by MultiQC
     multiqc_custom_config // channel: user specified custom config file used by MultiQC
     multiqc_logo          // channel: logo rendered in MultiQC report
-    aws_account_id        //  string: AWS account number
-    aws_role_name         //  string: AWS role name
 
     main:
 
@@ -57,25 +54,6 @@ workflow NF_AGGREGATE {
                     return [ id, path ]
         }
         .set { ch_work_dirs }
-
-    //
-    // SUBWORKFLOW: Get size of work directory on AWS
-    //
-    if (aws_account_id && aws_role_name) {
-        def work_multiqc_header = """
-            # plot_type: 'generalstats'
-            Sample Name\tWork storage (GB)
-            """.stripIndent().trim()
-        AWS_S3_LS_MULTIQC (
-            ch_work_dirs.aws,
-            aws_account_id,
-            aws_role_name,
-            work_multiqc_header,
-            'work_bucket_listing'
-        )
-        ch_versions = ch_versions.mix(AWS_S3_LS_MULTIQC.out.versions.first())
-        ch_multiqc_files = ch_multiqc_files.mix(AWS_S3_LS_MULTIQC.out.bucket_size_multiqc)
-    }
 
     //
     // MODULE: Generate Gantt chart for workflow execution

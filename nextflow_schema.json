@@ -40,16 +40,6 @@
                     "description": "Parameter used in pipeline runs for output directory. Required to get directory size from run information.",
                     "fa_icon": "fas fa-folder-open"
                 },
-                "aws_account_id": {
-                    "type": "number",
-                    "description": "AWS account ids to list buckets.",
-                    "fa_icon": "fas fa-cloud-download-alt"
-                },
-                "aws_role_name": {
-                    "type": "string",
-                    "description": "AWS role name.",
-                    "fa_icon": "fas fa-cloud-download-alt"
-                },
                 "skip_run_gantt": {
                     "type": "boolean",
                     "description": "Skip GANTT chart creation for each run.",

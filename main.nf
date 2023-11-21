@@ -46,9 +46,7 @@ workflow {
         params.workspace,
         ch_multiqc_config,
         ch_multiqc_custom_config,
-        ch_multiqc_logo,
-        params.aws_account_id,
-        params.aws_role_name
+        ch_multiqc_logo
     )
 }
 
