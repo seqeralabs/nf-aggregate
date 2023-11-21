@@ -1,9 +1,7 @@
+name: multiqc
 channels:
   - conda-forge
   - bioconda
   - defaults
 dependencies:
-  - conda-forge::git=2.42.0
-  - pip
-  - pip:
-      - git+https://github.com/ewels/MultiQC.git
+  - bioconda::multiqc=1.18
