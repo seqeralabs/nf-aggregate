@@ -5,19 +5,17 @@
 include { SEQERA_RUNS_DUMP     } from '../../modules/local/seqera_runs_dump'
 include { PLOT_RUN_GANTT       } from '../../modules/local/plot_run_gantt'
 include { MULTIQC              } from '../../modules/nf-core/multiqc'
-include { paramsSummaryMultiqc } from '../../subworkflows/local/nf_aggregate_utils'
-include { getWorkflowName      } from '../../subworkflows/local/nf_aggregate_utils'
-include { getWorkflowWorkDir   } from '../../subworkflows/local/nf_aggregate_utils'
-include { getProcessVersions   } from '../../subworkflows/local/nf_aggregate_utils'
-include { getWorkflowVersions  } from '../../subworkflows/local/nf_aggregate_utils'
+include { paramsSummaryMultiqc } from '../../subworkflows/local/utils_nf_aggregate'
+include { getWorkflowName      } from '../../subworkflows/local/utils_nf_aggregate'
+include { getWorkflowWorkDir   } from '../../subworkflows/local/utils_nf_aggregate'
+include { getProcessVersions   } from '../../subworkflows/local/utils_nf_aggregate'
+include { getWorkflowVersions  } from '../../subworkflows/local/utils_nf_aggregate'
 include { paramsSummaryMap     } from 'plugin/nf-validation'
 
 workflow NF_AGGREGATE {
 
     take:
     ids                   // channel: run ids read in from --input
-    workspace             //  string: workspace name e.g. community/showcase
-    multiqc_config        // channel: default config file used by MultiQC
     multiqc_custom_config // channel: user specified custom config file used by MultiQC
     multiqc_logo          // channel: logo rendered in MultiQC report
 
@@ -30,30 +28,9 @@ workflow NF_AGGREGATE {
     // MODULE: Fetch run information via the Seqera CLI
     //
     SEQERA_RUNS_DUMP (
-        ids,
-        workspace
+        ids
     )
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions.first())
-
-    SEQERA_RUNS_DUMP
-        .out
-        .workflow_json
-        .map { 
-            id, json ->
-                [ "${getWorkflowName(json)}_${id}", getWorkflowWorkDir(json) ]
-        }
-        .branch {
-            id, path ->
-                aws  : path.startsWith('s3://')
-                    return [ id, path ]
-                azure: path.startsWith('az://')
-                    return [ id, path ]
-                gcp  : path.startsWith('gs://')
-                    return [ id, path ]
-                local: path.startsWith('/')
-                    return [ id, path ]
-        }
-        .set { ch_work_dirs }
 
     //
     // MODULE: Generate Gantt chart for workflow execution
@@ -80,6 +57,7 @@ workflow NF_AGGREGATE {
     //
     ch_multiqc_report = Channel.empty()
     if (!params.skip_multiqc) {
+        ch_multiqc_config = Channel.fromPath("$projectDir/workflows/nf_aggregate/assets/multiqc_config.yml", checkIfExists: true)
         summary_params = paramsSummaryMap(workflow, parameters_schema: "nextflow_schema.json")
         ch_workflow_summary = Channel.value(paramsSummaryMultiqc(summary_params))
         ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
@@ -87,7 +65,7 @@ workflow NF_AGGREGATE {
         ch_multiqc_files = ch_multiqc_files.mix(SEQERA_RUNS_DUMP.out.run_dump.collect{it[1]})
         MULTIQC (
             ch_multiqc_files.collect(),
-            multiqc_config.toList(),
+            ch_multiqc_config.toList(),
             multiqc_custom_config.toList(),
             multiqc_logo.toList()
         )

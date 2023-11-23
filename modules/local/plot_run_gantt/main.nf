@@ -1,19 +1,19 @@
 process PLOT_RUN_GANTT {
-    tag "$run_id"
+    tag "$meta.id"
     conda 'click=8.0.1 pandas=1.1.5 plotly_express=0.4.1 typing=3.10.0.0'
 
     input:
-    tuple val(run_id), path(run_dump)
+    tuple val(meta), path(run_dump)
 
     output:
-    tuple val(run_id), path("*.html"), emit: html
+    tuple val(meta), path("*.html"), emit: html
     path "versions.yml"              , emit: versions
 
     script:
-    def prefix = task.ext.prefix ?: "${run_id}"
+    def prefix = task.ext.prefix ?: "${meta.id}"
     """
     plot_run_gantt.py \\
-        --title "GANTT plot for run: $run_id" \\
+        --title "GANTT plot for run: ${meta.id}" \\
         --input-dir $run_dump \\
         --output-file ./${prefix}_gantt.html
 
