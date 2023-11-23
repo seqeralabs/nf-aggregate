@@ -9,9 +9,15 @@
         "properties": {
             "id": {
                 "type": "string",
-                "pattern": "^(((SR|ER|DR)[APRSX])|(SAM(N|EA|D))|(PRJ(NA|EB|DB))|(GS[EM])|(syn))(\\d+)$",
+                "pattern": "^[A-Za-z0-9]{13,14}$",
                 "errorMessage": "Please provide a valid Seqera Platform run identifier"
-            }
-        }
+            },
+            "workspace": {
+                "type": "string",
+                "pattern": "^[a-z]+/[a-z]+$",
+                "errorMessage": "Please provide a valid Seqera Platform Workspace name"
+            },
+        },
+        "required": ["id", "workspace"]
     }
 }

@@ -10,10 +10,11 @@ The pipeline performs the following steps:
 The primary input to the pipeline is a file containing a list of run identifiers from the Seqera Platform. These can be obtained from details in the runs page for any pipeline execution. For example, we can create a file called `run_ids.csv` with the following contents:
 
 ```
-4Bi5xBK6E2Nbhj
-4LWT4uaXDaGcDY
-38QXz4OfQDpwOV
-2lXd1j7OwZVfxh
+id,workspace
+4Bi5xBK6E2Nbhj,community/showcase
+4LWT4uaXDaGcDY,community/showcase
+38QXz4OfQDpwOV,community/showcase
+2lXd1j7OwZVfxh,community/showcase
 ```
 
 This pipeline can then be executed with the following command:
@@ -21,7 +22,6 @@ This pipeline can then be executed with the following command:
 ```
 nextflow run seqeralabs/nf-aggregate \
     --input run_ids.csv \
-    --workspace 'community/showcase' \
     --outdir ./results \
     -profile docker \
 ```
