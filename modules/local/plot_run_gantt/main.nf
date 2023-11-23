@@ -7,7 +7,7 @@ process PLOT_RUN_GANTT {
 
     output:
     tuple val(meta), path("*.html"), emit: html
-    path "versions.yml"              , emit: versions
+    path "versions.yml"            , emit: versions
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
