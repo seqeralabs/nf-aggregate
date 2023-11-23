@@ -12,8 +12,9 @@ import java.nio.file.Paths
 ========================================================================================
 */
 
-include { NEXTFLOW_PIPELINE_UTILS; getWorkflowVersion } from '../../nf-core/nextflowpipelineutils/main'
-include { NF_VALIDATION_PLUGIN_UTILS                  } from '../../nf-core/nfvalidation_plugin_utils/main.nf'
+include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline/main'
+include { getWorkflowVersion        } from '../../nf-core/utils_nextflow_pipeline/main'
+include { UTILS_NFVALIDATION_PLUGIN } from '../../nf-core/utils_nfvalidation_plugin/main.nf'
 
 /*
 ========================================================================================
@@ -28,7 +29,7 @@ workflow PIPELINE_INITIALISATION {
     //
     // Print version and exit if required and dump pipeline parameters to JSON file
     //
-    NEXTFLOW_PIPELINE_UTILS (
+    UTILS_NEXTFLOW_PIPELINE (
         params.version,
         true,
         params.outdir,
@@ -41,7 +42,7 @@ workflow PIPELINE_INITIALISATION {
     def pre_help_text = ''
     def post_help_text = ''
     def String workflow_command = "nextflow run ${workflow.manifest.name} -profile <docker/singularity/.../institute> --input ids.txt --outdir <OUTDIR>"
-    NF_VALIDATION_PLUGIN_UTILS (
+    UTILS_NFVALIDATION_PLUGIN (
         params.help,
         workflow_command,
         pre_help_text,
@@ -53,14 +54,13 @@ workflow PIPELINE_INITIALISATION {
     // Read in ids from --input file
     Channel
         .from(file(params.input))
-        .splitCsv(header:false, sep:'', strip:true)
-        .map { it[0] }
+        .splitCsv(header:true, sep:',', strip:true)
         .unique()
         .set { ch_ids }
 
     emit:
     ids            = ch_ids
-    summary_params = NF_VALIDATION_PLUGIN_UTILS.out.summary_params
+    summary_params = UTILS_NFVALIDATION_PLUGIN.out.summary_params
 }
 
 /*
