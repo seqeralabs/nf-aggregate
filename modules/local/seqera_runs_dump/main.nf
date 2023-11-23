@@ -6,14 +6,14 @@ process SEQERA_RUNS_DUMP {
     val meta
 
     output:
-    tuple val(meta), path("*_run_dump")   , emit: run_dump
+    tuple val(meta), path("${prefix}")    , emit: run_dump
     tuple val(meta), path("workflow.json"), emit: workflow_json
     path "versions.yml"                   , emit: versions
 
     script:
     def args = task.ext.args ?: ''
     def args2 = task.ext.args2 ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
+    prefix = task.ext.prefix ?: "${meta.id}"
     """
     tw \\
         --access-token=\$TOWER_ACCESS_TOKEN \\
@@ -22,16 +22,16 @@ process SEQERA_RUNS_DUMP {
         dump \\
         -id=${meta.id} \\
         --workspace=${meta.workspace} \\
-        --output="${prefix}_run_dump.tar.gz" \\
+        --output="${prefix}.tar.gz" \\
         $args2
 
-    mkdir ${prefix}_run_dump
+    mkdir ${prefix}
     tar \\
         -xvf \\
-        ${prefix}_run_dump.tar.gz \\
-        -C ${prefix}_run_dump
+        ${prefix}.tar.gz \\
+        -C ${prefix}
 
-    cp ${prefix}_run_dump/workflow.json .
+    cp ${prefix}/workflow.json .
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
