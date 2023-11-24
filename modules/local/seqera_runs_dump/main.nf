@@ -6,7 +6,7 @@ Long getWorkspaceId(orgName, workspaceName, client, authHeader) {
     if (orgResponse.statusCode == 200) {
         def orgMap = orgResponse.json?.organizations.collectEntries { org -> [org.name, org.orgId]}
         def orgId = orgMap.get(orgName)
-        if(!orgId) log.warn "Could not find organization '${orgName}'" 
+        if(!orgId) log.warn "Could not find organization '${orgName}'"
 
         // GET the workspaces in this org
         def workspaceReponse = client.get(path: "/orgs/${orgId}/workspaces", headers: authHeader)

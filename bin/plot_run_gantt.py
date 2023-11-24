@@ -72,7 +72,8 @@ def build_gantt(title: str, input_dir: str, output_file: str):
             + timedelta(seconds=1),
             "instance": f"{d.get('instanceId', 'HEAD')} ({d.get('machineType', 'unknown')})",
         }
-        for d in data if d.get("complete")
+        for d in data
+        if d.get("complete")
     )
 
     fig = px.timeline(
