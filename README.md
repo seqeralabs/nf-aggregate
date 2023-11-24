@@ -9,6 +9,10 @@ The pipeline performs the following steps:
 1. Downloads run information via the Seqera CLI in parallel
 2. Runs MultiQC to aggregate all of the run metrics into a single report
 
+![MultiQC screenshot](assets/multiqc_screenshot.png)
+
+You can see an example MultiQC report [here](assets/multiqc_report.html)
+
 ## Usage
 
 The primary input to the pipeline is a file containing a list of run identifiers from the Seqera Platform. These can be obtained from details in the runs page for any pipeline execution. For example, we can create a file called `run_ids.csv` with the following contents:
