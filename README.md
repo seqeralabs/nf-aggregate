@@ -1,6 +1,8 @@
 # nf-aggregate
 
-![MultiQC screenshot](assets/multiqc_screenshot.png)
+<p align="center">
+  <img src="assets/multiqc_screenshot.png" alt="MultiQC screenshot" width="75%"/>
+</p>
 
 ## Introduction
 
@@ -11,7 +13,7 @@ The pipeline performs the following steps:
 1. Downloads run information via the Seqera CLI in parallel
 2. Runs MultiQC to aggregate all of the run metrics into a single report
 
-You can see an example MultiQC report [here](assets/multiqc_report.html)
+You can download an example MultiQC report [here](assets/multiqc_report.html).
 
 ## Usage
 
