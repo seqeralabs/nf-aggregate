@@ -16,8 +16,9 @@ process SEQERA_RUNS_DUMP {
     prefix = task.ext.prefix ?: "${meta.id}"
     """
     tw \\
-        --access-token=\$TOWER_ACCESS_TOKEN \\
         $args \\
+        --access-token=\$TOWER_ACCESS_TOKEN \\
+        --url={$params.api_url}
         runs \\
         dump \\
         -id=${meta.id} \\

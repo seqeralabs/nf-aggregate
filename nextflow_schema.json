@@ -37,6 +37,11 @@
                     "type": "boolean",
                     "description": "Skip MultiQC.",
                     "fa_icon": "fas fa-fast-forward"
+                },
+                "api_url": {
+                    "type": "string",
+                    "default": "https://api.seqera.io",
+                    "description": "URL to communicate with Seqera Platform API"
                 }
             }
         },
