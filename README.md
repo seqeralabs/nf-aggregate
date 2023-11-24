@@ -1,5 +1,7 @@
 # nf-aggregate
 
+![MultiQC screenshot](assets/multiqc_screenshot.png)
+
 ## Introduction
 
 Nextflow pipeline to aggregate pertinent metrics across pipeline runs on the Seqera Platform.
@@ -8,8 +10,6 @@ The pipeline performs the following steps:
 
 1. Downloads run information via the Seqera CLI in parallel
 2. Runs MultiQC to aggregate all of the run metrics into a single report
-
-![MultiQC screenshot](assets/multiqc_screenshot.png)
 
 You can see an example MultiQC report [here](assets/multiqc_report.html)
 
