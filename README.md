@@ -1,12 +1,10 @@
 # nf-aggregate
 
+Nextflow pipeline to aggregate pertinent metrics across pipeline runs on the Seqera Platform.
+
 <p align="center">
   <img src="assets/multiqc_screenshot.png" alt="MultiQC screenshot" width="75%"/>
 </p>
-
-## Introduction
-
-Nextflow pipeline to aggregate pertinent metrics across pipeline runs on the Seqera Platform.
 
 The pipeline performs the following steps:
 
