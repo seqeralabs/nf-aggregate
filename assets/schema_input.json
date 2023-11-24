@@ -9,7 +9,7 @@
         "properties": {
             "id": {
                 "type": "string",
-                "pattern": "^[A-Za-z0-9]{13,14}$",
+                "pattern": "^[A-Za-z0-9]{9,14}$",
                 "errorMessage": "Please provide a valid Seqera Platform run identifier"
             },
             "workspace": {
