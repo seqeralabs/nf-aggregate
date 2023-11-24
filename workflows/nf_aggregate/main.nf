@@ -7,7 +7,6 @@ include { PLOT_RUN_GANTT       } from '../../modules/local/plot_run_gantt'
 include { MULTIQC              } from '../../modules/nf-core/multiqc'
 include { paramsSummaryMultiqc } from '../../subworkflows/local/utils_nf_aggregate'
 include { getWorkflowName      } from '../../subworkflows/local/utils_nf_aggregate'
-include { getWorkflowWorkDir   } from '../../subworkflows/local/utils_nf_aggregate'
 include { getProcessVersions   } from '../../subworkflows/local/utils_nf_aggregate'
 include { getWorkflowVersions  } from '../../subworkflows/local/utils_nf_aggregate'
 include { paramsSummaryMap     } from 'plugin/nf-validation'
@@ -32,12 +31,22 @@ workflow NF_AGGREGATE {
     )
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions.first())
 
+    SEQERA_RUNS_DUMP
+        .out
+        .run_dump
+        .join(SEQERA_RUNS_DUMP.out.workflow_json)
+        .map { 
+            meta, run_dump, json ->
+                [ meta + [ pipeline : getWorkflowName(json) ], run_dump ]
+        }
+        .set { ch_runs_dump }
+
     //
     // MODULE: Generate Gantt chart for workflow execution
     //
     if (!params.skip_run_gantt) {
         PLOT_RUN_GANTT (
-            SEQERA_RUNS_DUMP.out.run_dump
+            ch_runs_dump
         )
         ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions.first())
     }
@@ -62,7 +71,7 @@ workflow NF_AGGREGATE {
         ch_workflow_summary = Channel.value(paramsSummaryMultiqc(summary_params))
         ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
         ch_multiqc_files = ch_multiqc_files.mix(ch_collated_versions)
-        ch_multiqc_files = ch_multiqc_files.mix(SEQERA_RUNS_DUMP.out.run_dump.collect{it[1]})
+        ch_multiqc_files = ch_multiqc_files.mix(ch_runs_dump.collect{it[1]})
         MULTIQC (
             ch_multiqc_files.collect(),
             ch_multiqc_config.toList(),
