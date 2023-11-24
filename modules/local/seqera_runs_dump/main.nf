@@ -31,7 +31,8 @@ Map getRunMetadata(meta, log) {
         if (workspaceId) {
             def workflowResponse = client.get(path: "/workflow/${runId}", query: ["workspaceId":workspaceId], headers: authHeader)
             if (workflowResponse.statusCode == 200) {
-                return workflowResponse?.json?.workflow?.subMap("runName", "workDir")
+                metaMap = workflowResponse?.json?.workflow?.subMap("runName", "workDir")
+                return metaMap ?: [:]
             }
         }
     } catch(Exception ex) {
