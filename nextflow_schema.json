@@ -27,6 +27,26 @@
                     "format": "directory-path",
                     "description": "The output directory where the results will be saved. You have to use absolute paths to storage on Cloud infrastructure.",
                     "fa_icon": "fas fa-folder-open"
+                }
+            }
+        },
+        "pipeline_options": {
+            "title": "Pipeline-specific options",
+            "type": "object",
+            "fa_icon": "fas fa-terminal",
+            "description": "Generic options for the pipeline.",
+            "help_text": "Generic options for the pipeline.",
+            "properties": {
+                "seqera_cli_api_endpoint": {
+                    "type": "string",
+                    "default": "https://api.tower.nf",
+                    "description": "Seqera Platform API endpoint URL.",
+                    "fa_icon": "fas fa-question-circle"
+                },
+                "seqera_cli_extra_args": {
+                    "type": "string",
+                    "description": "Extra arguments to pass to the Seqera Platform CLI command in addition to defaults defined by the pipeline.",
+                    "fa_icon": "fas fa-plus"
                 },
                 "skip_run_gantt": {
                     "type": "boolean",
@@ -38,20 +58,8 @@
                     "description": "Skip MultiQC.",
                     "fa_icon": "fas fa-fast-forward"
                 }
-            }
-        },
-        "endpoint_options": {
-            "title": "Seqera Platform options",
-            "type": "object",
-            "fa_icon": "fas fa-terminal",
-            "description": "Define interactions with the Seqera Platform.",
-            "required": ["api_endpoint_url"],
-            "properties": {
-                "api_endpoint_url": {
-                    "type": "string",
-                    "default": "https://api.tower.nf"
-                }
-            }
+            },
+            "required": ["seqera_cli_api_endpoint"]
         },
         "generic_options": {
             "title": "Generic options",
@@ -147,6 +155,9 @@
     "allOf": [
         {
             "$ref": "#/definitions/input_output_options"
+        },
+        {
+            "$ref": "#/definitions/pipeline_options"
         },
         {
             "$ref": "#/definitions/generic_options"
