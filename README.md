@@ -13,6 +13,11 @@ The pipeline performs the following steps:
 
 You can download an example MultiQC report [here](assets/multiqc_report.html).
 
+## Prerequisites
+
+ - Nextflow >=23.10.0
+ - Account in Seqera Platform, with a Seqera Platform access token stored in the `TOWER_ACCESS_TOKEN` environment variable
+
 ## Usage
 
 The primary input to the pipeline is a file containing a list of run identifiers from the Seqera Platform. These can be obtained from details in the runs page for any pipeline execution. For example, we can create a file called `run_ids.csv` with the following contents:
@@ -32,6 +37,7 @@ nextflow run seqeralabs/nf-aggregate \
     --input run_ids.csv \
     --outdir ./results \
     -profile docker \
+    -r main
 ```
 
 ## Output
