@@ -16,7 +16,7 @@
                 "type": "string",
                 "pattern": "^[a-z]+/[a-z]+$",
                 "errorMessage": "Please provide a valid Seqera Platform Workspace name"
-            },
+            }
         },
         "required": ["id", "workspace"]
     }

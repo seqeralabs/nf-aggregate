@@ -21,10 +21,12 @@ jobs:
     # Only run on push if this is the nf-aggregate dev branch (merged PRs)
     if: "${{ github.event_name != 'push' || (github.event_name == 'push' && github.repository == 'seqeralabs/nf-aggregate') }}"
     runs-on: ubuntu-latest
+    env:
+      TOWER_ACCESS_TOKEN: ${{ secrets.TOWER_ACCESS_TOKEN }}
     strategy:
       matrix:
         NXF_VER:
-          - "23.04.0"
+          - "23.10.0"
           - "latest-everything"
     steps:
       - name: Check out pipeline code
