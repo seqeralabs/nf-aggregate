@@ -1,0 +1,73 @@
+{
+    "Should run without failures": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "4Bi5xBK6E2Nbhj",
+                            "workspace": "community/showcase",
+                            "runName": "crazy_wiles",
+                            "workDir": "s3://nf-tower-bucket/scratch/4Bi5xBK6E2Nbhj"
+                        },
+                        [
+                            "service-info.json:md5,0a2624c21efb65b85e37fa3d07903dcc",
+                            "workflow-launch.json:md5,90e0b1148f99b51ec93e0a983ee7feb8",
+                            "workflow-load.json:md5,4f02d5a24ab89aa648cd4346785c8f2c",
+                            "workflow-metrics.json:md5,70dd1af37145c8c2d23836fe850622e7",
+                            "workflow-tasks.json:md5,577a7472816b7729012a9291d97ff150",
+                            "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9"
+                        ]
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "4Bi5xBK6E2Nbhj",
+                            "workspace": "community/showcase",
+                            "runName": "crazy_wiles",
+                            "workDir": "s3://nf-tower-bucket/scratch/4Bi5xBK6E2Nbhj"
+                        },
+                        "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9"
+                    ]
+                ],
+                "2": [
+                    "versions.yml:md5,4f21b1015f19b809a16d4e71c0fe92ff"
+                ],
+                "run_dump": [
+                    [
+                        {
+                            "id": "4Bi5xBK6E2Nbhj",
+                            "workspace": "community/showcase",
+                            "runName": "crazy_wiles",
+                            "workDir": "s3://nf-tower-bucket/scratch/4Bi5xBK6E2Nbhj"
+                        },
+                        [
+                            "service-info.json:md5,0a2624c21efb65b85e37fa3d07903dcc",
+                            "workflow-launch.json:md5,90e0b1148f99b51ec93e0a983ee7feb8",
+                            "workflow-load.json:md5,4f02d5a24ab89aa648cd4346785c8f2c",
+                            "workflow-metrics.json:md5,70dd1af37145c8c2d23836fe850622e7",
+                            "workflow-tasks.json:md5,577a7472816b7729012a9291d97ff150",
+                            "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9"
+                        ]
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,4f21b1015f19b809a16d4e71c0fe92ff"
+                ],
+                "workflow_json": [
+                    [
+                        {
+                            "id": "4Bi5xBK6E2Nbhj",
+                            "workspace": "community/showcase",
+                            "runName": "crazy_wiles",
+                            "workDir": "s3://nf-tower-bucket/scratch/4Bi5xBK6E2Nbhj"
+                        },
+                        "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2023-11-27T15:52:39.000241464"
+    }
+}

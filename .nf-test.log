@@ -1,0 +1,16 @@
+Nov-27 15:55:28.988 [main] INFO  com.askimed.nf.test.App - nf-test 0.8.1
+Nov-27 15:55:29.033 [main] INFO  com.askimed.nf.test.App - Arguments: [test, modules/local/seqera_runs_dump/tests/main.nf.test, --profile, conda]
+Nov-27 15:55:29.034 [main] INFO  com.askimed.nf.test.commands.RunTestsCommand - Load config from file /workspaces/nf-aggregate/nf-test.config...
+Nov-27 15:55:29.560 [main] INFO  com.askimed.nf.test.commands.RunTestsCommand - Detected 1 test files.
+Nov-27 15:55:29.770 [main] INFO  com.askimed.nf.test.config.FileStaging - Create symlink '/workspaces/nf-aggregate/.nf-test/tests/653289976f2305512df95e3543bffe79/meta/bin' --> '/workspaces/nf-aggregate/bin'
+Nov-27 15:55:29.771 [main] WARN  com.askimed.nf.test.config.FileStaging - File '/workspaces/nf-aggregate/lib' not found. Ignore it.
+Nov-27 15:55:29.771 [main] INFO  com.askimed.nf.test.config.FileStaging - Create symlink '/workspaces/nf-aggregate/.nf-test/tests/653289976f2305512df95e3543bffe79/meta/assets' --> '/workspaces/nf-aggregate/assets'
+Nov-27 15:55:29.771 [main] DEBUG com.askimed.nf.test.core.AbstractTest - Stage 0 user provided files...
+Nov-27 15:55:29.781 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Started test plan
+Nov-27 15:55:29.783 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Running testsuite 'Test Process SEQERA_RUNS_DUMP' from file '/workspaces/nf-aggregate/modules/local/seqera_runs_dump/tests/main.nf.test'.
+Nov-27 15:55:29.783 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test '65328997: Should run without failures'. type: com.askimed.nf.test.lang.process.ProcessTest
+Nov-27 15:57:21.563 [main] DEBUG com.askimed.nf.test.lang.extensions.SnapshotFile - Load snapshots from file '/workspaces/nf-aggregate/modules/local/seqera_runs_dump/tests/main.nf.test.snap'
+Nov-27 15:57:21.611 [main] DEBUG com.askimed.nf.test.lang.extensions.Snapshot - Snapshots 'Should run without failures' match.
+Nov-27 15:57:21.612 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test '65328997: Should run without failures' finished. status: PASSED
+Nov-27 15:57:21.613 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Testsuite 'Test Process SEQERA_RUNS_DUMP' finished. snapshot file: true, skipped tests: false, failed tests: false
+Nov-27 15:57:21.613 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Executed 1 tests. 0 tests failed. Done!
