@@ -1,8 +1,12 @@
 nextflow_process {
 
     name "Test Process SEQERA_RUNS_DUMP"
-    script "modules/local/seqera_runs_dump/main.nf"
+    script "../main.nf"
     process "SEQERA_RUNS_DUMP"
+
+    tag "modules"
+    tag "modules_local"
+    tag "seqera_runs_dump"
 
     test("Should run without failures") {
 
