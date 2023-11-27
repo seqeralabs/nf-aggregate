@@ -49,23 +49,23 @@ nextflow run seqeralabs/nf-aggregate \
 The results from the pipeline will be published in the path specified by the `--outdir` and will consist of the following contents:
 
 ```
-.
-├── gantt/
-│   ├── nf-core_rnaseq/
-│   │   └── 4LWT4uaXDaGcDY_gantt.html           ## Gantt plot for run
+./results
 ├── multiqc/
 │   ├── multiqc_data/
 │   ├── multiqc_plots/
-│   └── multiqc_report.html                     ## MultiQC report
-├── pipeline_info/
-└── runs_dump/
-    ├── 4Bi5xBK6E2Nbhj/                         ## Output of 'tw runs dump'
-        ├── service-info.json
-        ├── workflow-launch.json
-        ├── workflow-load.json
-        ├── workflow-metrics.json
-        ├── workflow-tasks.json
-        └── workflow.json
+│   └── multiqc_report.html                 ## MultiQC report
+├── nf-core_rnaseq/
+│   ├── gantt/
+│   │   └── 4Bi5xBK6E2Nbhj_gantt.html       ## Gantt plot for run
+│   └── runs_dump/
+│       └── 4Bi5xBK6E2Nbhj/                 ## Output of 'tw runs dump'
+│           ├── service-info.json
+│           ├── workflow-launch.json
+│           ├── workflow-load.json
+│           ├── workflow-metrics.json
+│           ├── workflow-tasks.json
+│           └── workflow.json
+└── pipeline_info/
 ```
 
 ## Contributions
