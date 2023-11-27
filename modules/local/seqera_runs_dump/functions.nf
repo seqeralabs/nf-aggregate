@@ -31,10 +31,8 @@ Map getRunMetadata(meta, log) {
         if (workspaceId) {
             def workflowResponse = client.get(path: "/workflow/${runId}", query: ["workspaceId":workspaceId], headers: authHeader)
             if (workflowResponse.statusCode == 200) {
-                workflowMap = workflowResponse?.json?.workflow?.subMap("runName", "workDir")
-                manifestMap = workflowResponse?.json?.workflow?.manifest?.subMap("name")
-                manifestMap.put("pipelineName", manifestMap.remove("name"))
-                return workflowMap + manifestMap ?: [:]
+                metaMap = workflowResponse?.json?.workflow?.subMap("runName", "workDir", "projectName")
+                return metaMap ?: [:]
             }
         }
     } catch(Exception ex) {
