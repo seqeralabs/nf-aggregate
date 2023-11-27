@@ -40,7 +40,7 @@ jobs:
       - name: Run pipeline with test data
         run: |
           nextflow run ${GITHUB_WORKSPACE} -profile test,docker --outdir ./results
-  
+
   changes:
     name: Check for changes
     runs-on: ubuntu-latest
@@ -66,7 +66,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        NXF_VER: [ "23.10.0" ]
+        NXF_VER: ["23.10.0"]
         tags: ["${{ fromJson(needs.changes.outputs.tags) }}"]
         profile:
           - "docker"
