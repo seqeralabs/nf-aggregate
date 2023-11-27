@@ -15,8 +15,8 @@ You can download an example MultiQC report [here](assets/multiqc_report.html).
 
 ## Prerequisites
 
- - Nextflow >=23.10.0
- - Account in Seqera Platform, with a Seqera Platform access token stored in the `TOWER_ACCESS_TOKEN` environment variable
+- Nextflow >=23.10.0
+- Account in Seqera Platform, with a Seqera Platform access token stored in the `TOWER_ACCESS_TOKEN` environment variable
 
 ## Usage
 
