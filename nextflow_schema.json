@@ -45,9 +45,9 @@
             "type": "object",
             "fa_icon": "fas fa-terminal",
             "description": "Define interactions with the Seqera Platform.",
-            "required": ["api_url"],
+            "required": ["api_endpoint_url"],
             "properties": {
-                "api_url": {
+                "api_endpoint_url": {
                     "type": "string",
                     "default": "https://api.tower.nf"
                 }

@@ -62,7 +62,7 @@ process SEQERA_RUNS_DUMP {
     """
     tw \\
         $args \\
-        --url=${params.api_url} \\
+        --url=${params.api_endpoint_url} \\
         --access-token=\$TOWER_ACCESS_TOKEN \\
         runs \\
         dump \\
