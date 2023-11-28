@@ -1,46 +1,4 @@
-@Grab('com.github.groovy-wslite:groovy-wslite:1.1.2')
-import wslite.rest.RESTClient
-
-Long getWorkspaceId(orgName, workspaceName, client, authHeader) {
-    def orgResponse = client.get(path: '/orgs', headers: authHeader)
-    if (orgResponse.statusCode == 200) {
-        def orgMap = orgResponse.json?.organizations.collectEntries { org -> [org.name, org.orgId]}
-        def orgId = orgMap.get(orgName)
-        if(!orgId) log.warn "Could not find organization '${orgName}'"
-
-        // GET the workspaces in this org
-        def workspaceReponse = client.get(path: "/orgs/${orgId}/workspaces", headers: authHeader)
-        if (workspaceReponse.statusCode == 200) {
-            def workspaceMap = workspaceReponse.json?.workspaces.collectEntries { ws -> [ws.name, ws.id]}
-            return workspaceMap?.get(workspaceName)
-        }
-    }
-    return null
-}
-
-Map getRunMetadata(meta, log) {
-    def runId = meta.id
-    (orgName, workspaceName) = meta.workspace.split("/")
-
-    def client = new RESTClient("https://api.tower.nf")
-    token = System.getenv("TOWER_ACCESS_TOKEN")
-    authHeader = ["Authorization": "Bearer ${token}"]
-
-    try {
-        def workspaceId = getWorkspaceId(orgName, workspaceName, client, authHeader)
-        if (workspaceId) {
-            def workflowResponse = client.get(path: "/workflow/${runId}", query: ["workspaceId":workspaceId], headers: authHeader)
-            if (workflowResponse.statusCode == 200) {
-                metaMap = workflowResponse?.json?.workflow?.subMap("runName", "workDir")
-                return metaMap ?: [:]
-            }
-        }
-    } catch(Exception ex) {
-        log.warn "Could not get workflow details for workflow ${runId} in workspace ${meta.workspace}"
-    }
-
-    return [:]
-}
+include { getRunMetadata } from './functions'
 
 process SEQERA_RUNS_DUMP {
     tag "$meta.id"
@@ -48,21 +6,21 @@ process SEQERA_RUNS_DUMP {
 
     input:
     val meta
+    val api_endpoint
 
     output:
-    tuple val(newMeta), path("${prefix}")    , emit: run_dump
-    tuple val(newMeta), path("workflow.json"), emit: workflow_json
-    path "versions.yml"                   , emit: versions
+    tuple val(metaOut), path("${prefix}"), emit: run_dump
+    path "versions.yml"                  , emit: versions
 
     script:
     def args = task.ext.args ?: ''
     def args2 = task.ext.args2 ?: ''
     prefix = task.ext.prefix ?: "${meta.id}"
-    newMeta = meta + getRunMetadata(meta, log)
+    metaOut = meta + getRunMetadata(meta, log, api_endpoint)
     """
     tw \\
         $args \\
-        --url=${params.api_endpoint_url} \\
+        --url=${api_endpoint} \\
         --access-token=\$TOWER_ACCESS_TOKEN \\
         runs \\
         dump \\
@@ -71,13 +29,11 @@ process SEQERA_RUNS_DUMP {
         --output="${prefix}.tar.gz" \\
         $args2
 
-    mkdir ${prefix}
+    mkdir -p ${prefix}
     tar \\
         -xvf \\
         ${prefix}.tar.gz \\
         -C ${prefix}
-
-    cp ${prefix}/workflow.json .
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

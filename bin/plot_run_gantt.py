@@ -66,7 +66,7 @@ def build_gantt(title: str, input_dir: str, output_file: str):
         {
             "id": f"T{d['taskId']}",
             "name": d["name"],
-            "size": f"{d['cpus']}c_{math.ceil(d['memory'] / 1024 ** 3):.0f}GB",
+            "size": f"{d['cpus']}c_{math.ceil(d.get('memory', 1073741824) / 1024 ** 3):.0f}GB",
             "start": datetime.strptime(d["start"], "%Y-%m-%dT%H:%M:%SZ"),
             "complete": datetime.strptime(d["complete"], "%Y-%m-%dT%H:%M:%SZ")
             + timedelta(seconds=1),
