@@ -11,10 +11,6 @@ nextflow_process {
     test("Should run without failures") {
 
         when {
-            params {
-                // define parameters here. Example:
-                // outdir = "tests/results"
-            }
             process {
                 """
                 input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
@@ -23,8 +19,14 @@ nextflow_process {
         }
 
         then {
-            assert process.success
-            assert snapshot(process.out).match()
+            def dumpFiles = path(process.out.run_dump.get(0).get(1)).toFile().listFiles()
+	    
+            assertAll(
+		{ assert snapshot(process.out.workflow_json).match() },
+		{ assert snapshot(workflow, dumpFiles.findAll { ! it.name.matches('workflow-launch.json')}).match()},
+		{ assert dumpFiles.find { it.name.matches('workflow-launch.json')}.exists()},
+		{ assert process.success }
+            )
         }
 
     }

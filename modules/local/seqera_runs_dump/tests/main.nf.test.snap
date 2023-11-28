@@ -2,72 +2,40 @@
     "Should run without failures": {
         "content": [
             {
-                "0": [
-                    [
-                        {
-                            "id": "4Bi5xBK6E2Nbhj",
-                            "workspace": "community/showcase",
-                            "runName": "crazy_wiles",
-                            "workDir": "s3://nf-tower-bucket/scratch/4Bi5xBK6E2Nbhj"
-                        },
-                        [
-                            "service-info.json:md5,0a2624c21efb65b85e37fa3d07903dcc",
-                            "workflow-launch.json:md5,90e0b1148f99b51ec93e0a983ee7feb8",
-                            "workflow-load.json:md5,4f02d5a24ab89aa648cd4346785c8f2c",
-                            "workflow-metrics.json:md5,70dd1af37145c8c2d23836fe850622e7",
-                            "workflow-tasks.json:md5,577a7472816b7729012a9291d97ff150",
-                            "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9"
-                        ]
-                    ]
+                "stderr": [
+                    
                 ],
-                "1": [
-                    [
-                        {
-                            "id": "4Bi5xBK6E2Nbhj",
-                            "workspace": "community/showcase",
-                            "runName": "crazy_wiles",
-                            "workDir": "s3://nf-tower-bucket/scratch/4Bi5xBK6E2Nbhj"
-                        },
-                        "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9"
-                    ]
+                "errorReport": null,
+                "exitStatus": 0,
+                "failed": false,
+                "stdout": [
+                    "N E X T F L O W  ~  version 23.10.0",
+                    "Launching `/tmp/tests/e1f1d9aef19eaada517a2bfc257ab3af/meta/mock.nf` [backstabbing_khorana] DSL2 - revision: ee93fefc5f",
+                    "WARN: There's no process matching config selector: PLOT_RUN_GANTT",
+                    "WARN: There's no process matching config selector: MULTIQC",
+                    "WARN: There's no process matching config selector: NF_AGGREGATE:SEQERA_RUNS_DUMP",
+                    "WARN: There's no process matching config selector: NF_AGGREGATE:MULTIQC",
+                    "WARN: There's no process matching config selector: NF_AGGREGATE:PLOT_RUN_GANTT",
+                    "Creating env using conda: tower-cli=0.9.0 [cache /tmp/tests/e1f1d9aef19eaada517a2bfc257ab3af/work/conda/env-538c876562809d824c1fbbe85b123194]",
+                    "[73/25c0c5] Submitted process > SEQERA_RUNS_DUMP (4Bi5xBK6E2Nbhj)"
                 ],
-                "2": [
-                    "versions.yml:md5,4f21b1015f19b809a16d4e71c0fe92ff"
-                ],
-                "run_dump": [
-                    [
-                        {
-                            "id": "4Bi5xBK6E2Nbhj",
-                            "workspace": "community/showcase",
-                            "runName": "crazy_wiles",
-                            "workDir": "s3://nf-tower-bucket/scratch/4Bi5xBK6E2Nbhj"
-                        },
-                        [
-                            "service-info.json:md5,0a2624c21efb65b85e37fa3d07903dcc",
-                            "workflow-launch.json:md5,90e0b1148f99b51ec93e0a983ee7feb8",
-                            "workflow-load.json:md5,4f02d5a24ab89aa648cd4346785c8f2c",
-                            "workflow-metrics.json:md5,70dd1af37145c8c2d23836fe850622e7",
-                            "workflow-tasks.json:md5,577a7472816b7729012a9291d97ff150",
-                            "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9"
-                        ]
-                    ]
-                ],
-                "versions": [
-                    "versions.yml:md5,4f21b1015f19b809a16d4e71c0fe92ff"
-                ],
-                "workflow_json": [
-                    [
-                        {
-                            "id": "4Bi5xBK6E2Nbhj",
-                            "workspace": "community/showcase",
-                            "runName": "crazy_wiles",
-                            "workDir": "s3://nf-tower-bucket/scratch/4Bi5xBK6E2Nbhj"
-                        },
-                        "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9"
-                    ]
-                ]
-            }
+                "errorMessage": null,
+                "trace": {
+                    "tasksFailed": 0,
+                    "tasksCount": 1,
+                    "tasksSucceeded": 1
+                },
+                "name": "workflow",
+                "success": true
+            },
+            [
+                "workflow-tasks.json:md5,577a7472816b7729012a9291d97ff150",
+                "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9",
+                "workflow-load.json:md5,4f02d5a24ab89aa648cd4346785c8f2c",
+                "service-info.json:md5,0a2624c21efb65b85e37fa3d07903dcc",
+                "workflow-metrics.json:md5,70dd1af37145c8c2d23836fe850622e7"
+            ]
         ],
-        "timestamp": "2023-11-27T15:52:39.000241464"
+        "timestamp": "2023-11-28T15:39:49.217569618"
     }
 }
