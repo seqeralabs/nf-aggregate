@@ -1,0 +1,4 @@
+Nov-28 09:37:34.522 [main] INFO  com.askimed.nf.test.App - nf-test 0.8.1
+Nov-28 09:37:34.552 [main] INFO  com.askimed.nf.test.App - Arguments: [test, --profile=conda, --tap=test.tap, --verbose]
+Nov-28 09:37:34.555 [main] WARN  com.askimed.nf.test.commands.RunTestsCommand - No nf-test config file found.
+Nov-28 09:37:34.555 [main] ERROR com.askimed.nf.test.commands.RunTestsCommand - No tests ot directories found containing test files.

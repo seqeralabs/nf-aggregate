@@ -1,0 +1,42 @@
+nextflow_process {
+
+    name "Test Process PLOT_RUN_GANTT"
+    script "../main.nf"
+    process "PLOT_RUN_GANTT"
+    config "./nextflow.config"
+
+    tag "modules"
+    tag "modules_local"
+    tag "plot_run_gantt"
+
+    test("Should run without failures") {
+
+        setup {
+            run("SEQERA_RUNS_DUMP") {
+                script "../../seqera_runs_dump/main.nf"
+                process {
+                    """
+                    input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
+                    """
+                }
+            }
+        }
+
+        when {
+            process {
+                """
+                input[0] = SEQERA_RUNS_DUMP.out.run_dump.join(SEQERA_RUNS_DUMP.out.workflow_json).map { meta, run_dump, json -> [ meta + [ pipeline : getWorkflowName(json) ], run_dump ] } 
+		"""
+            }
+        }
+
+        then {
+            assertAll(
+                { assert snapshot(process.out.html).match() },
+                { assert process.success }
+            )
+        }
+
+    }
+
+}
