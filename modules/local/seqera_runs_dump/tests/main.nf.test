@@ -20,7 +20,7 @@ nextflow_process {
         }
 
         then {
-            def dumpFiles = path(process.out.run_dump.get(0).get(1)).toFile().listFiles()
+            def dumpFiles = path(process.out.run_dump.get(0).get(1)).toFile().listFiles().sort()
 
             assertAll(
                 { assert snapshot(process.out.workflow_json).match() },

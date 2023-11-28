@@ -10,14 +10,14 @@
                 "failed": false,
                 "stdout": [
                     "N E X T F L O W  ~  version 23.10.0",
-                    "Launching `/tmp/tests/e1f1d9aef19eaada517a2bfc257ab3af/meta/mock.nf` [backstabbing_khorana] DSL2 - revision: ee93fefc5f",
+                    "Launching `/tmp/tests/e1f1d9aef19eaada517a2bfc257ab3af/meta/mock.nf` [goofy_goldwasser] DSL2 - revision: 3adee1771e",
                     "WARN: There's no process matching config selector: PLOT_RUN_GANTT",
                     "WARN: There's no process matching config selector: MULTIQC",
                     "WARN: There's no process matching config selector: NF_AGGREGATE:SEQERA_RUNS_DUMP",
                     "WARN: There's no process matching config selector: NF_AGGREGATE:MULTIQC",
                     "WARN: There's no process matching config selector: NF_AGGREGATE:PLOT_RUN_GANTT",
                     "Creating env using conda: tower-cli=0.9.0 [cache /tmp/tests/e1f1d9aef19eaada517a2bfc257ab3af/work/conda/env-538c876562809d824c1fbbe85b123194]",
-                    "[73/25c0c5] Submitted process > SEQERA_RUNS_DUMP (4Bi5xBK6E2Nbhj)"
+                    "[c4/003e6e] Submitted process > SEQERA_RUNS_DUMP (4Bi5xBK6E2Nbhj)"
                 ],
                 "errorMessage": null,
                 "trace": {
@@ -29,13 +29,13 @@
                 "success": true
             },
             [
-                "workflow-tasks.json:md5,577a7472816b7729012a9291d97ff150",
-                "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9",
-                "workflow-load.json:md5,4f02d5a24ab89aa648cd4346785c8f2c",
                 "service-info.json:md5,0a2624c21efb65b85e37fa3d07903dcc",
-                "workflow-metrics.json:md5,70dd1af37145c8c2d23836fe850622e7"
+                "workflow-load.json:md5,4f02d5a24ab89aa648cd4346785c8f2c",
+                "workflow-metrics.json:md5,70dd1af37145c8c2d23836fe850622e7",
+                "workflow-tasks.json:md5,577a7472816b7729012a9291d97ff150",
+                "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9"
             ]
         ],
-        "timestamp": "2023-11-28T15:39:49.217569618"
+        "timestamp": "2023-11-28T16:43:36.480506165"
     }
 }
