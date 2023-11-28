@@ -26,7 +26,8 @@ workflow NF_AGGREGATE {
     // MODULE: Fetch run information via the Seqera CLI
     //
     SEQERA_RUNS_DUMP (
-        ids
+        ids,
+        params.seqera_api_endpoint
     )
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions.first())
 

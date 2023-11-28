@@ -1,10 +1,11 @@
+
 @Grab('com.github.groovy-wslite:groovy-wslite:1.1.2')
 import wslite.rest.RESTClient
 
 Long getWorkspaceId(orgName, workspaceName, client, authHeader) {
     def orgResponse = client.get(path: '/orgs', headers: authHeader)
     if (orgResponse.statusCode == 200) {
-        def orgMap = orgResponse.json?.organizations.collectEntries { org -> [org.name, org.orgId]}
+        def orgMap = orgResponse.json?.organizations.collectEntries { org -> [org.name, org.orgId] }
         def orgId = orgMap.get(orgName)
         if(!orgId) log.warn "Could not find organization '${orgName}'"
 
@@ -18,13 +19,13 @@ Long getWorkspaceId(orgName, workspaceName, client, authHeader) {
     return null
 }
 
-Map getRunMetadata(meta, log) {
+Map getRunMetadata(meta, log, api_endpoint) {
     def runId = meta.id
-    (orgName, workspaceName) = meta.workspace.split("/")
+    def (orgName, workspaceName) = meta.workspace.tokenize("/")
 
-    def client = new RESTClient("https://api.tower.nf")
-    token = System.getenv("TOWER_ACCESS_TOKEN")
-    authHeader = ["Authorization": "Bearer ${token}"]
+    def client = new RESTClient(api_endpoint)
+    def token = System.getenv("TOWER_ACCESS_TOKEN")
+    def authHeader = ["Authorization": "Bearer ${token}"]
 
     try {
         def workspaceId = getWorkspaceId(orgName, workspaceName, client, authHeader)
@@ -36,7 +37,10 @@ Map getRunMetadata(meta, log) {
             }
         }
     } catch(Exception ex) {
-        log.warn "Could not get workflow details for workflow ${runId} in workspace ${meta.workspace}"
+        log.warn """
+        Could not get workflow details for workflow ${runId} in workspace ${meta.workspace}:
+          ↳ Status code ${ex.response.statusCode} returned from request to ${ex.request.url} (authentication headers excluded)
+        """.stripIndent()
     }
     return [:]
 }

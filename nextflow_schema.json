@@ -37,7 +37,7 @@
             "description": "Generic options for the pipeline.",
             "help_text": "Generic options for the pipeline.",
             "properties": {
-                "seqera_cli_api_endpoint": {
+                "seqera_api_endpoint": {
                     "type": "string",
                     "default": "https://api.tower.nf",
                     "description": "Seqera Platform API endpoint URL.",
@@ -59,7 +59,7 @@
                     "fa_icon": "fas fa-fast-forward"
                 }
             },
-            "required": ["seqera_cli_api_endpoint"]
+            "required": ["seqera_api_endpoint"]
         },
         "generic_options": {
             "title": "Generic options",

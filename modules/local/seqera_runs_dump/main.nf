@@ -6,19 +6,21 @@ process SEQERA_RUNS_DUMP {
 
     input:
     val meta
+    val api_endpoint
 
     output:
-    tuple val(newMeta), path("${prefix}"), emit: run_dump
+    tuple val(metaOut), path("${prefix}"), emit: run_dump
     path "versions.yml"                  , emit: versions
 
     script:
     def args = task.ext.args ?: ''
     def args2 = task.ext.args2 ?: ''
     prefix = task.ext.prefix ?: "${meta.id}"
-    newMeta = meta + getRunMetadata(meta, log)
+    metaOut = meta + getRunMetadata(meta, log, api_endpoint)
     """
     tw \\
         $args \\
+        --url=${api_endpoint} \\
         --access-token=\$TOWER_ACCESS_TOKEN \\
         runs \\
         dump \\
@@ -27,7 +29,7 @@ process SEQERA_RUNS_DUMP {
         --output="${prefix}.tar.gz" \\
         $args2
 
-    mkdir ${prefix}
+    mkdir -p ${prefix}
     tar \\
         -xvf \\
         ${prefix}.tar.gz \\
