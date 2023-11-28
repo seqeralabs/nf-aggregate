@@ -39,7 +39,7 @@ Map getRunMetadata(meta, log, api_endpoint) {
     } catch(Exception ex) {
         log.warn """
         Could not get workflow details for workflow ${runId} in workspace ${meta.workspace}:
-          ↳ Status code ${ex.response.statusCode} returned from request to ${ex.request.url} (authentication headers excluded)
+            ↳ Status code ${ex.response.statusCode} returned from request to ${ex.request.url} (authentication headers excluded)
         """.stripIndent()
     }
     return [:]
