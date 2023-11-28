@@ -59,7 +59,7 @@ jobs:
         with:
           filters: ".github/tags.yml"
   nf-test:
-    name: ${{ matrix.tags }} ${{ matrix.profile }} NF ${{ matrix.NXF_VER }}
+    name: nf-test ${{ matrix.tags }}
     needs: [changes]
     if: needs.changes.outputs.tags != '[]'
     runs-on: ubuntu-latest
