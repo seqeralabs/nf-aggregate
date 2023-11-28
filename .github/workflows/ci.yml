@@ -63,6 +63,8 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.tags != '[]'
     runs-on: ubuntu-latest
+    env:
+      TOWER_ACCESS_TOKEN: ${{ secrets.TOWER_ACCESS_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
