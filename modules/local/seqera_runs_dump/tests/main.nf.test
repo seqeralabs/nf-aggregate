@@ -15,12 +15,13 @@ nextflow_process {
             process {
                 """
                 input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
+                input[1] = "https://api.tower.nf"
                 """
             }
         }
 
         then {
-	    def dumpFiles = file(process.out.run_dump.get(0).get(1)).listFiles()
+            def dumpFiles = file(process.out.run_dump.get(0).get(1)).listFiles().sort()
 
             assertAll(
                 { assert snapshot(

@@ -59,7 +59,7 @@ jobs:
         with:
           filters: ".github/tags.yml"
   nf-test:
-    name: nf-test ${{ matrix.tags }}
+    name: nf-test ${{ matrix.tags }} ${{ matrix.profile }}
     needs: [changes]
     if: needs.changes.outputs.tags != '[]'
     runs-on: ubuntu-latest
@@ -68,10 +68,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        NXF_VER: ["23.10.0"]
+        NXF_VER:
+          - "latest-everything"
         tags: ["${{ fromJson(needs.changes.outputs.tags) }}"]
         profile:
           - "docker"
+          - "conda"
 
     steps:
       - name: Check out pipeline code
@@ -81,6 +83,22 @@ jobs:
         uses: nf-core/setup-nextflow@v1
         with:
           version: "${{ matrix.NXF_VER }}"
+
+      - name: Set up miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+          auto-update-conda: true
+          channels: conda-forge,bioconda,defaults
+          python-version: ${{ matrix.python-version }}
+
+      - name: Conda setup
+        run: |
+          conda clean -a
+          conda install -n base conda-libmamba-solver
+          conda config --set solver libmamba
+          echo $(realpath $CONDA)/condabin >> $GITHUB_PATH
+          echo $(realpath python) >> $GITHUB_PATH
 
       - name: Cache nf-test installation
         id: cache-software
