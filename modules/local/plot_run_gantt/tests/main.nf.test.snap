@@ -2,9 +2,18 @@
     "Should run without failures": {
         "content": [
             [
-                
+                [
+                    {
+                        "id": "QymWt9jmaWFEu",
+                        "workspace": "scidev/testing",
+                        "runName": "sharp_kare",
+                        "workDir": "s3://scidev-eu-west-1/scratch/QymWt9jmaWFEu",
+                        "projectName": "nextflow-io/hello"
+                    },
+                    "QymWt9jmaWFEu_gantt.html:md5,eee6e1bfe9994fc5c4cb7e8ab05827aa"
+                ]
             ]
         ],
-        "timestamp": "2023-11-28T16:52:51.371307827"
+        "timestamp": "2023-11-29T15:35:00.184419966"
     }
 }

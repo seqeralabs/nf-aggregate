@@ -16,7 +16,9 @@ nextflow_process {
                 script "../../seqera_runs_dump/main.nf"
                 process {
                     """
-                    input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
+                    //input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
+                    input[0] = ['id': 'QymWt9jmaWFEu', 'workspace': 'scidev/testing']
+                    input[1] = "https://api.tower.nf"
                     """
                 }
             }
@@ -24,8 +26,9 @@ nextflow_process {
 
         when {
             process {
+
                 """
-                input[0] = SEQERA_RUNS_DUMP.out.run_dump.join(SEQERA_RUNS_DUMP.out.workflow_json).map { meta, run_dump, json -> [ meta + [ pipeline : getWorkflowName(json) ], run_dump ] } 
+                input[0] = SEQERA_RUNS_DUMP.out.run_dump
 		"""
             }
         }
