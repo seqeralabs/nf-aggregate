@@ -4,7 +4,7 @@ nextflow_pipeline {
     script "../main.nf"
 
     tag "pipeline"
-    tag "pipeline_nf-aggregate"    
+    tag "pipeline_nf-aggregate"
 
     test("Should run without failures") {
 
