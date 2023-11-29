@@ -82,7 +82,7 @@ jobs:
         uses: nf-core/setup-nextflow@v1
         with:
           version: "${{ matrix.NXF_VER }}"
-      
+
       - name: Set up miniconda
         uses: conda-incubator/setup-miniconda@v2
         with:
