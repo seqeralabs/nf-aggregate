@@ -70,20 +70,6 @@ workflow PIPELINE_INITIALISATION {
 */
 
 //
-// Function that parses Seqera CLI 'workflow.json' output file to get workflow name
-//
-def getWorkflowName(json_file) {
-    return new JsonSlurper().parseText(json_file.text).get('manifest')['name']
-}
-
-//
-// Function that parses Seqera CLI 'workflow.json' output file to get work directory
-//
-def getWorkflowWorkDir(json_file) {
-    return new JsonSlurper().parseText(json_file.text).get('workDir')
-}
-
-//
 // Function that parses Seqera CLI 'workflow.json' output file to get output directory
 //
 def getWorkflowPublishDir(json_file, outdir) {

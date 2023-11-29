@@ -15,8 +15,13 @@ You can download an example MultiQC report [here](assets/multiqc_report.html).
 
 ## Prerequisites
 
-- Nextflow >=23.10.0
-- Account in Seqera Platform, with a Seqera Platform access token stored in the `TOWER_ACCESS_TOKEN` environment variable
+- [Nextflow](https://www.nextflow.io/docs/latest/getstarted.html#installation) >=23.10.0
+- Account in [Seqera Platform](https://seqera.io/platform/)
+- [Access token](https://docs.seqera.io/platform/23.3.0/api/overview#authentication) which is your personal authorization token for the Seqera Platform CLI. This can be created in the user menu under **Your tokens**. Export the token as a shell variable directly into your terminal if running the pipelie locally. You will not need to set this if running the pipeline within the Seqera Platform as it will automatically be inherited from the executing environment.
+
+  ```bash
+  export TOWER_ACCESS_TOKEN=<your access token>
+  ```
 
 ## Usage
 
@@ -36,8 +41,7 @@ This pipeline can then be executed with the following command:
 nextflow run seqeralabs/nf-aggregate \
     --input run_ids.csv \
     --outdir ./results \
-    -profile docker \
-    -r main
+    -profile docker
 ```
 
 ## Output
@@ -45,23 +49,23 @@ nextflow run seqeralabs/nf-aggregate \
 The results from the pipeline will be published in the path specified by the `--outdir` and will consist of the following contents:
 
 ```
-.
-├── gantt/
-│   ├── nf-core_rnaseq/
-│   │   └── 4LWT4uaXDaGcDY_gantt.html           ## Gantt plot for run
+./results
 ├── multiqc/
 │   ├── multiqc_data/
 │   ├── multiqc_plots/
-│   └── multiqc_report.html                     ## MultiQC report
-├── pipeline_info/
-└── runs_dump/
-    ├── 4Bi5xBK6E2Nbhj/                         ## Output of 'tw runs dump'
-        ├── service-info.json
-        ├── workflow-launch.json
-        ├── workflow-load.json
-        ├── workflow-metrics.json
-        ├── workflow-tasks.json
-        └── workflow.json
+│   └── multiqc_report.html                 ## MultiQC report
+├── nf-core_rnaseq/
+│   ├── gantt/
+│   │   └── 4Bi5xBK6E2Nbhj_gantt.html       ## Gantt plot for run
+│   └── runs_dump/
+│       └── 4Bi5xBK6E2Nbhj/                 ## Output of 'tw runs dump'
+│           ├── service-info.json
+│           ├── workflow-launch.json
+│           ├── workflow-load.json
+│           ├── workflow-metrics.json
+│           ├── workflow-tasks.json
+│           └── workflow.json
+└── pipeline_info/
 ```
 
 ## Contributions
