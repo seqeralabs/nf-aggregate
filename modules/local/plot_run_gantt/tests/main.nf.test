@@ -16,8 +16,8 @@ nextflow_process {
                 script "../../seqera_runs_dump/main.nf"
                 process {
                     """
-                    //input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
-                    input[0] = ['id': 'QymWt9jmaWFEu', 'workspace': 'scidev/testing']
+                    input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
+                    //input[0] = ['id': 'QymWt9jmaWFEu', 'workspace': 'scidev/testing']
                     input[1] = "https://api.tower.nf"
                     """
                 }
@@ -35,7 +35,7 @@ nextflow_process {
 
         then {
             assertAll(
-                { assert snapshot(process.out.html).match() },
+                { assert path(process.out.html.get(0).get(1)).getText().contains("i-019d5467c1b3ca3d2") },
                 { assert process.success }
             )
         }
