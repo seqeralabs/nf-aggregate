@@ -1,33 +1,25 @@
 {
     "Should run without failures": {
         "content": [
-            {
-                "stderr": [
-                    
-                ],
-                "errorReport": null,
-                "exitStatus": 0,
-                "failed": false,
-                "stdout": [
-                    
-                ],
-                "errorMessage": null,
-                "trace": {
-                    "tasksFailed": 0,
-                    "tasksCount": 1,
-                    "tasksSucceeded": 1
-                },
-                "name": "workflow",
-                "success": true
-            },
             [
-                "service-info.json:md5,0a2624c21efb65b85e37fa3d07903dcc",
                 "workflow-load.json:md5,4f02d5a24ab89aa648cd4346785c8f2c",
                 "workflow-metrics.json:md5,70dd1af37145c8c2d23836fe850622e7",
                 "workflow-tasks.json:md5,577a7472816b7729012a9291d97ff150",
-                "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9"
+                "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9",
+                "service-info.json:md5,0a2624c21efb65b85e37fa3d07903dcc"
+            ],
+            [
+                [
+                    {
+                        "id": "4Bi5xBK6E2Nbhj",
+                        "workspace": "community/showcase",
+                        "runName": "crazy_wiles",
+                        "workDir": "s3://nf-tower-bucket/scratch/4Bi5xBK6E2Nbhj"
+                    },
+                    "workflow.json:md5,34db0e39f0246670eac77c7a5e9093c9"
+                ]
             ]
         ],
-        "timestamp": "2023-11-28T17:27:26.539517301"
+        "timestamp": "2023-11-29T10:13:31.623951214"
     }
 }

@@ -20,11 +20,13 @@ nextflow_process {
         }
 
         then {
-            def dumpFiles = path(process.out.run_dump.get(0).get(1)).toFile().listFiles().sort()
+	    def dumpFiles = file(process.out.run_dump.get(0).get(1)).listFiles()
 
             assertAll(
-                { assert snapshot(process.out.workflow_json).match() },
-                { assert snapshot(workflow, dumpFiles.findAll { ! it.name.matches('workflow-launch.json')}).match()},
+                { assert snapshot(
+                    dumpFiles.grep { file -> ! file.name.matches("workflow-launch.json") },
+                    process.out.workflow_json
+                ).match()},
                 { assert dumpFiles.find { it.name.matches('workflow-launch.json')}.exists()},
                 { assert process.success }
             )
