@@ -17,30 +17,6 @@ concurrency:
 
 jobs:
   test:
-    name: Run pipeline with test data
-    # Only run on push if this is the nf-aggregate dev branch (merged PRs)
-    if: "${{ github.event_name != 'push' || (github.event_name == 'push' && github.repository == 'seqeralabs/nf-aggregate') }}"
-    runs-on: ubuntu-latest
-    env:
-      TOWER_ACCESS_TOKEN: ${{ secrets.TOWER_ACCESS_TOKEN }}
-    strategy:
-      matrix:
-        NXF_VER:
-          - "23.10.0"
-          - "latest-everything"
-    steps:
-      - name: Check out pipeline code
-        uses: actions/checkout@v3
-
-      - name: Install Nextflow
-        uses: nf-core/setup-nextflow@v1
-        with:
-          version: "${{ matrix.NXF_VER }}"
-
-      - name: Run pipeline with test data
-        run: |
-          nextflow run ${GITHUB_WORKSPACE} -profile test,docker --outdir ./results
-
   changes:
     name: Check for changes
     runs-on: ubuntu-latest
@@ -69,6 +45,7 @@ jobs:
       fail-fast: false
       matrix:
         NXF_VER:
+          - "23.10.0"
           - "latest-everything"
         tags: ["${{ fromJson(needs.changes.outputs.tags) }}"]
         profile:

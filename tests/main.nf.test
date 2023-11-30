@@ -1,0 +1,23 @@
+nextflow_pipeline {
+
+    name "Test Workflow main.nf"
+    script "../main.nf"
+
+    tag "pipeline"
+    tag "pipeline_nf-aggregate"
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                outdir     = "results"
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+}
