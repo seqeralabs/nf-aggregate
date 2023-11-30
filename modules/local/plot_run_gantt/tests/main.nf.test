@@ -23,6 +23,9 @@ nextflow_process {
         }
 
         when {
+            params {
+                publish_dir_mode   = "copy"
+            }
             process {
 
                 """

@@ -11,6 +11,9 @@ nextflow_process {
     test("Should run without failures") {
 
         when {
+            params {
+                publish_dir_mode   = "copy"
+            }
             process {
                 """
                 input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
