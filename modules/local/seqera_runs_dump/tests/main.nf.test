@@ -12,7 +12,7 @@ nextflow_process {
 
         when {
             params {
-                publish_dir_mode   = "copy"
+                publish_dir_mode = "copy"
             }
             process {
                 """
