@@ -1,0 +1,33 @@
+{
+    "Parameters: default": {
+        "content": [
+            {
+                "0": [
+                    
+                ],
+                "1": [
+                    
+                ],
+                "multiqc_report": [
+                    
+                ],
+                "versions": [
+                    
+                ]
+            }
+        ],
+        "timestamp": "2023-12-04T10:38:26.10265603"
+    },
+    "Should run without failures": {
+        "content": [
+            [
+                "multiqc_report.html:md5,1c7b0ef50b0e93acf89a58e2384309be"
+            ],
+            [
+                "versions.yml:md5,1294de7c9d8f7ce29bbb3a638ac1d108",
+                "versions.yml:md5,43372d67fa3f029a02cc64a571d88e13"
+            ]
+        ],
+        "timestamp": "2023-12-04T15:19:31.112758226"
+    }
+}

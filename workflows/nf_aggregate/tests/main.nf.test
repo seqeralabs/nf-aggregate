@@ -1,0 +1,38 @@
+nextflow_workflow {
+
+    name "Test Workflow NF_AGGREGATE"
+    script "../main.nf"
+    workflow "NF_AGGREGATE"
+
+    tag "workflows"
+    tag "workflows_nf_aggregate"
+
+    stage {
+        symlink "workflows/nf_aggregate/assets/multiqc_config.yml"
+    }
+
+    test("Should run without failures") {
+
+        when {
+            workflow {
+                """
+                input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
+                input[1] = []
+                input[2] = []
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert snapshot(
+                    workflow.out.multiqc_report,
+                    workflow.out.versions
+                ).match()},
+                { assert workflow.success }
+            )
+        }
+
+    }
+
+}
