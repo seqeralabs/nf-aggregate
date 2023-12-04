@@ -15,10 +15,6 @@ nextflow_workflow {
     test("Should run without failures") {
 
         when {
-            params {
-                // define parameters here. Example:
-                // outdir = "tests/results"
-            }
             workflow {
                 """
                 // define inputs of the workflow here. Example:
