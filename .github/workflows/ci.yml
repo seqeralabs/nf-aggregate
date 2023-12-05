@@ -34,8 +34,9 @@ jobs:
       - name: Get tags using yq
         id: get_tags
         uses: mikefarah/yq@master
-        with:
-          cmd: 'echo "tags=$(yq -e ". | keys | tojson" .github/tags.yml)" >> $GITHUB_OUTPUT'
+        run: |
+          tags="$(yq -e '. | keys | tojson' .github/tags.yml)"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
   nf-test:
     name: nf-test ${{ matrix.tags }} ${{ matrix.profile }}
