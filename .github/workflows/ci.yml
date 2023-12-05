@@ -23,8 +23,7 @@ jobs:
     name: Check for changes
     runs-on: ubuntu-latest
     outputs:
-      # Expose matched filters as job 'tags' output variable
-      tags: ${{ steps.filter.outputs.changes }}
+      tags: ${{ steps.get_tags.outputs.tags }}
     steps:
       - uses: actions/checkout@v3
       - name: Combine all tags.yml files
@@ -32,10 +31,11 @@ jobs:
         run: find . -name "tags.yml" -not -path "./.github/*" -exec cat {} + > .github/tags.yml
       - name: debug
         run: cat .github/tags.yml
-      - uses: dorny/paths-filter@v2
-        id: filter
+      - name: Get tags using yq
+        id: get_tags
+        uses: mikefarah/yq@master
         with:
-          filters: ".github/tags.yml"
+          cmd: 'echo "tags=$(yq -e ". | keys | tojson" .github/tags.yml)" >> $GITHUB_ENV'
 
   nf-test:
     name: nf-test ${{ matrix.tags }} ${{ matrix.profile }}
@@ -50,7 +50,7 @@ jobs:
         NXF_VER:
           - "23.10.0"
           - "latest-everything"
-        tags: ["${{ fromJson(needs.changes.outputs.tags) }}"]
+        tags: ${{ fromJson(needs.changes.outputs.tags) }}
         profile:
           - "docker"
 
