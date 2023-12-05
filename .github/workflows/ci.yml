@@ -23,7 +23,7 @@ jobs:
     name: Check for changes
     runs-on: ubuntu-latest
     outputs:
-      tags: ${{ steps.get_tags.outputs.tags }}
+      tags: ${{ steps.get_tags.outputs.result }}
     steps:
       - uses: actions/checkout@v3
       - name: Combine all tags.yml files
@@ -34,9 +34,8 @@ jobs:
       - name: Get tags using yq
         id: get_tags
         uses: mikefarah/yq@master
-        run: |
-          tags="$(yq -e '. | keys | tojson' .github/tags.yml)"
-          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+        with:
+          cmd: yq -e '. | keys | tojson' .github/tags.yml
 
   nf-test:
     name: nf-test ${{ matrix.tags }} ${{ matrix.profile }}
