@@ -43,7 +43,10 @@ workflow {
     NF_AGGREGATE (
         PIPELINE_INITIALISATION.out.ids,
         ch_multiqc_custom_config,
-        ch_multiqc_logo
+        ch_multiqc_logo,
+        params.seqera_api_endpoint,
+        params.skip_run_gantt,
+        params.skip_multiqc
     )
 }
 

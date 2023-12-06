@@ -16,6 +16,9 @@ workflow NF_AGGREGATE {
     ids                   // channel: run ids read in from --input
     multiqc_custom_config // channel: user specified custom config file used by MultiQC
     multiqc_logo          // channel: logo rendered in MultiQC report
+    seqera_api_endpoint   //     val: Seqera Platform API endpoint URL
+    skip_run_gantt        //     val: Skip GANTT chart creation for each run
+    skip_multiqc          //     val: Skip MultiQC
 
     main:
 
@@ -27,14 +30,14 @@ workflow NF_AGGREGATE {
     //
     SEQERA_RUNS_DUMP (
         ids,
-        params.seqera_api_endpoint
+        seqera_api_endpoint
     )
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions.first())
 
     //
     // MODULE: Generate Gantt chart for workflow execution
     //
-    if (!params.skip_run_gantt) {
+    if (!skip_run_gantt) {
         PLOT_RUN_GANTT (
             SEQERA_RUNS_DUMP.out.run_dump
         )
@@ -55,7 +58,7 @@ workflow NF_AGGREGATE {
     // MODULE: MultiQC
     //
     ch_multiqc_report = Channel.empty()
-    if (!params.skip_multiqc) {
+    if (!skip_multiqc) {
         ch_multiqc_config = Channel.fromPath("$projectDir/workflows/nf_aggregate/assets/multiqc_config.yml", checkIfExists: true)
         summary_params = paramsSummaryMap(workflow, parameters_schema: "nextflow_schema.json")
         ch_workflow_summary = Channel.value(paramsSummaryMultiqc(summary_params))
