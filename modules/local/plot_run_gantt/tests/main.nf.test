@@ -3,7 +3,6 @@ nextflow_process {
     name "Test Process PLOT_RUN_GANTT"
     script "../main.nf"
     process "PLOT_RUN_GANTT"
-    config "./nextflow.config"
 
     tag "modules"
     tag "modules_local"
@@ -25,7 +24,6 @@ nextflow_process {
 
         when {
             process {
-
                 """
                 input[0] = SEQERA_RUNS_DUMP.out.run_dump
                 """

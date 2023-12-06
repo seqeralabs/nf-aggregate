@@ -1,12 +1,15 @@
 name: nf-aggregate CI
 # This workflow runs the pipeline with the minimal test dataset to check that it completes without any syntax errors
 on:
-  push:
-    branches:
-      - dev
   pull_request:
   release:
-    types: [published]
+    types:
+      - published
+  merge_group:
+    types:
+      - checks_requested
+    branches:
+      - master
 
 env:
   NXF_ANSI_LOG: false
@@ -16,13 +19,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
   changes:
-    name: Check for changes
+    name: Find tags to test
     runs-on: ubuntu-latest
     outputs:
-      # Expose matched filters as job 'tags' output variable
-      tags: ${{ steps.filter.outputs.changes }}
+      tags: ${{ steps.get_tags.outputs.result }}
     steps:
       - uses: actions/checkout@v3
       - name: Combine all tags.yml files
@@ -30,12 +31,14 @@ jobs:
         run: find . -name "tags.yml" -not -path "./.github/*" -exec cat {} + > .github/tags.yml
       - name: debug
         run: cat .github/tags.yml
-      - uses: dorny/paths-filter@v2
-        id: filter
+      - name: Get tags using yq
+        id: get_tags
+        uses: mikefarah/yq@master
         with:
-          filters: ".github/tags.yml"
+          cmd: yq -e '. | keys | tojson' .github/tags.yml
+
   nf-test:
-    name: nf-test ${{ matrix.tags }} ${{ matrix.profile }}
+    name: nf-test ${{ matrix.tags }} ${{ matrix.profile }} nf-${{ matrix.NXF_VER }}
     needs: [changes]
     if: needs.changes.outputs.tags != '[]'
     runs-on: ubuntu-latest
@@ -47,10 +50,9 @@ jobs:
         NXF_VER:
           - "23.10.0"
           - "latest-everything"
-        tags: ["${{ fromJson(needs.changes.outputs.tags) }}"]
+        tags: ${{ fromJson(needs.changes.outputs.tags) }}
         profile:
           - "docker"
-          - "conda"
 
     steps:
       - name: Check out pipeline code
@@ -60,22 +62,6 @@ jobs:
         uses: nf-core/setup-nextflow@v1
         with:
           version: "${{ matrix.NXF_VER }}"
-
-      - name: Set up miniconda
-        uses: conda-incubator/setup-miniconda@v2
-        with:
-          miniconda-version: "latest"
-          auto-update-conda: true
-          channels: conda-forge,bioconda,defaults
-          python-version: ${{ matrix.python-version }}
-
-      - name: Conda setup
-        run: |
-          conda clean -a
-          conda install -n base conda-libmamba-solver
-          conda config --set solver libmamba
-          echo $(realpath $CONDA)/condabin >> $GITHUB_PATH
-          echo $(realpath python) >> $GITHUB_PATH
 
       - name: Cache nf-test installation
         id: cache-software
@@ -94,7 +80,7 @@ jobs:
 
       - name: Run nf-test
         run: |
-          nf-test test --tag ${{ matrix.tags }} --profile "test,${{ matrix.profile }}" --junitxml=test.xml
+          nf-test test --tag ${{ matrix.tags }} --profile "test,${{ matrix.profile }}" --junitxml=test.xml --verbose
 
       - name: Output log on failure
         if: failure()
@@ -107,3 +93,21 @@ jobs:
         if: always() # always run even if the previous step fails
         with:
           report_paths: test.xml
+
+  confirm-pass:
+    runs-on: ubuntu-latest
+    needs: [changes, nf-test]
+    if: always()
+    steps:
+      - name: All tests ok
+        if: ${{ success() || !contains(needs.*.result, 'failure') }}
+        run: exit 0
+      - name: One or more tests failed
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1
+
+      - name: debug-print
+        if: always()
+        run: |
+          echo "toJSON(needs) = ${{ toJSON(needs) }}"
+          echo "toJSON(needs.*.result) = ${{ toJSON(needs.*.result) }}"
