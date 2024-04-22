@@ -14,7 +14,7 @@
             },
             "workspace": {
                 "type": "string",
-                "pattern": "^[a-z]+/[a-z]+$",
+                "pattern": "^[a-z_]+/[a-z_]+$",
                 "errorMessage": "Please provide a valid Seqera Platform Workspace name"
             }
         },
