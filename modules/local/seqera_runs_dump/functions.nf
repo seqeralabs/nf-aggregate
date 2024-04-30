@@ -1,5 +1,5 @@
 
-@Grab('com.github.groovy-wslite:groovy-wslite:1.1.2')
+@Grab('com.github.groovy-wslite:groovy-wslite:1.1.2;transitive=false')
 import wslite.rest.RESTClient
 
 Long getWorkspaceId(orgName, workspaceName, client, authHeader) {
