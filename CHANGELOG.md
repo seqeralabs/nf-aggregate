@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unpublished Version / DEV]
 
+Improve regex to allow the full set of allowable org and workspace names.
+
 ## [[0.1.0](https://github.com/seqeralabs/nf-aggregate/releases/tag/0.1.0)] - 2023-12-13
 
 Initial release of seqeralabs/nf-aggregate, created as a subset of the [nf-core](https://nf-co.re/) template.
