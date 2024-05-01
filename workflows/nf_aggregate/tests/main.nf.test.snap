@@ -21,7 +21,7 @@
     "Should run without failures": {
         "content": [
             [
-                "versions.yml:md5,1294de7c9d8f7ce29bbb3a638ac1d108",
+                "versions.yml:md5,f3cf523314479fcfc842e81116af8ab4",
                 "versions.yml:md5,43372d67fa3f029a02cc64a571d88e13"
             ]
         ],
