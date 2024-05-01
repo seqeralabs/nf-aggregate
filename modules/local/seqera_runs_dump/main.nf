@@ -22,7 +22,7 @@ process SEQERA_RUNS_DUMP {
     tw \\
         $args \\
         --url=${api_endpoint} \\
-        --access-token=\$TOWER_ACCESS_TOKEN \\
+        --access-token=$TOWER_ACCESS_TOKEN \\
         runs \\
         dump \\
         -id=${meta.id} \\
