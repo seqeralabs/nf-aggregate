@@ -38,7 +38,7 @@ process SEQERA_RUNS_DUMP {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        seqera-cli: \$(echo \$(tw --version 2>&1) | sed 's/^.*Tower CLI version //; s/ *\$//')
+        seqera-cli: $(echo $(tw --version 2>&1) | sed -e 's/^.*Tower CLI version //' -e 's/ *$//' -e 's/\x1b\[[0-9;]*m//g')
     END_VERSIONS
     """
 }
