@@ -9,18 +9,16 @@ nextflow_workflow {
     
     stage {
         symlink "nextflow_schema.json"
+        symlink "workflows/nf_aggregate/assets/test_run_ids.csv"
     }
 
     test("Should run without failures") {
 
         when {
-            params {
-                input = "${projectDir}/workflows/nf_aggregate/assets/test_run_ids.csv"
-            }
             workflow {
                 """
                 // define inputs of the workflow here. Example:
-                // input[0] = file("test_run_ids.csv")
+                // input[0] = file("test-file.txt")
                 """
             }
         }
