@@ -18,6 +18,7 @@ process SEQERA_RUNS_DUMP {
     def args2 = task.ext.args2 ?: ''
     prefix = task.ext.prefix ?: "${meta.id}"
     metaOut = meta + getRunMetadata(meta, log, api_endpoint)
+    fusion = metaOut.fusion ? '--add-fusion-logs' : '' 
     """
     tw \\
         $args \\
@@ -28,7 +29,7 @@ process SEQERA_RUNS_DUMP {
         -id=${meta.id} \\
         --workspace=${meta.workspace} \\
         --output="${prefix}.tar.gz" \\
-        $args2
+        $args2 $fusion
 
     mkdir -p ${prefix}
     tar \\

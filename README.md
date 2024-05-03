@@ -68,6 +68,10 @@ The results from the pipeline will be published in the path specified by the `--
 └── pipeline_info/
 ```
 
+### Requirement for Fusion
+
+Note: Gantt plots depend on information derived from Fusion logs. For that reason, Gantt plots will be ommited from outputs for non-Fusion runs, irrespective of the setting of `--skip_run_gantt`. 
+
 ## Contributions
 
 Please feel free to create issues and pull requests to this repo if you encounter any problems or would like to suggest/contribute feature enhancements.
