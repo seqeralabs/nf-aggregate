@@ -39,7 +39,7 @@
             "properties": {
                 "seqera_api_endpoint": {
                     "type": "string",
-                    "default": "https://api.tower.nf",
+                    "default": "https://api.cloud.seqera.io",
                     "description": "Seqera Platform API endpoint URL.",
                     "fa_icon": "fas fa-question-circle"
                 },
