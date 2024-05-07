@@ -34,10 +34,9 @@ workflow NF_AGGREGATE {
     )
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions.first())
 
-    ch_runs = SEQERA_RUNS_DUMP.out.run_dump
-        .branch {
-            gantt: it[0].fusion && ! params.skip_run_gantt
-            non_gantt: (! it[0].fusion) || (params.skip_run_gantt)
+    ch_runs_for_gantt = SEQERA_RUNS_DUMP.out.run_dump
+        .filter {
+            it[0].fusion && ! params.skip_run_gantt
         }
 
     //
@@ -45,7 +44,7 @@ workflow NF_AGGREGATE {
     //
 
     PLOT_RUN_GANTT (
-        ch_runs.gantt
+        ch_runs_for_gantt
     )
     ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions.first())
 
