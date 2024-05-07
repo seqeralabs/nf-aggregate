@@ -29,7 +29,9 @@ process SEQERA_RUNS_DUMP {
         -id=${meta.id} \\
         --workspace=${meta.workspace} \\
         --output="${prefix}.tar.gz" \\
-        $args2 $fusion
+        $fusion \\
+        $args2
+        
 
     mkdir -p ${prefix}
     tar \\
