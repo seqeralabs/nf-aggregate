@@ -31,7 +31,6 @@ process SEQERA_RUNS_DUMP {
         --output="${prefix}.tar.gz" \\
         $fusion \\
         $args2
-        
 
     mkdir -p ${prefix}
     tar \\
