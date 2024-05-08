@@ -34,15 +34,19 @@ workflow NF_AGGREGATE {
     )
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions.first())
 
+    ch_runs_for_gantt = SEQERA_RUNS_DUMP.out.run_dump
+        .filter {
+            it[0].fusion && ! params.skip_run_gantt
+        }
+
     //
     // MODULE: Generate Gantt chart for workflow execution
     //
-    if (!skip_run_gantt) {
-        PLOT_RUN_GANTT (
-            SEQERA_RUNS_DUMP.out.run_dump
-        )
-        ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions.first())
-    }
+
+    PLOT_RUN_GANTT (
+        ch_runs_for_gantt
+    )
+    ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions.first())
 
     //
     // Collate software versions

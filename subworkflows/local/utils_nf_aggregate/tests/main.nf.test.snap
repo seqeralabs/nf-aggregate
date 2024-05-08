@@ -3,6 +3,10 @@
         "content": [
             [
                 {
+                    "id": "1oXDHFHywk3wR2",
+                    "workspace": "scidev/testing"
+                },
+                {
                     "id": "2lXd1j7OwZVfxh",
                     "workspace": "community/showcase"
                 },
@@ -20,6 +24,10 @@
                 }
             ]
         ],
-        "timestamp": "2023-12-04T17:13:53.098963"
+        "meta": {
+            "nf-test": "0.8.4",
+            "nextflow": "23.10.1"
+        },
+        "timestamp": "2024-05-07T10:41:28.603749237"
     }
 }

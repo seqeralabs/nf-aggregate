@@ -33,6 +33,9 @@ Map getRunMetadata(meta, log, api_endpoint) {
             def workflowResponse = client.get(path: "/workflow/${runId}", query: ["workspaceId":workspaceId], headers: authHeader)
             if (workflowResponse.statusCode == 200) {
                 metaMap = workflowResponse?.json?.workflow?.subMap("runName", "workDir", "projectName")
+                config = new ConfigSlurper().parse( workflowResponse?.json?.workflow?.configText )
+                metaMap.fusion =  config.fusion.enabled
+
                 return metaMap ?: [:]
             }
         }
