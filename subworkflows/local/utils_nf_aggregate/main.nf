@@ -60,7 +60,6 @@ workflow PIPELINE_INITIALISATION {
 
     emit:
     ids            = ch_ids
-    summary_params = UTILS_NFVALIDATION_PLUGIN.out.summary_params
 }
 
 /*
