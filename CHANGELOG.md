@@ -20,8 +20,11 @@ Thank you to everyone else that has contributed by reporting bugs, enhancements 
 
 ### Enhancements & fixes
 
+<<<<<<< seqera_containers
 :warning: Bumped minimum Nextflow version required by the pipeline to `24.04.0` to use Seqera Community Containers
 
+=======
+>>>>>>> dev
 [PR #19](https://github.com/seqeralabs/nf-aggregate/pull/19) - Allow underscores in workspace name regex
 [PR #22](https://github.com/seqeralabs/nf-aggregate/pull/22) - Copy in nf-test CI from nf-core/fetchngs
 [PR #23](https://github.com/seqeralabs/nf-aggregate/pull/23) - Bump Platform CLI version to `0.9.2`
@@ -32,6 +35,7 @@ Thank you to everyone else that has contributed by reporting bugs, enhancements 
 [PR #31](https://github.com/seqeralabs/nf-aggregate/pull/31) - Update Platform API URI
 [PR #32](https://github.com/seqeralabs/nf-aggregate/pull/32) - Update all nf-core modules and subworkflows
 [PR #33](https://github.com/seqeralabs/nf-aggregate/pull/33) - Remove `docker.userEmulation`
+<<<<<<< seqera_containers
 [PR #36](https://github.com/seqeralabs/nf-aggregate/pull/36) - Use Seqera containers in pipeline
 
 ### Parameters
@@ -45,6 +49,8 @@ Thank you to everyone else that has contributed by reporting bugs, enhancements 
 > **NB:** Parameter has been **added** if just the new parameter information is present.
 >
 > **NB:** Parameter has been **removed** if new parameter information isn't present.
+=======
+>>>>>>> dev
 
 ### Software dependencies
 
