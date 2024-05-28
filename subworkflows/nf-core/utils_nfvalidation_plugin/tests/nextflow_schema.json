@@ -63,11 +63,6 @@
                     "fa_icon": "fas fa-image",
                     "hidden": true
                 },
-                "singularity_pull_docker_container": {
-                    "type": "boolean",
-                    "description": "Pull Singularity container from Docker?",
-                    "hidden": true
-                },
                 "publish_dir_mode": {
                     "type": "string",
                     "default": "copy",

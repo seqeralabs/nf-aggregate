@@ -2,8 +2,9 @@ include { getRunMetadata } from './functions'
 
 process SEQERA_RUNS_DUMP {
     tag "$meta.id"
+
     conda 'tower-cli=0.9.2'
-    container 'seqeralabs/nf-aggregate:tower-cli-0.9.2--hdfd78af_1'
+    container 'community.wave.seqera.io/library/tower-cli:0.9.2--dc544a7e574ab73b'
 
     input:
     val meta
