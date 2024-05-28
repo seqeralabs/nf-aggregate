@@ -69,7 +69,7 @@ The results from the pipeline will be published in the path specified by the `--
 ```
 
 > [!NOTE]
-> Gantt plots depend on information derived from the Fusion logs. For that reason, Gantt plots will be ommited from the pipeline outputs for non-Fusion runs, irrespective of whether the `--skip_run_gantt` parameter has been set.
+> Gantt plots depend on information derived from the Fusion logs. For that reason, Gantt plots will be ommitted from the pipeline outputs for non-Fusion runs, irrespective of whether the `--skip_run_gantt` parameter has been set.
 
 ## Contributions
 
