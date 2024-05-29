@@ -1,6 +1,16 @@
-# nf-aggregate
+[![GitHub Actions CI Status](https://github.com/seqeralabs/nf-aggregate/actions/workflows/ci.yml/badge.svg)](https://github.com/seqeralabs/nf-aggregate/actions/workflows/ci.yml)
+[![GitHub Actions Linting Status](https://github.com/seqeralabs/nf-aggregate/actions/workflows/linting.yml/badge.svg)](https://github.com/seqeralabs/nf-aggregate/actions/workflows/linting.yml)
+[![nf-test](https://img.shields.io/badge/unit_tests-nf--test-337ab7.svg)](https://www.nf-test.com)
 
-Nextflow pipeline to aggregate pertinent metrics across pipeline runs on the Seqera Platform.
+[![Nextflow](https://img.shields.io/badge/nextflow%20DSL2-%E2%89%A523.10.0-23aa62.svg)](https://www.nextflow.io/)
+[![run with conda](http://img.shields.io/badge/run%20with-conda-3EB049?labelColor=000000&logo=anaconda)](https://docs.conda.io/en/latest/)
+[![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://www.docker.com/)
+[![run with singularity](https://img.shields.io/badge/run%20with-singularity-1d355c.svg?labelColor=000000)](https://sylabs.io/docs/)
+[![Launch on Seqera Platform](https://img.shields.io/badge/Launch%20%F0%9F%9A%80-Seqera%20Platform-%234256e7)](https://cloud.seqera.io/launch?pipeline=https://github.com/seqeralabs/nf-aggregate)
+
+## Introduction
+
+**seqeralabs/nf-aggregate** is a Nextflow pipeline to aggregate pertinent metrics across pipeline runs on the Seqera Platform.
 
 <p align="center">
   <img src="assets/multiqc_screenshot.png" alt="MultiQC screenshot" width="75%"/>
@@ -71,9 +81,9 @@ The results from the pipeline will be published in the path specified by the `--
 > [!NOTE]
 > Gantt plots depend on information derived from the Fusion logs. For that reason, Gantt plots will be ommitted from the pipeline outputs for non-Fusion runs, irrespective of whether the `--skip_run_gantt` parameter has been set.
 
-## Contributions
+## Contributions and Support
 
-Please feel free to create issues and pull requests to this repo if you encounter any problems or would like to suggest/contribute feature enhancements.
+If you would like to contribute to this pipeline, please see the [contributing guidelines](.github/CONTRIBUTING.md).
 
 ## Credits
 
@@ -81,7 +91,7 @@ nf-aggregate was written by the Scientific Development and MultiQC teams at [Seq
 
 ## Citations
 
-The nf-core pipeline template was used to create the skeleton of this pipeline but there are no plans to contribute it to nf-core at this point.
+This pipeline uses code and infrastructure developed and maintained by the [nf-core](https://nf-co.re) community, reused here under the [MIT license](https://github.com/nf-core/tools/blob/master/LICENSE).
 
 You can cite the `nf-core` publication as follows:
 

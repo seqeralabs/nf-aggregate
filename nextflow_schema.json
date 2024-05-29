@@ -16,11 +16,11 @@
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
+                    "schema": "assets/schema_input.json",
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
-                    "schema": "assets/schema_input.json",
-                    "fa_icon": "fas fa-file-excel",
-                    "description": "File containing Seqera Platform run identifiers one per line."
+                    "description": "File containing Seqera Platform run identifiers one per line.",
+                    "fa_icon": "fas fa-file-excel"
                 },
                 "outdir": {
                     "type": "string",
@@ -114,6 +114,11 @@
                     "fa_icon": "fas fa-file-signature",
                     "hidden": true
                 },
+                "modules_testdata_base_path": {
+                    "type": "string",
+                    "description": "Base path / URL for data used in the modules",
+                    "hidden": true
+                },
                 "validate_params": {
                     "type": "boolean",
                     "description": "Boolean whether to validate parameters against the schema at runtime",
@@ -137,7 +142,7 @@
                 },
                 "validationLenientMode": {
                     "type": "boolean",
-                    "fa_icon": "fas fa-question-circle",
+                    "fa_icon": "far fa-check-circle",
                     "description": "Validation of parameters in lenient more.",
                     "hidden": true,
                     "help_text": "Allows string values that are parseable as numbers or booleans. For further information see [JSONSchema docs](https://github.com/everit-org/json-schema#lenient-mode)."
