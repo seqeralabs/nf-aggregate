@@ -1,0 +1,15 @@
+{
+    "Should run without failures": {
+        "content": [
+            [
+                "versions.yml:md5,8ab950fb3e4c32ce4745551fa9a4b8e7",
+                "versions.yml:md5,f3cf523314479fcfc842e81116af8ab4"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.8.4",
+            "nextflow": "23.10.1"
+        },
+        "timestamp": "2024-05-02T13:45:38.806631609"
+    }
+}

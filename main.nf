@@ -1,9 +1,9 @@
 #!/usr/bin/env nextflow
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    nf/aggregate
+    seqeralabs/nf-aggregate
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Github : https://github.com/nf/aggregate
+    Github : https://github.com/seqeralabs/nf-aggregate
 ----------------------------------------------------------------------------------------
 */
 
@@ -11,82 +11,42 @@ nextflow.enable.dsl = 2
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    CONFIG FILES
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
+ch_multiqc_logo          = params.multiqc_logo   ? Channel.fromPath(params.multiqc_logo, checkIfExists: true) : Channel.fromPath("$projectDir/assets/seqera_logo_colour.png", checkIfExists: true )
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS / WORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { AGGREGATE  } from './workflows/aggregate'
-include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_aggregate_pipeline'
-include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_aggregate_pipeline'
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    NAMED WORKFLOWS FOR PIPELINE
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
+include { NF_AGGREGATE            } from './workflows/nf_aggregate'
+include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nf_aggregate'
 
 //
-// WORKFLOW: Run main analysis pipeline depending on type of input
+// WORKFLOW: Execute a single named workflow for the pipeline
 //
-workflow NF_AGGREGATE {
-
-    take:
-    samplesheet // channel: samplesheet read in from --input
-
-    main:
-
-    //
-    // WORKFLOW: Run pipeline
-    //
-    AGGREGATE (
-        samplesheet
-    )
-
-    emit:
-    multiqc_report = AGGREGATE.out.multiqc_report // channel: /path/to/multiqc_report.html
-
-}
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    RUN MAIN WORKFLOW
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
 workflow {
-
-    main:
 
     //
     // SUBWORKFLOW: Run initialisation tasks
     //
-    PIPELINE_INITIALISATION (
-        params.version,
-        params.help,
-        params.validate_params,
-        params.monochrome_logs,
-        args,
-        params.outdir,
-        params.input
-    )
+    PIPELINE_INITIALISATION ()
 
     //
-    // WORKFLOW: Run main workflow
+    // WORKFLOW: Run primary workflows for the pipeline
     //
     NF_AGGREGATE (
-        PIPELINE_INITIALISATION.out.samplesheet
-    )
-
-    //
-    // SUBWORKFLOW: Run completion tasks
-    //
-    PIPELINE_COMPLETION (
-        params.email,
-        params.email_on_fail,
-        params.plaintext_email,
-        params.outdir,
-        params.monochrome_logs,
-        params.hook_url,
-        NF_AGGREGATE.out.multiqc_report
+        PIPELINE_INITIALISATION.out.ids,
+        ch_multiqc_custom_config,
+        ch_multiqc_logo,
+        params.seqera_api_endpoint,
+        params.skip_run_gantt,
+        params.skip_multiqc
     )
 }
 

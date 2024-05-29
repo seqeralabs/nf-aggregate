@@ -1,0 +1,41 @@
+nextflow_workflow {
+
+    name "Test Workflow NF_AGGREGATE"
+    script "../main.nf"
+    workflow "NF_AGGREGATE"
+
+    tag "workflows"
+    tag "workflows_nf_aggregate"
+
+    stage {
+        symlink "workflows/nf_aggregate/assets/multiqc_config.yml"
+    }
+
+    test("Should run without failures") {
+
+        when {
+            workflow {
+                """
+                input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
+                input[1] = []
+                input[2] = []
+                input[3] = 'https://api.tower.nf'
+                input[4] = false
+                input[5] = false
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert snapshot(
+                    workflow.out.versions
+                ).match()},
+                { assert path(workflow.out.multiqc_report.get(0)).getText().contains("nf-core/rnaseq_4Bi5xBK6E2Nbhj") },
+                { assert workflow.success }
+            )
+        }
+
+    }
+
+}

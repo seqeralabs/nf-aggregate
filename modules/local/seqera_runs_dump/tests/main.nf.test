@@ -1,0 +1,37 @@
+nextflow_process {
+
+    name "Test Process SEQERA_RUNS_DUMP"
+    script "../main.nf"
+    process "SEQERA_RUNS_DUMP"
+
+    tag "modules"
+    tag "modules_local"
+    tag "seqera_runs_dump"
+
+    test("Should run without failures") {
+
+        when {
+            process {
+                """
+                input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
+                input[1] = "https://api.tower.nf"
+                """
+            }
+        }
+
+        then {
+            def dumpFiles = file(process.out.run_dump.get(0).get(1)).listFiles().sort()
+
+            assertAll(
+                { assert snapshot(
+                    dumpFiles.grep { file -> ! file.name.matches("workflow-launch.json") },
+                    process.out.workflow_json
+                ).match()},
+                { assert dumpFiles.find { it.name.matches('workflow-launch.json')}.exists()},
+                { assert process.success }
+            )
+        }
+
+    }
+
+}

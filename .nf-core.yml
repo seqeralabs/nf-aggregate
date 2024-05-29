@@ -1,38 +1,53 @@
-lint:
-  files_exist:
-  - CODE_OF_CONDUCT.md
-  - assets/nf-core-aggregate_logo_light.png
-  - docs/images/nf-core-aggregate_logo_light.png
-  - docs/images/nf-core-aggregate_logo_dark.png
-  - .github/ISSUE_TEMPLATE/config.yml
-  - .github/workflows/awstest.yml
-  - .github/workflows/awsfulltest.yml
-  - .github/workflows/branch.yml
-  - .github/workflows/ci.yml
-  - .github/workflows/linting_comment.yml
-  - .github/workflows/linting.yml
-  - conf/igenomes.config
-  - conf/igenomes.config
-  files_unchanged:
-  - CODE_OF_CONDUCT.md
-  - assets/nf-core-aggregate_logo_light.png
-  - docs/images/nf-core-aggregate_logo_light.png
-  - docs/images/nf-core-aggregate_logo_dark.png
-  - .github/ISSUE_TEMPLATE/bug_report.yml
-  multiqc_config:
-  - report_comment
-  nextflow_config:
-  - manifest.name
-  - manifest.homePage
-  - process.cpus
-  - process.memory
-  - process.time
-  - custom_config
-nf_core_version: 2.14.1
 repository_type: pipeline
+nf_core_version: 2.14.1
+lint:
+  actions_ci: False
+  base_config: False
+  files_exist:
+    - .github/.dockstore.yml
+    - .github/ISSUE_TEMPLATE/config.yml
+    - .github/workflows/awsfulltest.yml
+    - .github/workflows/awstest.yml
+    - .github/workflows/branch.yml
+    - .github/workflows/linting_comment.yml
+    - CODE_OF_CONDUCT.md
+    - LICENSE
+    - assets/email_template.html
+    - assets/email_template.txt
+    - assets/multiqc_config.yml
+    - assets/nf-core-nf-aggregate_logo_light.png
+    - assets/sendmail_template.txt
+    - conf/base.config
+    - conf/igenomes.config
+    - conf/modules.config
+    - conf/test.config
+    - conf/test_full.config
+    - docs/README.md
+    - docs/images/nf-core-nf-aggregate_logo_dark.png
+    - docs/images/nf-core-nf-aggregate_logo_light.png
+    - docs/output.md
+    - docs/usage.md
+  files_unchanged:
+    - .github/ISSUE_TEMPLATE/bug_report.yml
+    - .github/workflows/linting.yml
+    - CODE_OF_CONDUCT.md
+    - assets/nf-aggregate_logo_light.png
+    - docs/images/nf-aggregate_logo_dark.png
+    - docs/images/nf-aggregate_logo_light.png
+  modules_config: False
+  multiqc_config: False
+  nextflow_config:
+    - custom_config
+    - manifest.homePage
+    - manifest.name
+    - process.cpus
+    - process.memory
+    - process.time
+  schema_lint: False
+  pipeline_name_conventions: False
 template:
-  prefix: nf
+  prefix: seqeralabs
   skip:
-  - ci
-  - igenomes
-  - nf_core_configs
+    - ci
+    - igenomes
+    - nf_core_configs
