@@ -27,34 +27,6 @@ ch_multiqc_logo          = params.multiqc_logo   ? Channel.fromPath(params.multi
 include { NF_AGGREGATE            } from './workflows/nf_aggregate'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nf_aggregate'
 
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    NAMED WORKFLOWS FOR PIPELINE
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-//
-// WORKFLOW: Run main analysis pipeline depending on type of input
-//
-workflow NF_AGGREGATE {
-
-    take:
-    samplesheet // channel: samplesheet read in from --input
-
-    main:
-
-    //
-    // WORKFLOW: Run pipeline
-    //
-    AGGREGATE (
-        samplesheet
-    )
-
-    emit:
-    multiqc_report = AGGREGATE.out.multiqc_report // channel: /path/to/multiqc_report.html
-
-}
-
 //
 // WORKFLOW: Execute a single named workflow for the pipeline
 //
