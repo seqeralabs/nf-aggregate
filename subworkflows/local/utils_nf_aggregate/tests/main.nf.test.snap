@@ -1,0 +1,33 @@
+{
+    "Should run without failures": {
+        "content": [
+            [
+                {
+                    "id": "1oXDHFHywk3wR2",
+                    "workspace": "scidev/testing"
+                },
+                {
+                    "id": "2lXd1j7OwZVfxh",
+                    "workspace": "community/showcase"
+                },
+                {
+                    "id": "38QXz4OfQDpwOV",
+                    "workspace": "community/showcase"
+                },
+                {
+                    "id": "4Bi5xBK6E2Nbhj",
+                    "workspace": "community/showcase"
+                },
+                {
+                    "id": "4LWT4uaXDaGcDY",
+                    "workspace": "community/showcase"
+                }
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.8.4",
+            "nextflow": "23.10.1"
+        },
+        "timestamp": "2024-05-07T10:41:28.603749237"
+    }
+}

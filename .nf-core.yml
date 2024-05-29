@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 lint:
   files_exist:
   - CODE_OF_CONDUCT.md
@@ -36,3 +37,6 @@ template:
   - ci
   - igenomes
   - nf_core_configs
+=======
+repository_type: pipeline
+>>>>>>> dev

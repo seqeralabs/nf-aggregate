@@ -10,3 +10,7 @@ testing/
 testing*
 *.pyc
 bin/
+<<<<<<< HEAD
+=======
+*.html
+>>>>>>> dev

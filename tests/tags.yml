@@ -1,0 +1,5 @@
+pipeline_nf-aggregate:
+  - "**.nf"
+  - "**.config"
+  - "**.nf.test"
+  - "**.json"
