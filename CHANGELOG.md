@@ -30,7 +30,7 @@ Thank you to everyone else that has contributed by reporting bugs, enhancements 
 [PR #31](https://github.com/seqeralabs/nf-aggregate/pull/31) - Update Platform API URI
 [PR #32](https://github.com/seqeralabs/nf-aggregate/pull/32) - Update all nf-core modules and subworkflows
 [PR #33](https://github.com/seqeralabs/nf-aggregate/pull/33) - Remove `docker.userEmulation`
-[PR #37](https://github.com/seqeralabs/nf-aggregate/pull/37) - Sync with nf-core tools 2.14.1
+[PR #40](https://github.com/seqeralabs/nf-aggregate/pull/40) - Sync with nf-core tools 2.14.1
 
 ### Software dependencies
 
