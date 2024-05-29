@@ -10,7 +10,7 @@
 
 ## Introduction
 
-**seqeralabs/nf-aggregate** is a nextflow pipeline to aggregate pertinent metrics across pipeline runs on the Seqera Platform.
+**seqeralabs/nf-aggregate** is a Nextflow pipeline to aggregate pertinent metrics across pipeline runs on the Seqera Platform.
 
 <p align="center">
   <img src="assets/multiqc_screenshot.png" alt="MultiQC screenshot" width="75%"/>
