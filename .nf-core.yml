@@ -1,42 +1,40 @@
-<<<<<<< HEAD
-lint:
-  files_exist:
-  - CODE_OF_CONDUCT.md
-  - assets/nf-core-aggregate_logo_light.png
-  - docs/images/nf-core-aggregate_logo_light.png
-  - docs/images/nf-core-aggregate_logo_dark.png
-  - .github/ISSUE_TEMPLATE/config.yml
-  - .github/workflows/awstest.yml
-  - .github/workflows/awsfulltest.yml
-  - .github/workflows/branch.yml
-  - .github/workflows/ci.yml
-  - .github/workflows/linting_comment.yml
-  - .github/workflows/linting.yml
-  - conf/igenomes.config
-  - conf/igenomes.config
-  files_unchanged:
-  - CODE_OF_CONDUCT.md
-  - assets/nf-core-aggregate_logo_light.png
-  - docs/images/nf-core-aggregate_logo_light.png
-  - docs/images/nf-core-aggregate_logo_dark.png
-  - .github/ISSUE_TEMPLATE/bug_report.yml
-  multiqc_config:
-  - report_comment
-  nextflow_config:
-  - manifest.name
-  - manifest.homePage
-  - process.cpus
-  - process.memory
-  - process.time
-  - custom_config
+repository_type: pipeline
 nf_core_version: 2.14.1
-repository_type: pipeline
+lint:
+  actions_ci: False
+  files_exist:
+    - .github/ISSUE_TEMPLATE/config.yml
+    - .github/workflows/awsfulltest.yml
+    - .github/workflows/awstest.yml
+    - .github/workflows/branch.yml
+    - .github/workflows/ci.yml
+    - .github/workflows/linting.yml
+    - .github/workflows/linting_comment.yml
+    - CODE_OF_CONDUCT.md
+    - assets/nf-core-nf-aggregate_logo_light.png
+    - conf/igenomes.config
+    - docs/images/nf-core-nf-aggregate_logo_dark.png
+    - docs/images/nf-core-nf-aggregate_logo_light.png
+  files_unchanged:
+    - .github/ISSUE_TEMPLATE/bug_report.yml
+    - CODE_OF_CONDUCT.md
+    - assets/nf-aggregate_logo_light.png
+    - docs/images/nf-aggregate_logo_dark.png
+    - docs/images/nf-aggregate_logo_light.png
+  multiqc_config:
+    - report_comment
+  nextflow_config:
+    - custom_config
+    - manifest.homePage
+    - manifest.name
+    - process.cpus
+    - process.memory
+    - process.time
+  schema_lint: False
+  pipeline_name_conventions: False
 template:
-  prefix: nf
+  prefix: seqeralabs
   skip:
-  - ci
-  - igenomes
-  - nf_core_configs
-=======
-repository_type: pipeline
->>>>>>> dev
+    - ci
+    - igenomes
+    - nf_core_configs
