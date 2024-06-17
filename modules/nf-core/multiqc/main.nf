@@ -1,8 +1,8 @@
 def mod_container = switch([workflow.containerEngine, workflow.profile]) {
-    case {it[0] == 'singularity' &&  it[1].contains('arm')} -> 'oras://community.wave.seqera.io/library/multiqc:1.22.1--af20ae77441fdc43'
-    case {it[0] == 'singularity'} -> 'oras://community.wave.seqera.io/library/multiqc:1.22.1--ac0a91c1ae1c160c'
-    case {it[1].contains('arm')} -> 'community.wave.seqera.io/library/multiqc:1.22.1--22ddc3b95632778f'
-    default -> 'community.wave.seqera.io/library/multiqc:1.22.1--4886de6095538010'
+    case {it[0] == 'singularity' &&  it[1].contains('arm')} -> 'multiqc:1.22.1--af20ae77441fdc43'
+    case {it[0] == 'singularity'} -> 'multiqc:1.22.1--ac0a91c1ae1c160c'
+    case {it[1].contains('arm')} -> 'multiqc:1.22.1--22ddc3b95632778f'
+    default -> 'multiqc:1.22.1--4886de6095538010'
 }
 
 process MULTIQC {
