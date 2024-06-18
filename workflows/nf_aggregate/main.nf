@@ -3,8 +3,12 @@
 //
 
 include { SEQERA_RUNS_DUMP     } from '../../modules/local/seqera_runs_dump'
+includeConfig '../../modules/local/seqera_runs_dump/nextflow.config'
 include { PLOT_RUN_GANTT       } from '../../modules/local/plot_run_gantt'
+includeConfig '../../modules/local/plot_run_gantt/nextflow.config'
 include { MULTIQC              } from '../../modules/nf-core/multiqc'
+includeConfig '../../modules/nf-core/multiqc/nextflow.config'
+
 include { paramsSummaryMultiqc } from '../../subworkflows/local/utils_nf_aggregate'
 include { getProcessVersions   } from '../../subworkflows/local/utils_nf_aggregate'
 include { getWorkflowVersions  } from '../../subworkflows/local/utils_nf_aggregate'
