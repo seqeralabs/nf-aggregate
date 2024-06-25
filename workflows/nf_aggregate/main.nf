@@ -13,13 +13,15 @@ include { paramsSummaryMap     } from 'plugin/nf-validation'
 workflow NF_AGGREGATE {
 
     take:
-    ids                   // channel: run ids read in from --input
-    multiqc_custom_config // channel: user specified custom config file used by MultiQC
-    multiqc_logo          // channel: logo rendered in MultiQC report
-    seqera_api_endpoint   //     val: Seqera Platform API endpoint URL
-    skip_run_gantt        //     val: Skip GANTT chart creation for each run
-    skip_multiqc          //     val: Skip MultiQC
-
+    ids                       // channel: run ids read in from --input
+    multiqc_custom_config     // channel: user specified custom config file used by MultiQC
+    multiqc_logo              // channel: logo rendered in MultiQC report
+    seqera_api_endpoint       //     val: Seqera Platform API endpoint URL
+    skip_run_gantt            //     val: Skip GANTT chart creation for each run
+    skip_multiqc              //     val: Skip MultiQC
+    java_truststore_path      //     val: Path to java truststore if using private certs
+    java_truststore_password  //     val: Password for java truststore if using private certs
+    
     main:
 
     ch_versions = Channel.empty()
@@ -30,7 +32,9 @@ workflow NF_AGGREGATE {
     //
     SEQERA_RUNS_DUMP (
         ids,
-        seqera_api_endpoint
+        seqera_api_endpoint,
+        java_truststore_path,
+        java_truststore_password
     )
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions.first())
 
@@ -40,9 +44,9 @@ workflow NF_AGGREGATE {
     SEQERA_RUNS_DUMP
         .out
         .run_dump
-        .filter { 
+        .filter {
             meta, run_dir ->
-                meta.fusion && !params.skip_run_gantt 
+                meta.fusion && !params.skip_run_gantt
         }
         .set { ch_runs_for_gantt }
 

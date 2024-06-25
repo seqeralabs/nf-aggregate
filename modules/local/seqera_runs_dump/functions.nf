@@ -2,6 +2,14 @@
 import wslite.rest.RESTClient
 import groovy.json.JsonSlurper
 
+// Set system properties for custom Java trustStore
+def setTrustStore(trustStorePath, trustStorePassword) {
+    System.setProperty("javax.net.ssl.trustStore", trustStorePath)
+    if (trustStorePassword) {
+        System.setProperty("javax.net.ssl.trustStorePassword", trustStorePassword)
+    }
+}
+
 Long getWorkspaceId(orgName, workspaceName, client, authHeader) {
     def orgResponse = client.get(path: '/orgs', headers: authHeader)
     if (orgResponse.statusCode == 200) {
@@ -21,9 +29,14 @@ Long getWorkspaceId(orgName, workspaceName, client, authHeader) {
     return null
 }
 
-Map getRunMetadata(meta, log, api_endpoint) {
+Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) {
     def runId = meta.id
     def (orgName, workspaceName) = meta.workspace.tokenize("/")
+    
+    if (trustStorePath) {
+        log.info "Setting custom truststore: ${trustStorePath}"
+        setTrustStore(trustStorePath, trustStorePassword)
+    }
 
     def client = new RESTClient(api_endpoint)
     def token = System.getenv("TOWER_ACCESS_TOKEN")
