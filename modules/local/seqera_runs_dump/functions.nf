@@ -1,6 +1,6 @@
-
 @Grab('com.github.groovy-wslite:groovy-wslite:1.1.2;transitive=false')
 import wslite.rest.RESTClient
+import groovy.json.JsonSlurper
 
 Long getWorkspaceId(orgName, workspaceName, client, authHeader) {
     def orgResponse = client.get(path: '/orgs', headers: authHeader)
@@ -14,6 +14,8 @@ Long getWorkspaceId(orgName, workspaceName, client, authHeader) {
         if (workspaceReponse.statusCode == 200) {
             def workspaceMap = workspaceReponse.json?.workspaces.collectEntries { ws -> [ws.name, ws.id]}
             return workspaceMap?.get(workspaceName)
+        } else {
+            log.error "Failed to fetch workspaces for orgId: ${orgId}, statusCode: ${workspaceResponse.statusCode}"
         }
     }
     return null
@@ -39,11 +41,18 @@ Map getRunMetadata(meta, log, api_endpoint) {
                 return metaMap ?: [:]
             }
         }
-    } catch(Exception ex) {
+    } catch (wslite.rest.RESTClientException ex) {
         log.warn """
         Could not get workflow details for workflow ${runId} in workspace ${meta.workspace}:
-            ↳ Status code ${ex.response.statusCode} returned from request to ${ex.request.url} (authentication headers excluded)
+            ↳ Status code ${ex.response?.statusCode} returned from request to ${ex.request?.url} (authentication headers excluded)
         """.stripIndent()
+        log.error "Exception: ${ex.message}", ex
+    } catch (Exception ex) {
+        log.warn """
+        An error occurred while getting workflow details for workflow ${runId} in workspace ${meta.workspace}:
+            ↳ ${ex.message}
+        """.stripIndent()
+        log.error "Exception: ${ex.message}", ex
     }
     return [:]
 }
