@@ -50,12 +50,12 @@
                 },
                 "java_truststore_path": {
                     "type": "string",
-                    "description": "Path to custom cacerts Java truststore used by Seqera Platform",
+                    "description": "Path to custom cacerts Java truststore used by Seqera Platform.",
                     "fa_icon": "fas fa-key"
                 },
                 "java_truststore_password": {
                     "type": "string",
-                    "description": "Password for custom cacerts Java truststore used by Seqera Platform",
+                    "description": "Password for custom cacerts Java truststore used by Seqera Platform.",
                     "fa_icon": "fas fa-key"
                 },
                 "skip_run_gantt": {
