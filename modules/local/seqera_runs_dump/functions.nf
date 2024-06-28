@@ -32,7 +32,7 @@ Long getWorkspaceId(orgName, workspaceName, client, authHeader) {
 Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) {
     def runId = meta.id
     def (orgName, workspaceName) = meta.workspace.tokenize("/")
-    
+
     if (trustStorePath) {
         log.info "Setting custom truststore: ${trustStorePath}"
         setTrustStore(trustStorePath, trustStorePassword)
