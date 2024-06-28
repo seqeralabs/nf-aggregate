@@ -47,8 +47,8 @@ workflow {
         params.seqera_api_endpoint,
         params.skip_run_gantt,
         params.skip_multiqc,
-        params.java_truststore_path ?: '',
-        params.java_truststore_password ?: ''
+        params.java_truststore_path,
+        params.java_truststore_password
     )
 }
 
