@@ -33,8 +33,8 @@ workflow NF_AGGREGATE {
     SEQERA_RUNS_DUMP (
         ids,
         seqera_api_endpoint,
-        java_truststore_path,
-        java_truststore_password
+        java_truststore_path ?: '',
+        java_truststore_password ?: ''
     )
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions.first())
 
