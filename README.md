@@ -54,6 +54,8 @@ nextflow run seqeralabs/nf-aggregate \
     -profile docker
 ```
 
+If you are using a Seqera Platform Enterprise instance that is secured with a private CA SSL certificate not recognized by default Java certificate authorities, you can specify a custom `cacerts` store path through the `--java_truststore_path` parameter and optionally, a password with the `--java_truststore_password`. This certificate will be used to achieve connectivity with your Seqera Platform instance through API and CLI.
+
 ## Output
 
 The results from the pipeline will be published in the path specified by the `--outdir` and will consist of the following contents:

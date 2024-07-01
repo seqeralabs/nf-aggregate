@@ -8,6 +8,8 @@ process SEQERA_RUNS_DUMP {
     input:
     val meta
     val api_endpoint
+    val java_truststore_path
+    val java_truststore_password
 
     output:
     tuple val(metaOut), path("${prefix}"), emit: run_dump
@@ -17,11 +19,15 @@ process SEQERA_RUNS_DUMP {
     def args = task.ext.args ?: ''
     def args2 = task.ext.args2 ?: ''
     prefix = task.ext.prefix ?: "${meta.id}"
-    metaOut = meta + getRunMetadata(meta, log, api_endpoint)
+    metaOut = meta + getRunMetadata(meta, log, api_endpoint, java_truststore_path, java_truststore_password)
     fusion = metaOut.fusion ? '--add-fusion-logs' : ''
+    javaTrustStore = java_truststore_path ? "-Djavax.net.ssl.trustStore=${java_truststore_path}" : ''
+    javaTrustStorePassword = java_truststore_password ? "-Djavax.net.ssl.trustStorePassword=${java_truststore_password}" : ''
     """
     tw \\
         $args \\
+        $javaTrustStore \\
+        $javaTrustStorePassword \\
         --url=${api_endpoint} \\
         --access-token=$TOWER_ACCESS_TOKEN \\
         runs \\

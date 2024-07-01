@@ -22,6 +22,8 @@ nextflow_workflow {
                 input[3] = 'https://api.tower.nf'
                 input[4] = false
                 input[5] = false
+                input[6] = ""
+                input[7] = ""
                 """
             }
         }
