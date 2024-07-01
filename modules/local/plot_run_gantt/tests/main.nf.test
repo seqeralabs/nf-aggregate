@@ -17,6 +17,8 @@ nextflow_process {
                     """
                     input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
                     input[1] = "https://api.tower.nf"
+                    input[2] = ""
+                    input[3] = ""
                     """
                 }
             }

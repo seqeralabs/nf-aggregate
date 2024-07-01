@@ -48,6 +48,16 @@
                     "description": "Extra arguments to pass to the Seqera Platform CLI command in addition to defaults defined by the pipeline.",
                     "fa_icon": "fas fa-plus"
                 },
+                "java_truststore_path": {
+                    "type": "string",
+                    "description": "Path to custom cacerts Java truststore used by Seqera Platform.",
+                    "fa_icon": "fas fa-key"
+                },
+                "java_truststore_password": {
+                    "type": "string",
+                    "description": "Password for custom cacerts Java truststore used by Seqera Platform.",
+                    "fa_icon": "fas fa-key"
+                },
                 "skip_run_gantt": {
                     "type": "boolean",
                     "description": "Skip GANTT chart creation for each run.",
