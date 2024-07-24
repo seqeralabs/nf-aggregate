@@ -21,7 +21,7 @@ workflow NF_AGGREGATE {
     skip_multiqc              //     val: Skip MultiQC
     java_truststore_path      //     val: Path to java truststore if using private certs
     java_truststore_password  //     val: Password for java truststore if using private certs
-    
+
     main:
 
     ch_versions = Channel.empty()
@@ -30,6 +30,7 @@ workflow NF_AGGREGATE {
     //
     // MODULE: Fetch run information via the Seqera CLI
     //
+
     SEQERA_RUNS_DUMP (
         ids,
         seqera_api_endpoint,
