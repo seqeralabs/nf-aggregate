@@ -60,14 +60,14 @@ Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) 
         Could not get workflow details for workflow ${runId} in workspace ${meta.workspace}:
             ↳ Status code ${ex.response?.statusCode} returned from request to ${ex.request?.url} (authentication headers excluded)
         """.stripIndent()
-        log.error(ex)
+        log.error "Exception: ${ex.message}", ex
         throw new ProcessException("Failed to get workflow details for workflow ${runId} in workspace ${meta.workspace}", ex)
     } catch (Exception ex) {
         log.warn """
         An error occurred while getting workflow details for workflow ${runId} in workspace ${meta.workspace}:
             ↳ ${ex.message}
         """.stripIndent()
-        log.error(ex)
+        log.error "Exception: ${ex.message}", ex
         throw new ProcessException("Failed to get workflow details for workflow ${runId} in workspace ${meta.workspace}", ex)
 
     }
