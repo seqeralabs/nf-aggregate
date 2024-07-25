@@ -1,6 +1,5 @@
 @Grab('com.github.groovy-wslite:groovy-wslite:1.1.2;transitive=false')
 import wslite.rest.RESTClient
-import groovy.json.JsonSlurper
 import nextflow.exception.ProcessException
 
 // Set system properties for custom Java trustStore
@@ -31,6 +30,7 @@ Long getWorkspaceId(orgName, workspaceName, client, authHeader) {
 }
 
 Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) {
+
     def runId = meta.id
     def (orgName, workspaceName) = meta.workspace.tokenize("/")
 
@@ -47,10 +47,14 @@ Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) 
         def workspaceId = getWorkspaceId(orgName, workspaceName, client, authHeader)
         if (workspaceId) {
             def workflowResponse = client.get(path: "/workflow/${runId}", query: ["workspaceId":workspaceId], headers: authHeader)
+
             if (workflowResponse.statusCode == 200) {
                 def metaMap = workflowResponse?.json?.workflow?.subMap("runName", "workDir", "projectName")
-                def config = new ConfigSlurper().parse( workflowResponse?.json?.workflow?.configText )
-                metaMap.fusion =  config.fusion.enabled
+                String searchString = "fusion {\n   enabled = true\n}"
+
+                if(workflowResponse?.json?.workflow.toString().contains(searchString)) {
+                    metaMap.fusion = "true"
+                }
 
                 return metaMap ?: [:]
             }
@@ -69,7 +73,6 @@ Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) 
         """.stripIndent()
         log.error "Exception: ${ex.message}", ex
         throw new ProcessException("Failed to get workflow details for workflow ${runId} in workspace ${meta.workspace}", ex)
-
     }
     return [:]
 }
