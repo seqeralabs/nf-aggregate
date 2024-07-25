@@ -1,7 +1,7 @@
 @Grab('com.github.groovy-wslite:groovy-wslite:1.1.2;transitive=false')
 import wslite.rest.RESTClient
 import groovy.json.JsonSlurper
-import  nextflow.exception.ProcessException
+import nextflow.exception.ProcessException
 
 // Set system properties for custom Java trustStore
 def setTrustStore(trustStorePath, trustStorePassword) {
@@ -49,8 +49,6 @@ Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) 
             def workflowResponse = client.get(path: "/workflow/${runId}", query: ["workspaceId":workspaceId], headers: authHeader)
             if (workflowResponse.statusCode == 200) {
                 metaMap = workflowResponse?.json?.workflow?.subMap("runName", "workDir", "projectName")
-                // log.warn("config: ${workflowResponse?.json?.workflow?.configText}")
-                // TODO: What is different to the viralrecon config
                 config = new ConfigSlurper().parse( workflowResponse?.json?.workflow?.configText )
                 metaMap.fusion =  config.fusion.enabled
 
