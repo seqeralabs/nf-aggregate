@@ -1,6 +1,7 @@
 @Grab('com.github.groovy-wslite:groovy-wslite:1.1.2;transitive=false')
 import wslite.rest.RESTClient
 import groovy.json.JsonSlurper
+import nextflow.exception.ProcessException
 
 // Set system properties for custom Java trustStore
 def setTrustStore(trustStorePath, trustStorePassword) {
@@ -60,12 +61,15 @@ Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) 
             ↳ Status code ${ex.response?.statusCode} returned from request to ${ex.request?.url} (authentication headers excluded)
         """.stripIndent()
         log.error "Exception: ${ex.message}", ex
+        throw new ProcessException("Failed to get workflow details for workflow ${runId} in workspace ${meta.workspace}", ex)
     } catch (Exception ex) {
         log.warn """
         An error occurred while getting workflow details for workflow ${runId} in workspace ${meta.workspace}:
             ↳ ${ex.message}
         """.stripIndent()
         log.error "Exception: ${ex.message}", ex
+        throw new ProcessException("Failed to get workflow details for workflow ${runId} in workspace ${meta.workspace}", ex)
+
     }
     return [:]
 }
