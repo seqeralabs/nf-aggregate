@@ -2,7 +2,7 @@
     "Should run without failures": {
         "content": [
             [
-                "service-info.json:md5,108f149aafa287bb56d715c0c7ee0359",
+                "service-info.json:md5,72586e82ad2064d1a90008c7956d80d8",
                 "workflow-load.json:md5,4f02d5a24ab89aa648cd4346785c8f2c",
                 "workflow-metadata.json:md5,b37b4faeddf283a2c44cbe4000e4ab6e",
                 "workflow-metrics.json:md5,13a5b5d7447fad4a8baa053d1abf85e5",
@@ -13,8 +13,8 @@
         ],
         "meta": {
             "nf-test": "0.8.4",
-            "nextflow": "23.10.1"
+            "nextflow": "24.04.2"
         },
-        "timestamp": "2024-05-20T15:32:40.565622058"
+        "timestamp": "2024-07-25T10:21:06.447483"
     }
 }
