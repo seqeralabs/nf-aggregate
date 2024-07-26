@@ -45,10 +45,12 @@ workflow NF_AGGREGATE {
     SEQERA_RUNS_DUMP
         .out
         .run_dump
-        .filter {
-            meta, run_dir ->
-                meta.fusion && !params.skip_run_gantt
-        }
+        // This field is currently not set, see issue: https://github.com/seqeralabs/nf-aggregate/issues/55
+        // .filter {
+        //     meta, run_dir ->
+
+        //         meta.fusion && !params.skip_run_gantt
+        // }
         .set { ch_runs_for_gantt }
 
     PLOT_RUN_GANTT (

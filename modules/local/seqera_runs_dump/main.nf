@@ -20,9 +20,10 @@ process SEQERA_RUNS_DUMP {
     def args2 = task.ext.args2 ?: ''
     prefix = task.ext.prefix ?: "${meta.id}"
     metaOut = meta + getRunMetadata(meta, log, api_endpoint, java_truststore_path, java_truststore_password)
-    fusion = metaOut.fusion ? '--add-fusion-logs' : ''
+    fusion = '' //metaOut.fusion ? '--add-fusion-logs' : '' see issue: https://github.com/seqeralabs/nf-aggregate/issues/55
     javaTrustStore = java_truststore_path ? "-Djavax.net.ssl.trustStore=${java_truststore_path}" : ''
     javaTrustStorePassword = java_truststore_password ? "-Djavax.net.ssl.trustStorePassword=${java_truststore_password}" : ''
+
     """
     tw \\
         $args \\

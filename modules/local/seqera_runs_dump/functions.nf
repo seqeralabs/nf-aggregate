@@ -50,12 +50,6 @@ Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) 
 
             if (workflowResponse.statusCode == 200) {
                 def metaMap = workflowResponse?.json?.workflow?.subMap("runName", "workDir", "projectName")
-                String searchString = "fusion {\n   enabled = true\n}"
-
-                if(workflowResponse?.json?.workflow.toString().contains(searchString)) {
-                    metaMap.fusion = "true"
-                }
-
                 return metaMap ?: [:]
             }
         }
