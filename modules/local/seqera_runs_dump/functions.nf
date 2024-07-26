@@ -2,6 +2,7 @@
 import wslite.rest.RESTClient
 import groovy.json.JsonSlurper
 import nextflow.exception.ProcessException
+import groovy.json.JsonBuilder
 
 // Set system properties for custom Java trustStore
 def setTrustStore(trustStorePath, trustStorePassword) {
@@ -49,8 +50,10 @@ Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) 
             def workflowResponse = client.get(path: "/workflow/${runId}", query: ["workspaceId":workspaceId], headers: authHeader)
             if (workflowResponse.statusCode == 200) {
                 def metaMap = workflowResponse?.json?.workflow?.subMap("runName", "workDir", "projectName")
-                def config = new ConfigSlurper().parse( workflowResponse?.json?.workflow?.configText )
-                metaMap.fusion =  config.fusion.enabled
+                def configText = new JsonBuilder(workflowResponse?.json?.workflow?.configText)
+                def pattern = /fusion\s*\{\\n\s*enabled\s*=\s*true/
+                def matcher = configText.toPrettyString() =~ pattern
+                metaMap.fusion = matcher.find()
 
                 return metaMap ?: [:]
             }
