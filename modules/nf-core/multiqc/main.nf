@@ -1,10 +1,14 @@
+def mod_container = switch([workflow.containerEngine, workflow.profile]) {
+    case {it[0] == 'singularity' &&  it[1].contains('arm')} -> 'multiqc:1.22.1--af20ae77441fdc43'
+    case {it[0] == 'singularity'} -> 'multiqc:1.22.1--ac0a91c1ae1c160c'
+    case {it[1].contains('arm')} -> 'multiqc:1.22.1--22ddc3b95632778f'
+    default -> 'multiqc:1.22.1--4886de6095538010'
+}
+
 process MULTIQC {
     label 'process_single'
 
     conda "${moduleDir}/environment.yml"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/multiqc:1.21--pyhdfd78af_0' :
-        'biocontainers/multiqc:1.21--pyhdfd78af_0' }"
 
     input:
     path  multiqc_files, stageAs: "?/*"
