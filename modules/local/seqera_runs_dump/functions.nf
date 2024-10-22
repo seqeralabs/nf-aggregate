@@ -1,78 +1,65 @@
-@Grab('com.github.groovy-wslite:groovy-wslite:1.1.2;transitive=false')
-import wslite.rest.RESTClient
-import groovy.json.JsonSlurper
-import nextflow.exception.ProcessException
-import groovy.json.JsonBuilder
 
-// Set system properties for custom Java trustStore
-def setTrustStore(trustStorePath, trustStorePassword) {
-    System.setProperty("javax.net.ssl.trustStore", trustStorePath)
-    if (trustStorePassword) {
-        System.setProperty("javax.net.ssl.trustStorePassword", trustStorePassword)
+Long getWorkspaceId(orgName, workspaceName, api_endpoint, authHeader) {
+    Map response
+    try {
+        def responseString = new URL("${api_endpoint}/orgs").getText(requestProperties: authHeader)
+        response = new groovy.json.JsonSlurper().parseText(responseString)
+    } catch (Exception e) {
+        log.warn "Could not fetch organization ${orgName} from API endpoint ${api_endpoint}"
+        throw new nextflow.exception.ProcessException("Failed to get organization details for ${orgName} in workspace ${workspaceName}", e)
     }
-}
 
-Long getWorkspaceId(orgName, workspaceName, client, authHeader) {
-    def orgResponse = client.get(path: '/orgs', headers: authHeader)
-    if (orgResponse.statusCode == 200) {
-        def orgMap = orgResponse.json?.organizations.collectEntries { org -> [org.name, org.orgId] }
-        def orgId = orgMap.get(orgName)
-        if(!orgId) log.warn "Could not find organization '${orgName}'"
+    def orgId = response
+        ?.organizations
+        ?.collectEntries { org -> [org.name, org.orgId] }
+        ?.get(orgName)
+    if(!orgId) log.warn "Could not find organization '${orgName}'"
 
-        // GET the workspaces in this org
-        def workspaceReponse = client.get(path: "/orgs/${orgId}/workspaces", headers: authHeader)
-        if (workspaceReponse.statusCode == 200) {
-            def workspaceMap = workspaceReponse.json?.workspaces.collectEntries { ws -> [ws.name, ws.id]}
-            return workspaceMap?.get(workspaceName)
-        } else {
-            log.error "Failed to fetch workspaces for orgId: ${orgId}, statusCode: ${workspaceResponse.statusCode}"
-        }
+    try {
+        def workspaceReponse = new URL("${api_endpoint}/orgs/${orgId}/workspaces").getText(requestProperties: authHeader)
+        def workspaceMap = new groovy.json.JsonSlurper()
+            .parseText(workspaceReponse)
+            ?.workspaces
+            ?.collectEntries { ws -> [ws.name, ws.id]}
+        return workspaceMap?.get(workspaceName)
+    } catch (Exception e) {
+        log.error "Failed to fetch workspaces for orgId: ${orgId}"
+        return null
     }
-    return null
 }
 
 Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) {
     def runId = meta.id
     def (orgName, workspaceName) = meta.workspace.tokenize("/")
 
-    if (trustStorePath) {
-        log.info "Setting custom truststore: ${trustStorePath}"
-        setTrustStore(trustStorePath, trustStorePassword)
-    }
-
-    def client = new RESTClient(api_endpoint)
     def token = System.getenv("TOWER_ACCESS_TOKEN")
     def authHeader = ["Authorization": "Bearer ${token}"]
+    def workspaceId = getWorkspaceId(orgName, workspaceName, api_endpoint, authHeader)
+    def endpointUrl = "${api_endpoint}/workflow/${runId}?workspaceId=${workspaceId}"
+    if(!workspaceId) {
+        log.error "Failed to get workspaceId for ${orgName}/${workspaceName}"
+        return [:]
+    }
 
     try {
-        def workspaceId = getWorkspaceId(orgName, workspaceName, client, authHeader)
-        if (workspaceId) {
-            def workflowResponse = client.get(path: "/workflow/${runId}", query: ["workspaceId":workspaceId], headers: authHeader)
-            if (workflowResponse.statusCode == 200) {
-                def metaMap = workflowResponse?.json?.workflow?.subMap("runName", "workDir", "projectName")
-                def configText = new JsonBuilder(workflowResponse?.json?.workflow?.configText)
-                def pattern = /fusion\s*\{\\n\s*enabled\s*=\s*true/
-                def matcher = configText.toPrettyString() =~ pattern
-                metaMap.fusion = matcher.find()
+        def workflowResponseString = new URL(endpointUrl).getText(requestProperties: authHeader)
+        def workflowResponse = new groovy.json.JsonSlurper().parseText(workflowResponseString)
+        def metaMap = workflowResponse
+            ?.workflow
+            ?.subMap("runName", "workDir", "projectName")
+        def configText = new groovy.json.JsonBuilder(workflowResponse?.workflow?.configText)
+        def pattern = /fusion\s*\{\\n\s*enabled\s*=\s*true/
+        def matcher = configText.toPrettyString() =~ pattern
+        metaMap.fusion = matcher.find()
 
-                return metaMap ?: [:]
-            }
-        }
-    } catch (wslite.rest.RESTClientException ex) {
-        log.warn """
-        Could not get workflow details for workflow ${runId} in workspace ${meta.workspace}:
-            ↳ Status code ${ex.response?.statusCode} returned from request to ${ex.request?.url} (authentication headers excluded)
-        """.stripIndent()
-        log.error "Exception: ${ex.message}", ex
-        throw new ProcessException("Failed to get workflow details for workflow ${runId} in workspace ${meta.workspace}", ex)
+        return metaMap ?: [:]
     } catch (Exception ex) {
         log.warn """
-        An error occurred while getting workflow details for workflow ${runId} in workspace ${meta.workspace}:
-            ↳ ${ex.message}
+        Could not get workflow details for workflow ${runId} in workspace ${meta.workspace}:
+            ↳ From request to ${endpointUrl} (authentication headers excluded)
         """.stripIndent()
         log.error "Exception: ${ex.message}", ex
-        throw new ProcessException("Failed to get workflow details for workflow ${runId} in workspace ${meta.workspace}", ex)
-
+        throw new nextflow.exception.ProcessException("Failed to get workflow details for workflow ${runId} in workspace ${meta.workspace}", ex)
     }
     return [:]
 }
