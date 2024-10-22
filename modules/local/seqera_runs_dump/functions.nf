@@ -56,7 +56,7 @@ Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) 
     } catch (Exception ex) {
         log.warn """
         Could not get workflow details for workflow ${runId} in workspace ${meta.workspace}:
-            ↳ From request to ${endpointUrl} (authentication headers excluded)
+            ↳ From request to ${endpointUrl}
         """.stripIndent()
         log.error "Exception: ${ex.message}", ex
         throw new nextflow.exception.ProcessException("Failed to get workflow details for workflow ${runId} in workspace ${meta.workspace}", ex)
