@@ -18,7 +18,7 @@ Thank you to everyone else that has contributed by reporting bugs, enhancements 
 
 [PR #61](https://github.com/seqeralabs/nf-aggregate/pull/61) - Remove dependency on external library/grape
 [PR #63](https://github.com/seqeralabs/nf-aggregate/pull/63) - Add `maxForks` setting for Seqera CLI to overcome API issues
-[PR #64](https://github.com/seqeralabs/nf-aggregate/pull/64) - Replace eclint GHA by pre-commit
+[PR #65](https://github.com/seqeralabs/nf-aggregate/pull/65) - Replace eclint GHA by pre-commit
 
 ## [[0.4.0](https://github.com/seqeralabs/nf-aggregate/releases/tag/0.4.0)] - 2024-07-26
 
