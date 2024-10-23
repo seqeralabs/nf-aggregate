@@ -3,6 +3,22 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [[0.5.0](https://github.com/seqeralabs/nf-aggregate/releases/tag/0.5.0)] - 2024-10-24
+
+### Credits
+
+Special thanks to the following for their contributions to the release:
+
+- [Adam Talbot](https://github.com/adamrtalbot)
+- [Rob Syme](https://github.com/robsyme)
+
+Thank you to everyone else that has contributed by reporting bugs, enhancements or in any other way, shape or form.
+
+### Enhancements & fixes
+
+[PR #61](https://github.com/seqeralabs/nf-aggregate/pull/61) - Remove dependency on external library/grape
+[PR #63](https://github.com/seqeralabs/nf-aggregate/pull/63) - Add `maxForks` setting for Seqera CLI to overcome API issues
+
 ## [[0.4.0](https://github.com/seqeralabs/nf-aggregate/releases/tag/0.4.0)] - 2024-07-26
 
 ### Credits
