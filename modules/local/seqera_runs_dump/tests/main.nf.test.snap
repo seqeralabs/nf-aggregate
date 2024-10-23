@@ -2,7 +2,7 @@
     "Should run without failures": {
         "content": [
             [
-                "service-info.json:md5,72586e82ad2064d1a90008c7956d80d8",
+                "service-info.json:md5,6988ae3ef3c822007075726ecc73ba9c",
                 "workflow-load.json:md5,4f02d5a24ab89aa648cd4346785c8f2c",
                 "workflow-metadata.json:md5,b37b4faeddf283a2c44cbe4000e4ab6e",
                 "workflow-metrics.json:md5,13a5b5d7447fad4a8baa053d1abf85e5",

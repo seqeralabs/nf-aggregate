@@ -78,7 +78,7 @@ def getWorkflowPublishDir(json_file, outdir) {
         def workdir = getWorkflowWorkDir(json_file)
         if (workdir.startsWith('s3://')) {
             path = Paths.get(workdir, path)
-        }  
+        }
     }
     return path
 }
@@ -99,8 +99,8 @@ def getProcessVersions(yaml_file) {
 def getWorkflowVersions() {
     return """
     'Workflow':
-      "Nextflow": "$workflow.nextflow.version"
-      "$workflow.manifest.name": "$workflow.manifest.version"
+        "Nextflow": "$workflow.nextflow.version"
+        "$workflow.manifest.name": "$workflow.manifest.version"
     """.stripIndent().trim()
 }
 

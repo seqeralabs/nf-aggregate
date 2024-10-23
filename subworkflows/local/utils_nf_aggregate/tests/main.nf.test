@@ -6,7 +6,7 @@ nextflow_workflow {
 
     tag "subworkflows"
     tag "subworkflows_local_utils_nf_aggregate"
-    
+
     stage {
         symlink "nextflow_schema.json"
         symlink "workflows/nf_aggregate/assets/test_run_ids.csv"
@@ -28,10 +28,8 @@ nextflow_workflow {
                 { assert workflow.success },
                 { assert snapshot(
                     workflow.out.ids
-                 ).match() }
+                ).match() }
             )
         }
-
     }
-
 }
