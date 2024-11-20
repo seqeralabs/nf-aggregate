@@ -2,7 +2,6 @@ process PLOT_RUN_GANTT {
     tag "$meta.id"
 
     conda 'click=8.0.1 pandas=1.1.5 plotly_express=0.4.1 typing=3.10.0.0'
-    container 'seqeralabs/nf-aggregate:click-8.0.1_pandas-1.1.5_plotly_express-0.4.1_typing-3.10.0.0--ccea219dc6c3d6a1'
 
     input:
     tuple val(meta), path(run_dump)
