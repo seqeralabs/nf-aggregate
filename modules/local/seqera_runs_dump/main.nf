@@ -1,9 +1,16 @@
 include { getRunMetadata } from './functions'
 
+def mod_container = switch([workflow.containerEngine, workflow.profile]) {
+    case {it[0] == 'singularity' &&  it[1].contains('arm')} -> 'tower-cli:0.9.2--5198075f4b9d6343'
+    case {it[0] == 'singularity'} -> 'tower-cli:0.9.2--caeb70536524603e'
+    case {it[1].contains('arm')} -> 'tower-cli:0.9.2--a2fbb3505faf1193'
+    default -> 'tower-cli:0.9.2--28258d337ec30808'
+}
+
 process SEQERA_RUNS_DUMP {
     tag "$meta.id"
     conda 'tower-cli=0.9.2'
-    container 'seqeralabs/nf-aggregate:tower-cli-0.9.2--hdfd78af_1'
+    container mod_container
 
     input:
     val meta
