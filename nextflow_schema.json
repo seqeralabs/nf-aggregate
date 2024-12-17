@@ -35,7 +35,7 @@
             "type": "object",
             "fa_icon": "fas fa-terminal",
             "description": "Generic options for the pipeline.",
-            "help_text": "Generic options for the pipeline.",
+            "help_text": "Core options that should be reviewed before pipeline execution.",
             "properties": {
                 "seqera_api_endpoint": {
                     "type": "string",
