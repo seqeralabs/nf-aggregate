@@ -4,8 +4,8 @@
 
 include { SEQERA_RUNS_DUMP     } from '../../modules/local/seqera_runs_dump'
 include { PLOT_RUN_GANTT       } from '../../modules/local/plot_run_gantt'
+include { INGEST_WORKFLOW      } from '../../modules/local/ingest_workflow'
 include { MULTIQC              } from '../../modules/nf-core/multiqc'
-include { PARSE_MULTIQC_TABLES } from '../../modules/local/parse_multiqc_tables'
 include { paramsSummaryMultiqc } from '../../subworkflows/local/utils_nf_aggregate'
 include { getProcessVersions   } from '../../subworkflows/local/utils_nf_aggregate'
 include { getWorkflowVersions  } from '../../subworkflows/local/utils_nf_aggregate'
@@ -53,6 +53,10 @@ workflow NF_AGGREGATE {
     )
     ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions.first())
 
+    INGEST_WORKFLOW(
+        SEQERA_RUNS_DUMP.out.run_dump
+    )
+
     //
     // Collate software versions
     //
@@ -81,10 +85,6 @@ workflow NF_AGGREGATE {
             multiqc_logo.toList()
         )
         ch_multiqc_report = MULTIQC.out.report
-
-        PARSE_MULTIQC_TABLES(
-            MULTIQC.out.data
-        )
     }
 
     emit:
