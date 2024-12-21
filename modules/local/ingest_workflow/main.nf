@@ -5,8 +5,7 @@ process INGEST_WORKFLOW {
     tuple val(meta), path(run_dump)
 
     output:
-    path ("*_workflows.csv"), emit: workflows_table
-    path ("*_workflows.csv"), emit: tasks_table
+    path ("*_workflow_data.csv"), emit: workflow_data
 
     script:
     """
@@ -15,6 +14,6 @@ process INGEST_WORKFLOW {
         --workflow_load ${run_dump}/workflow-load.json \\
         --workflow_launch ${run_dump}/workflow-launch.json \\
         --service_info ${run_dump}/service-info.json \\
-        --output ${meta.id}_workflows.csv
+        --output ${meta.id}_workflow_data.csv
     """
 }
