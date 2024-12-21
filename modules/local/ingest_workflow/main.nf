@@ -1,4 +1,5 @@
 process INGEST_WORKFLOW {
+    tag "${meta.id}"
     conda "r-base r-optparse r-tidyverse r-jsonlite"
 
     input:
@@ -6,6 +7,7 @@ process INGEST_WORKFLOW {
 
     output:
     path ("*_workflow_data.csv"), emit: workflow_data
+    path ("*_tasks_data.csv"), emit: tasks_data
 
     script:
     """
@@ -15,5 +17,9 @@ process INGEST_WORKFLOW {
         --workflow_launch ${run_dump}/workflow-launch.json \\
         --service_info ${run_dump}/service-info.json \\
         --output ${meta.id}_workflow_data.csv
+
+    ingest_tasks.R \\
+        --tasks ${run_dump}/workflow-tasks.json \\
+        --output ${meta.id}_tasks_data.csv
     """
 }
