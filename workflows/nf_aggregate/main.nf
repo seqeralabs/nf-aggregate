@@ -5,6 +5,7 @@
 include { SEQERA_RUNS_DUMP     } from '../../modules/local/seqera_runs_dump'
 include { PLOT_RUN_GANTT       } from '../../modules/local/plot_run_gantt'
 include { PROCESS_RUN_DUMPS    } from '../../modules/local/process_run_dumps'
+include { JOIN_WORKFLOW_DATA   } from '../../modules/local/join_workflow_data'
 include { MULTIQC              } from '../../modules/nf-core/multiqc'
 include { paramsSummaryMultiqc } from '../../subworkflows/local/utils_nf_aggregate'
 include { getProcessVersions   } from '../../subworkflows/local/utils_nf_aggregate'
@@ -55,6 +56,13 @@ workflow NF_AGGREGATE {
 
     PROCESS_RUN_DUMPS(
         SEQERA_RUNS_DUMP.out.run_dump
+    )
+
+
+    JOIN_WORKFLOW_DATA(
+        PROCESS_RUN_DUMPS.out.workflow_metadata.map { _meta, tsv -> tsv }.collect(),
+        PROCESS_RUN_DUMPS.out.workflow_load.map { _meta, tsv -> tsv }.collect(),
+        PROCESS_RUN_DUMPS.out.workflow_data.map { _meta, tsv -> tsv }.collect()
     )
 
     //

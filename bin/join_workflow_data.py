@@ -68,7 +68,7 @@ def join_workflow_data(run_id: str):
 
 def main():
     parser = argparse.ArgumentParser(description='Join workflow data files')
-    parser.add_argument('run_id', help='Run ID to process')
+    parser.add_argument('run_id', help='Run ID to process', default="*")
     args = parser.parse_args()
 
     join_workflow_data(args.run_id)
