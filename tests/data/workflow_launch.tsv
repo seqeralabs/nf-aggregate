@@ -1,0 +1,86 @@
+run_id	id	computeEnv.credentialsId	computeEnv.orgId	computeEnv.workspaceId	computeEnv.id	computeEnv.name	computeEnv.platform	computeEnv.config.discriminator	computeEnv.config.region	computeEnv.config.computeQueue	computeEnv.config.executionRole	computeEnv.config.headQueue	computeEnv.config.cliPath	computeEnv.config.workDir	computeEnv.config.preRunScript	computeEnv.config.waveEnabled	computeEnv.config.fusion2Enabled	computeEnv.config.nvnmeStorageEnabled	computeEnv.config.forge.type	computeEnv.config.forge.minCpus	computeEnv.config.forge.maxCpus	computeEnv.config.forge.gpuEnabled	computeEnv.config.forge.ebsAutoScale	computeEnv.config.forge.instanceTypes1	computeEnv.config.forge.instanceTypes2	computeEnv.config.forge.instanceTypes3	computeEnv.config.forge.disposeOnDeletion	computeEnv.config.forge.allowBuckets1	computeEnv.config.forge.allowBuckets2	computeEnv.config.forge.allowBuckets3	computeEnv.config.forge.fargateHeadEnabled	computeEnv.config.forgedResources.IamRole1	computeEnv.config.forgedResources.IamRole2	computeEnv.config.forgedResources.IamRole3	computeEnv.config.forgedResources.IamRole4	computeEnv.config.forgedResources.IamRole5	computeEnv.config.forgedResources.IamRole6	computeEnv.config.forgedResources.IamRole7	computeEnv.config.forgedResources.IamRole8	computeEnv.config.forgedResources.IamInstanceProfile1	computeEnv.config.forgedResources.IamInstanceProfile2	computeEnv.config.forgedResources.IamInstanceProfile3	computeEnv.config.forgedResources.IamInstanceProfile4	computeEnv.config.forgedResources.IamInstanceProfile5	computeEnv.config.forgedResources.IamInstanceProfile6	computeEnv.config.forgedResources.IamInstanceProfile7	computeEnv.config.forgedResources.IamInstanceProfile8	computeEnv.config.forgedResources.Ec2LaunchTemplate1	computeEnv.config.forgedResources.Ec2LaunchTemplate2	computeEnv.config.forgedResources.Ec2LaunchTemplate3	computeEnv.config.forgedResources.Ec2LaunchTemplate4	computeEnv.config.forgedResources.Ec2LaunchTemplate5	computeEnv.config.forgedResources.Ec2LaunchTemplate6	computeEnv.config.forgedResources.Ec2LaunchTemplate7	computeEnv.config.forgedResources.Ec2LaunchTemplate8	computeEnv.config.forgedResources.BatchEnv1	computeEnv.config.forgedResources.BatchEnv2	computeEnv.config.forgedResources.BatchEnv3	computeEnv.config.forgedResources.BatchEnv4	computeEnv.config.forgedResources.BatchEnv5	computeEnv.config.forgedResources.BatchEnv6	computeEnv.config.forgedResources.BatchEnv7	computeEnv.config.forgedResources.BatchEnv8	computeEnv.config.forgedResources.BatchQueue1	computeEnv.config.forgedResources.BatchQueue2	computeEnv.config.forgedResources.BatchQueue3	computeEnv.config.forgedResources.BatchQueue4	computeEnv.config.forgedResources.BatchQueue5	computeEnv.config.forgedResources.BatchQueue6	computeEnv.config.forgedResources.BatchQueue7	computeEnv.config.forgedResources.BatchQueue8	computeEnv.dateCreated	computeEnv.lastUpdated	computeEnv.lastUsed	computeEnv.status	pipeline	workDir	revision	configText	paramsText	preRunScript	resume	pullLatest	stubRun	runName	configProfiles	dateCreated	lastUpdated	group
+1cY2WtIKeMy6nh	5g117w7FuvhATj022sXFNw	6eDTLBhIGKIkSEgL7J2wyl	52613278821897	64430228002560	5lMIeXJ1Vehrr7lZzIcDEs	florian_merck_aws_plains3_SPOT	aws-batch	aws-batch	eu-west-1	TowerForge-5lMIeXJ1Vehrr7lZzIcDEs-work	arn:aws:iam::128997144437:role/TowerForge-5lMIeXJ1Vehrr7lZzIcDEs-ExecutionRole	TowerForge-5lMIeXJ1Vehrr7lZzIcDEs-head	/home/ec2-user/miniconda/bin/aws	s3://scidev-eu-west-1/florian/merck-fusion-testing/	NXF_VER=24.10.2	FALSE	FALSE	FALSE	SPOT	0	500	FALSE	TRUE	c6i	m6i	r6i	TRUE	s3://ngi-igenomes	s3://scidev-eu-west-1	s3://scidev-eu-west-1/florian/merck-fusion-testing/	FALSE	arn:aws:iam::128997144437:role/TowerForge-5lMIeXJ1Vehrr7lZzIcDEs-ServiceRole	arn:aws:iam::128997144437:role/TowerForge-5lMIeXJ1Vehrr7lZzIcDEs-ExecutionRole									arn:aws:iam::128997144437:instance-profile/TowerForge-5lMIeXJ1Vehrr7lZzIcDEs-InstanceRole									TowerForge-5lMIeXJ1Vehrr7lZzIcDEs									arn:aws:batch:eu-west-1:128997144437:compute-environment/TowerForge-5lMIeXJ1Vehrr7lZzIcDEs-head		arn:aws:batch:eu-west-1:128997144437:compute-environment/TowerForge-5lMIeXJ1Vehrr7lZzIcDEs-work							arn:aws:batch:eu-west-1:128997144437:job-queue/TowerForge-5lMIeXJ1Vehrr7lZzIcDEs-head		arn:aws:batch:eu-west-1:128997144437:job-queue/TowerForge-5lMIeXJ1Vehrr7lZzIcDEs-work	2024-12-08T01:30:45Z	2024-12-08T01:31:24Z	2024-12-09T20:08:45Z	AVAILABLE	https://github.com/nf-core/scrnaseq	s3://scidev-eu-west-1/florian/merck-fusion-testing/	2.6.0	aws.batch.maxSpotAttempts=-1
+
+process {
+   resourceLabels = {[
+        uniqueRunId: TOWER_WORKFLOW_ID,
+        pipelineProcess: task.process.toString(),
+        pipelineTag: task.tag.toString(),
+        pipelineCPUs: task.cpus.toString(),
+        pipelineMemory: task.memory.toString(),
+        pipelineTaskAttempt: task.attempt.toString(),
+        pipelineContainer: task.container.toString(),
+        taskHash: task.hash.toString(),
+        pipelineUser: workflow.userName.toString(),
+        pipelineRunName: workflow.runName.toString(),
+        pipelineSessionId: workflow.sessionId.toString(),
+        pipelineResume: workflow.resume.toString(),
+        pipelineRevision: workflow.revision.toString(),
+        pipelineCommitId: workflow.commitId.toString(),
+        pipelineRepository: workflow.repository.toString(),
+        pipelineName: workflow.manifest.name.toString()
+    ]}
+
+    errorStrategy = 'retry'
+    maxRetries = 3
+}	{
+  "simpleaf_rlen": 91,
+  "max_cpus": 16,
+  "kb_workflow": "standard",
+  "max_time": "240.h",
+  "validationSchemaIgnoreParams": "genomes",
+  "star_feature": "Gene",
+  "validate_params": true,
+  "max_memory": "128.GB",
+  "custom_config_version": "master",
+  "aligner": "star",
+  "protocol": "10XV2",
+  "igenomes_base": "s3://ngi-igenomes/igenomes/",
+  "max_multiqc_email_size": "25.MB",
+  "publish_dir_mode": "copy",
+  "custom_config_base": "https://raw.githubusercontent.com/nf-core/configs/master",
+  "input": "https://raw.githubusercontent.com/nf-core/test-datasets/scrnaseq/samplesheet_2.0_full.csv",
+  "outdir": "s3://scidev-eu-west-1/florian/merck-fusion-testing//nf-core-scrnaseq/aws-plainS3-SPOT/20241204-172944/results",
+  "skip_multiqc": false,
+  "skip_fastqc": false,
+  "skip_emptydrops": false,
+  "genome": "GRCh38",
+  "igenomes_ignore": false,
+  "save_reference": false,
+  "kb_filter": false,
+  "config_profile_name": "Full Test profile",
+  "config_profile_description": "Full test dataset to check pipeline function",
+  "help": false,
+  "version": false,
+  "plaintext_email": false,
+  "monochrome_logs": false,
+  "validationShowHiddenParams": false,
+  "validationFailUnrecognisedParams": false,
+  "validationLenientMode": false
+}	NXF_VER=24.10.2	FALSE	FALSE	FALSE	infallible_tuckerman	test_full	2024-12-09T20:07:22Z	2024-12-09T20:07:22Z	group1
+ylHgQUfPEFhzv	6X1ELmJ1K5LYV6TgxUVEfm	6eDTLBhIGKIkSEgL7J2wyl	52613278821897	64430228002560	6IoIJzqe6zQxkBAHvoQO6U	deleted-112838584046111	aws-batch	aws-batch	eu-west-1	TowerForge-6IoIJzqe6zQxkBAHvoQO6U-work	arn:aws:iam::128997144437:role/TowerForge-6IoIJzqe6zQxkBAHvoQO6U-ExecutionRole	TowerForge-6IoIJzqe6zQxkBAHvoQO6U-head	/home/ec2-user/miniconda/bin/aws	s3://scidev-eu-west-1/florian/merck-fusion-testing/	NXF_VER=24.10.2	FALSE	FALSE	FALSE	SPOT	0	1000	FALSE	TRUE	c6i	m6i	r6i	TRUE	s3://ngi-igenomes	s3://scidev-eu-west-1	s3://scidev-eu-west-1/florian/merck-fusion-testing/	FALSE	arn:aws:iam::128997144437:role/TowerForge-6IoIJzqe6zQxkBAHvoQO6U-ServiceRole	arn:aws:iam::128997144437:role/TowerForge-6IoIJzqe6zQxkBAHvoQO6U-ExecutionRole									arn:aws:iam::128997144437:instance-profile/TowerForge-6IoIJzqe6zQxkBAHvoQO6U-InstanceRole									TowerForge-6IoIJzqe6zQxkBAHvoQO6U									arn:aws:batch:eu-west-1:128997144437:compute-environment/TowerForge-6IoIJzqe6zQxkBAHvoQO6U-head		arn:aws:batch:eu-west-1:128997144437:compute-environment/TowerForge-6IoIJzqe6zQxkBAHvoQO6U-work							arn:aws:batch:eu-west-1:128997144437:job-queue/TowerForge-6IoIJzqe6zQxkBAHvoQO6U-head		arn:aws:batch:eu-west-1:128997144437:job-queue/TowerForge-6IoIJzqe6zQxkBAHvoQO6U-work	2024-12-04T22:25:06Z	2024-12-05T17:11:51Z	2024-12-04T23:30:22Z	INVALID	https://github.com/nf-core/scrnaseq	s3://scidev-eu-west-1/florian/merck-fusion-testing/	2.6.0	aws.batch.maxSpotAttempts=-1
+
+process {
+   resourceLabels = {[
+        uniqueRunId: TOWER_WORKFLOW_ID,
+        pipelineProcess: task.process.toString(),
+        pipelineTag: task.tag.toString(),
+        pipelineCPUs: task.cpus.toString(),
+        pipelineMemory: task.memory.toString(),
+        pipelineTaskAttempt: task.attempt.toString(),
+        pipelineContainer: task.container.toString(),
+        taskHash: task.hash.toString(),
+        pipelineUser: workflow.userName.toString(),
+        pipelineRunName: workflow.runName.toString(),
+        pipelineSessionId: workflow.sessionId.toString(),
+        pipelineResume: workflow.resume.toString(),
+        pipelineRevision: workflow.revision.toString(),
+        pipelineCommitId: workflow.commitId.toString(),
+        pipelineRepository: workflow.repository.toString(),
+        pipelineName: workflow.manifest.name.toString()
+    ]}
+
+    errorStrategy = 'retry'
+    maxRetries = 3
+}	outdir: "s3://scidev-eu-west-1/florian/merck-fusion-testing//nf-core-scrnaseq/aws-plainS3-SPOT/20241204-172944/results"
+	NXF_VER=24.10.2	FALSE	FALSE	FALSE	nf-core-scrnaseq-aws-plainS3-SPOT-20241204-172944	test_full	2024-12-04T22:30:09Z	2024-12-04T22:30:10Z	group2

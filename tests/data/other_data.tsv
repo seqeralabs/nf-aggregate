@@ -1,0 +1,11 @@
+run_id
+"1cY2WtIKeMy6nh" "ylHgQUfPEFhzv"
+pipelines
+"https://github.com/nf-core/scrnaseq" "https://github.com/nf-core/scrnaseq"
+dropped_columns
+workflow_launch
+"optimizationId" "optimizationTargets" "computeEnv.deleted" "computeEnv.message"
+workflow_metadata
+"labels.id1" "labels.id2" "labels.id3" "labels.id4" "labels.id5" "labels.name1" "labels.name2" "labels.name3" "labels.name4" "labels.name5" "labels.resource1" "labels.resource2" "labels.resource3" "labels.resource4" "labels.resource5" "labels.isDefault1" "labels.isDefault2" "labels.isDefault3" "labels.isDefault4" "labels.isDefault5" "labels.value1" "labels.value2" "labels.value3" "labels.value4" "labels.value5"
+group
+"group1" "group2"
