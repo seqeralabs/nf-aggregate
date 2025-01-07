@@ -35,16 +35,42 @@ def process_workflow_tasks(task_file: Path) -> pd.DataFrame:
 
     return pd.DataFrame(flattened_tasks)
 
+def process_workflow_metadata(metadata_file: Path) -> pd.DataFrame:
+    """Process workflow metadata JSON file"""
+    with open(metadata_file) as f:
+        metadata = json.load(f)
+    
+    return pd.DataFrame([{
+        'run_id': metadata.get('runId', ''),
+        'pipelineId': metadata.get('pipelineId', ''),
+        'organizationId': metadata.get('organizationId', ''),
+        'organizationName': metadata.get('organizationName', ''),
+        'workspaceId': metadata.get('workspaceId', ''),
+        'workspaceName': metadata.get('workspaceName', ''),
+        'userId': metadata.get('userId', ''),
+        'runUrl': metadata.get('runUrl', '')
+    }])
+
+def process_workflow(workflow_file: Path) -> pd.DataFrame:
+    """Process workflow JSON file"""
+    with open(workflow_file) as f:
+        workflow = json.load(f)
+    
+    return pd.DataFrame([{
+        'run_id': workflow.get('runId', ''),
+        'status': workflow.get('status', ''),
+        'repository': workflow.get('repository', ''),
+        'start': workflow.get('start', ''),
+        'complete': workflow.get('complete', ''),
+        'duration': workflow.get('duration', 0)
+    }])
+
 def process_run_dumps(output_dir: Path):
     """Process all run dumps and create standardized TSV outputs"""
-
-    # Initialize DuckDB
     db = duckdb.connect(':memory:')
 
-    # Find all workflow-tasks.json files
+    # Process tasks
     task_files = glob.glob("**/workflow-tasks.json", recursive=True)
-
-    # Process each task file
     all_tasks = []
     for task_file in task_files:
         run_id = Path(task_file).parent.name
@@ -52,14 +78,25 @@ def process_run_dumps(output_dir: Path):
         df['run_id'] = run_id
         all_tasks.append(df)
 
-    # Combine all tasks
+    # Process metadata
+    metadata_files = glob.glob("**/workflow-metadata.json", recursive=True)
+    all_metadata = []
+    for metadata_file in metadata_files:
+        df = process_workflow_metadata(metadata_file)
+        all_metadata.append(df)
+
+    # Process workflow
+    workflow_files = glob.glob("**/workflow.json", recursive=True)
+    all_workflows = []
+    for workflow_file in workflow_files:
+        df = process_workflow(workflow_file)
+        all_workflows.append(df)
+
+    # Combine and save all data
     if all_tasks:
         combined_tasks = pd.concat(all_tasks, ignore_index=True)
-
-        # Create workflow_tasks.tsv
         db.sql("""
             CREATE TABLE tasks AS SELECT * FROM combined_tasks;
-
             COPY (
                 SELECT
                     run_id,
@@ -78,10 +115,31 @@ def process_run_dumps(output_dir: Path):
             ) TO '{}' (HEADER, DELIMITER '\t')
         """.format(output_dir / 'workflow_tasks.tsv'))
 
+    if all_metadata:
+        combined_metadata = pd.concat(all_metadata, ignore_index=True)
+        db.sql("""
+            CREATE TABLE metadata AS SELECT * FROM combined_metadata;
+            COPY (
+                SELECT *
+                FROM metadata
+                ORDER BY run_id
+            ) TO '{}' (HEADER, DELIMITER '\t')
+        """.format(output_dir / 'workflow_metadata.tsv'))
+
+    if all_workflows:
+        combined_workflows = pd.concat(all_workflows, ignore_index=True)
+        db.sql("""
+            CREATE TABLE workflows AS SELECT * FROM combined_workflows;
+            COPY (
+                SELECT *
+                FROM workflows
+                ORDER BY run_id
+            ) TO '{}' (HEADER, DELIMITER '\t')
+        """.format(output_dir / 'workflow.tsv'))
+
 def main():
     output_dir = Path("processed")
     output_dir.mkdir(exist_ok=True)
-
     process_run_dumps(output_dir)
 
 if __name__ == "__main__":
