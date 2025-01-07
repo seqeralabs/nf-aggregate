@@ -6,6 +6,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, List
 import glob
+import argparse
 
 
 def process_workflow_tasks(task_file: Path) -> pd.DataFrame:
@@ -77,7 +78,7 @@ def process_workflow(workflow_file: Path) -> pd.DataFrame:
     )
 
 
-def process_run_dumps():
+def process_run_dumps(run_id: str):
     """Process all run dumps and create standardized TSV outputs"""
     db = duckdb.connect(":memory:")
 
@@ -85,7 +86,6 @@ def process_run_dumps():
     task_files = glob.glob("**/workflow-tasks.json", recursive=True)
     all_tasks = []
     for task_file in task_files:
-        run_id = Path(task_file).parent.name
         df = process_workflow_tasks(task_file)
         df["run_id"] = run_id
         all_tasks.append(df)
@@ -95,6 +95,7 @@ def process_run_dumps():
     all_metadata = []
     for metadata_file in metadata_files:
         df = process_workflow_metadata(metadata_file)
+        df["run_id"] = run_id  # Ensure run_id is set
         all_metadata.append(df)
 
     # Process workflow
@@ -102,6 +103,7 @@ def process_run_dumps():
     all_workflows = []
     for workflow_file in workflow_files:
         df = process_workflow(workflow_file)
+        df["run_id"] = run_id  # Ensure run_id is set
         all_workflows.append(df)
 
     # Combine and save all data
@@ -125,8 +127,8 @@ def process_run_dumps():
                     duration
                 FROM tasks
                 ORDER BY run_id, id
-            ) TO '{}' (HEADER, DELIMITER '\t')
-        """.format("workflow_tasks.tsv")
+            ) TO '{}_workflow_tasks.tsv' (HEADER, DELIMITER '\t')
+        """.format(run_id)
         )
 
     if all_metadata:
@@ -138,8 +140,8 @@ def process_run_dumps():
                 SELECT *
                 FROM metadata
                 ORDER BY run_id
-            ) TO '{}' (HEADER, DELIMITER '\t')
-        """.format("workflow_metadata.tsv")
+            ) TO '{}_workflow_metadata.tsv' (HEADER, DELIMITER '\t')
+        """.format(run_id)
         )
 
     if all_workflows:
@@ -151,13 +153,17 @@ def process_run_dumps():
                 SELECT *
                 FROM workflows
                 ORDER BY run_id
-            ) TO '{}' (HEADER, DELIMITER '\t')
-        """.format("workflow.tsv")
+            ) TO '{}_workflow.tsv' (HEADER, DELIMITER '\t')
+        """.format(run_id)
         )
 
 
 def main():
-    process_run_dumps()
+    parser = argparse.ArgumentParser(description='Process workflow run dumps')
+    parser.add_argument('run_id', help='Run ID to process')
+    args = parser.parse_args()
+
+    process_run_dumps(args.run_id)
 
 
 if __name__ == "__main__":

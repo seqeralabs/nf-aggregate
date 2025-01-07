@@ -14,8 +14,9 @@ process PROCESS_RUN_DUMPS {
     // TODO path ("*_other_data.tsv"), emit: other_data
     // TODO path ("*_service_info.tsv"), emit: service_info
     path ("*_workflow_tasks.tsv"), emit: workflow_tasks
+
     script:
     """
-    process_run_dumps.py
+    process_run_dumps.py ${meta.id}
     """
 }
