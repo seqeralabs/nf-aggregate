@@ -35,14 +35,14 @@ def process_workflow_tasks(task_file: Path) -> pd.DataFrame:
 
     return pd.DataFrame(flattened_tasks)
 
-def process_run_dumps(input_dir: Path, output_dir: Path):
+def process_run_dumps(output_dir: Path):
     """Process all run dumps and create standardized TSV outputs"""
 
     # Initialize DuckDB
     db = duckdb.connect(':memory:')
 
     # Find all workflow-tasks.json files
-    task_files = glob.glob(str(input_dir / "**" / "workflow-tasks.json"), recursive=True)
+    task_files = glob.glob("**/workflow-tasks.json", recursive=True)
 
     # Process each task file
     all_tasks = []
@@ -79,11 +79,10 @@ def process_run_dumps(input_dir: Path, output_dir: Path):
         """.format(output_dir / 'workflow_tasks.tsv'))
 
 def main():
-    input_dir = Path("results")  # Adjust as needed
     output_dir = Path("processed")
     output_dir.mkdir(exist_ok=True)
 
-    process_run_dumps(input_dir, output_dir)
+    process_run_dumps(output_dir)
 
 if __name__ == "__main__":
     main()

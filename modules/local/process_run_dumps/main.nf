@@ -16,6 +16,6 @@ process PROCESS_RUN_DUMPS {
     // TODO path ("*_service_info.tsv"), emit: service_info
     script:
     """
-    process_run_dumps.py ${run_dump} ${meta.id}
+    process_run_dumps.py
     """
 }
