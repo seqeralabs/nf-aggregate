@@ -60,9 +60,9 @@ workflow NF_AGGREGATE {
 
 
     JOIN_WORKFLOW_DATA(
-        PROCESS_RUN_DUMPS.out.workflow_metadata.map { _meta, tsv -> tsv }.collect(),
-        PROCESS_RUN_DUMPS.out.workflow_load.map { _meta, tsv -> tsv }.collect(),
-        PROCESS_RUN_DUMPS.out.workflow_data.map { _meta, tsv -> tsv }.collect()
+        PROCESS_RUN_DUMPS.out.workflow_metadata.collect(),
+        PROCESS_RUN_DUMPS.out.workflow_load.collect(),
+        PROCESS_RUN_DUMPS.out.workflow_data.collect()
     )
 
     //

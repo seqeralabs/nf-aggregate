@@ -78,6 +78,43 @@ def process_workflow(workflow_file: Path) -> pd.DataFrame:
     )
 
 
+def process_workflow_load(load_file: Path) -> pd.DataFrame:
+    """Process workflow load JSON file"""
+    with open(load_file) as f:
+        load = json.load(f)
+
+    return pd.DataFrame([{
+        'run_id': load.get('runId', ''),
+        'pending': load.get('pending', 0),
+        'submitted': load.get('submitted', 0),
+        'running': load.get('running', 0),
+        'succeeded': load.get('succeeded', 0),
+        'failed': load.get('failed', 0),
+        'cached': load.get('cached', 0),
+        'memoryEfficiency': load.get('memoryEfficiency', 0),
+        'cpuEfficiency': load.get('cpuEfficiency', 0),
+        'cpus': load.get('cpus', 0),
+        'cpuTime': load.get('cpuTime', 0),
+        'cpuLoad': load.get('cpuLoad', 0),
+        'memoryRss': load.get('memoryRss', 0),
+        'memoryReq': load.get('memoryReq', 0),
+        'readBytes': load.get('readBytes', 0),
+        'writeBytes': load.get('writeBytes', 0),
+        'volCtxSwitch': load.get('volCtxSwitch', 0),
+        'invCtxSwitch': load.get('invCtxSwitch', 0),
+        'cost': load.get('cost', 0),
+        'loadTasks': load.get('loadTasks', 0),
+        'loadCpus': load.get('loadCpus', 0),
+        'loadMemory': load.get('loadMemory', 0),
+        'peakCpus': load.get('peakCpus', 0),
+        'peakTasks': load.get('peakTasks', 0),
+        'peakMemory': load.get('peakMemory', 0),
+        'executors': load.get('executors', ''),
+        'dateCreated': load.get('dateCreated', ''),
+        'lastUpdated': load.get('lastUpdated', '')
+    }])
+
+
 def process_run_dumps(run_id: str):
     """Process all run dumps and create standardized TSV outputs"""
     db = duckdb.connect(":memory:")
@@ -105,6 +142,14 @@ def process_run_dumps(run_id: str):
         df = process_workflow(workflow_file)
         df["run_id"] = run_id  # Ensure run_id is set
         all_workflows.append(df)
+
+    # Process workflow load
+    load_files = glob.glob("**/workflow-load.json", recursive=True)
+    all_loads = []
+    for load_file in load_files:
+        df = process_workflow_load(load_file)
+        df['run_id'] = run_id
+        all_loads.append(df)
 
     # Combine and save all data
     if all_tasks:
@@ -156,6 +201,17 @@ def process_run_dumps(run_id: str):
             ) TO '{}_workflow.tsv' (HEADER, DELIMITER '\t')
         """.format(run_id)
         )
+
+    if all_loads:
+        combined_loads = pd.concat(all_loads, ignore_index=True)
+        db.sql("""
+            CREATE TABLE loads AS SELECT * FROM combined_loads;
+            COPY (
+                SELECT *
+                FROM loads
+                ORDER BY run_id
+            ) TO '{}_workflow_load.tsv' (HEADER, DELIMITER '\t')
+        """.format(run_id))
 
 
 def main():

@@ -7,9 +7,9 @@ process JOIN_WORKFLOW_DATA {
     path workflow_data, arity: "2..*"
 
     output:
-    path ("*_join_1.tsv"), emit: join_1
-    path ("*_join_2.tsv"), emit: join_2
-    path ("*_join_3.tsv"), emit: join_3
+    path ("join_1.tsv"), emit: join_1
+    path ("join_2.tsv"), emit: join_2
+    path ("join_3.tsv"), emit: join_3
 
     script:
     """

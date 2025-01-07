@@ -4,9 +4,10 @@ import duckdb
 import argparse
 from pathlib import Path
 
+
 def join_workflow_data(run_id: str):
     """Join workflow data files using DuckDB"""
-    db = duckdb.connect(':memory:')
+    db = duckdb.connect(":memory:")
 
     # Read the input files
     db.sql(f"""
@@ -33,12 +34,10 @@ def join_workflow_data(run_id: str):
         ON s.run_id = w.run_id;
 
         COPY (SELECT * FROM join_1)
-        TO '{run_id}_join_1.tsv' (HEADER, DELIMITER '\t');
+        TO 'join_1.tsv' (HEADER, DELIMITER '\t');
 
         -- Second join (previous result + workflow)
-        CREATE TABLE join_2 AS
-        SELECT
-            COALESCE(j.run_id, w.run_id) as run_id,
+        CREATE TABLE join_2 AS SELECT COALESCE(j.run_id, w.run_id) as run_id,
             j.*,
             w.*
         FROM join_1 j
@@ -63,15 +62,15 @@ def join_workflow_data(run_id: str):
         FROM join_2 j2;
 
         COPY (SELECT * FROM join_3)
-        TO '{run_id}_join_3.tsv' (HEADER, DELIMITER '\t');
+        TO 'join_3.tsv' (HEADER, DELIMITER '\t');
     """)
 
-def main():
-    parser = argparse.ArgumentParser(description='Join workflow data files')
-    parser.add_argument('run_id', help='Run ID to process', default="*")
-    args = parser.parse_args()
 
-    join_workflow_data(args.run_id)
+def main():
+    run_id = "*"
+
+    join_workflow_data(run_id)
+
 
 if __name__ == "__main__":
     main()
