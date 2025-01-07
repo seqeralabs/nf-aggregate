@@ -20,25 +20,50 @@ def join_workflow_data(run_id: str):
         SELECT * FROM read_csv_auto('{run_id}_workflow.tsv');
     """)
 
-    # Perform the joins
+    # Perform the joins with suffix handling for duplicate columns
     db.sql(f"""
         -- First join (service_info + workflow_load)
         CREATE TABLE join_1 AS
-        SELECT *
-        FROM service_info
-        FULL JOIN workflow_load USING (run_id);
+        SELECT
+            COALESCE(s.run_id, w.run_id) as run_id,
+            s.*,
+            w.*
+        FROM service_info s
+        FULL JOIN workflow_load w
+        ON s.run_id = w.run_id;
 
         COPY (SELECT * FROM join_1)
         TO '{run_id}_join_1.tsv' (HEADER, DELIMITER '\t');
 
         -- Second join (previous result + workflow)
         CREATE TABLE join_2 AS
-        SELECT *
-        FROM join_1
-        FULL JOIN workflow USING (run_id);
+        SELECT
+            COALESCE(j.run_id, w.run_id) as run_id,
+            j.*,
+            w.*
+        FROM join_1 j
+        FULL JOIN workflow w
+        ON j.run_id = w.run_id;
 
-        COPY (SELECT * FROM join_2)
-        TO '{run_id}_join_2.tsv' (HEADER, DELIMITER '\t');
+        -- Create final join with renamed columns for conflicts
+        CREATE TABLE join_3 AS
+        SELECT
+            run_id,
+            -- Add specific column renames for conflicts
+            j2.commitId as "commitId.x",
+            w.commitId as "commitId.y",
+            j2.dateCreated as "dateCreated.x",
+            w.dateCreated as "dateCreated.y",
+            j2.lastUpdated as "lastUpdated.x",
+            w.lastUpdated as "lastUpdated.y",
+            j2.group as "group.x",
+            w.group as "group.y",
+            -- Add remaining columns
+            *
+        FROM join_2 j2;
+
+        COPY (SELECT * FROM join_3)
+        TO '{run_id}_join_3.tsv' (HEADER, DELIMITER '\t');
     """)
 
 def main():
