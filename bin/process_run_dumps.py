@@ -65,12 +65,12 @@ def process_run_dumps(output_dir: Path):
                     run_id,
                     id,
                     process,
-                    cpu_mean as cpu.mean,
-                    mem_mean as mem.mean,
-                    vmem_mean as vmem.mean,
-                    time_mean as time.mean,
-                    reads_mean as reads.mean,
-                    writes_mean as writes.mean,
+                    cpu_mean as "cpu.mean",
+                    mem_mean as "mem.mean",
+                    vmem_mean as "vmem.mean",
+                    time_mean as "time.mean",
+                    reads_mean as "reads.mean",
+                    writes_mean as "writes.mean",
                     cost,
                     duration
                 FROM tasks
