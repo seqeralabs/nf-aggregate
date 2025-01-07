@@ -70,8 +70,7 @@ def join_workflow_data():
             w.peakMemory,
             w.executors,
             w.dateCreated,
-            w.lastUpdated,
-            w.group
+            w.lastUpdated
         FROM service_info s
         FULL OUTER JOIN workflow_load w
         ON s.run_id = w.run_id;
@@ -115,7 +114,6 @@ def join_workflow_data():
                 runUrl,
                 dateCreated "dateCreated.x",
                 lastUpdated "lastUpdated.x",
-                group "group.x",
                 status,
                 repository,
                 start,
