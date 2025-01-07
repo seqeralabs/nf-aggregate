@@ -77,7 +77,7 @@ def process_workflow(workflow_file: Path) -> pd.DataFrame:
     )
 
 
-def process_run_dumps(output_dir: Path):
+def process_run_dumps():
     """Process all run dumps and create standardized TSV outputs"""
     db = duckdb.connect(":memory:")
 
@@ -126,7 +126,7 @@ def process_run_dumps(output_dir: Path):
                 FROM tasks
                 ORDER BY run_id, id
             ) TO '{}' (HEADER, DELIMITER '\t')
-        """.format(output_dir / "workflow_tasks.tsv")
+        """.format("workflow_tasks.tsv")
         )
 
     if all_metadata:
@@ -139,7 +139,7 @@ def process_run_dumps(output_dir: Path):
                 FROM metadata
                 ORDER BY run_id
             ) TO '{}' (HEADER, DELIMITER '\t')
-        """.format(output_dir / "workflow_metadata.tsv")
+        """.format("workflow_metadata.tsv")
         )
 
     if all_workflows:
@@ -152,14 +152,12 @@ def process_run_dumps(output_dir: Path):
                 FROM workflows
                 ORDER BY run_id
             ) TO '{}' (HEADER, DELIMITER '\t')
-        """.format(output_dir / "workflow.tsv")
+        """.format("workflow.tsv")
         )
 
 
 def main():
-    output_dir = Path("processed")
-    output_dir.mkdir(exist_ok=True)
-    process_run_dumps(output_dir)
+    process_run_dumps()
 
 
 if __name__ == "__main__":
