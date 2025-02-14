@@ -1,10 +1,10 @@
 {
-    "$schema": "https://json-schema.org/draft-07/schema",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/seqeralabs/nf-aggregate/main/nextflow_schema.json",
     "title": "seqeralabs/nf-aggregate pipeline parameters",
     "description": "Minimal nf-core pipeline compatible with template",
     "type": "object",
-    "definitions": {
+    "$defs": {
         "input_output_options": {
             "title": "Input/output options",
             "type": "object",
@@ -67,6 +67,16 @@
                     "type": "boolean",
                     "description": "Skip MultiQC.",
                     "fa_icon": "fas fa-fast-forward"
+                },
+                "run_benchmark": {
+                    "type": "boolean",
+                    "fa_icon": "fas fa-tachometer-alt",
+                    "description": "Compile a benchmarking report for Seqera Platform runs."
+                },
+                "benchmark_report_cost_allocation_file": {
+                    "type": "string",
+                    "fa_icon": "fas fa-dollar-sign",
+                    "description": "Cost allocation report from cloud provider. Currently only AWS CUR reports are supported."
                 }
             },
             "required": ["seqera_api_endpoint"]
@@ -169,21 +179,13 @@
     },
     "allOf": [
         {
-            "$ref": "#/definitions/input_output_options"
+            "$ref": "#/$defs/input_output_options"
         },
         {
-            "$ref": "#/definitions/pipeline_options"
+            "$ref": "#/$defs/pipeline_options"
         },
         {
-            "$ref": "#/definitions/generic_options"
+            "$ref": "#/$defs/generic_options"
         }
-    ],
-    "properties": {
-        "benchmark_report_cost_allocation_file": {
-            "type": "string"
-        },
-        "run_benchmark": {
-            "type": "boolean"
-        }
-    }
+    ]
 }

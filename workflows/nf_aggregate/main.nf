@@ -9,7 +9,7 @@ include { BENCHMARK_REPORT     } from '../../modules/local/benchmark_report'
 include { paramsSummaryMultiqc } from '../../subworkflows/local/utils_nf_aggregate'
 include { getProcessVersions   } from '../../subworkflows/local/utils_nf_aggregate'
 include { getWorkflowVersions  } from '../../subworkflows/local/utils_nf_aggregate'
-include { paramsSummaryMap     } from 'plugin/nf-validation'
+include { paramsSummaryMap     } from 'plugin/nf-schema'
 
 workflow NF_AGGREGATE {
 
@@ -109,8 +109,7 @@ workflow NF_AGGREGATE {
         BENCHMARK_REPORT (
             SEQERA_RUNS_DUMP.out.run_dump.collect{it[1]},
             ch_benchmark_csv,
-            aws_cur_report,
-            params.benchmark_report_name
+            aws_cur_report
         )
     }
 
