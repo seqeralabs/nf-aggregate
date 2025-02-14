@@ -16,6 +16,11 @@
                 "type": "string",
                 "pattern": "^[a-zA-Z0-9](?:[a-zA-Z0-9]|[-_](?=[a-zA-Z0-9])){1,38}/[a-zA-Z0-9](?:[a-zA-Z0-9]|[-_](?=[a-zA-Z0-9])){1,38}$",
                 "errorMessage": "Please provide a valid Seqera Platform Workspace name"
+            },
+            "group": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9](?:[a-zA-Z0-9]|[-_](?=[a-zA-Z0-9])){1,38}$",
+                "errorMessage": "Please provide a valid group name"
             }
         },
         "required": ["id", "workspace"]

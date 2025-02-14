@@ -5,6 +5,7 @@
 include { SEQERA_RUNS_DUMP     } from '../../modules/local/seqera_runs_dump'
 include { PLOT_RUN_GANTT       } from '../../modules/local/plot_run_gantt'
 include { MULTIQC              } from '../../modules/nf-core/multiqc'
+include { BENCHMARK_REPORT     } from '../../modules/local/benchmark_report'
 include { paramsSummaryMultiqc } from '../../subworkflows/local/utils_nf_aggregate'
 include { getProcessVersions   } from '../../subworkflows/local/utils_nf_aggregate'
 include { getWorkflowVersions  } from '../../subworkflows/local/utils_nf_aggregate'
@@ -84,6 +85,20 @@ workflow NF_AGGREGATE {
             multiqc_logo.toList()
         )
         ch_multiqc_report = MULTIQC.out.report
+    }
+
+    //
+    // MODULE: Generate bencharmk report
+    //
+    if (params.run_benchmark) {
+        aws_cur_report = params.benchmark_report_cost_allocation_file ? Channel.fromPath(params.benchmark_report_cost_allocation_file) : []
+
+        BENCHMARK_REPORT (
+            SEQERA_RUNS_DUMP.out.run_dump.collect{it[1]},
+            SEQERA_RUNS_DUMP.out.run_dump.collect{it[0].group},
+            aws_cur_report,
+            params.benchmark_report_name
+        )
     }
 
     emit:
