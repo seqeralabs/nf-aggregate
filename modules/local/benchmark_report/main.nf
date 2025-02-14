@@ -26,7 +26,7 @@ process BENCHMARK_REPORT {
     # Set up R environment from renv
     export R_LIBS_USER=/project/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu
 
-    quarto render /project/main_benchmark_report.qmd \\
+    quarto render /project/${benchmark_report_name} \\
         --log-level debug \\
         -P log_csv:/project/${benchmark_samplesheet} \\
         --output benchmark_report.html \\
