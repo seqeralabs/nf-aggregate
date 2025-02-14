@@ -1,5 +1,5 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema",
+    "$schema": "https://json-schema.org/draft-07/schema",
     "$id": "https://raw.githubusercontent.com/seqeralabs/nf-aggregate/main/nextflow_schema.json",
     "title": "seqeralabs/nf-aggregate pipeline parameters",
     "description": "Minimal nf-core pipeline compatible with template",
@@ -177,5 +177,13 @@
         {
             "$ref": "#/definitions/generic_options"
         }
-    ]
+    ],
+    "properties": {
+        "benchmark_report_cost_allocation_file": {
+            "type": "string"
+        },
+        "run_benchmark": {
+            "type": "boolean"
+        }
+    }
 }

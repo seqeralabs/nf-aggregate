@@ -7,7 +7,6 @@ process BENCHMARK_REPORT {
     path run_dumps
     path benchmark_samplesheet
     path benchmark_report_cost_allocation_file
-    val  benchmark_report_name
 
     output:
     path "benchmark_report.html" , emit: benchmark_html
@@ -27,7 +26,7 @@ process BENCHMARK_REPORT {
     # Set up R environment from renv
     export R_LIBS_USER=/project/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu
 
-    quarto render ${benchmark_report_name} \\
+    quarto render main_benchmark_report.qmd \\
         -P log_csv:${benchmark_samplesheet} \\
         --output benchmark_report.html \\
         --output-dir .
