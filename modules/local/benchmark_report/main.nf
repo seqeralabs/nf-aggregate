@@ -26,9 +26,9 @@ process BENCHMARK_REPORT {
     export R_LIBS_USER=/project/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu
 
     cd /project
-    echo \$PWD
     quarto render main_benchmark_report.qmd \\
         -P log_csv:"\$initial_workdir/"${benchmark_samplesheet} \\
+        $aws_cost_param \\
         --output-dir .\\
         --output benchmark_report.html
 
