@@ -26,7 +26,8 @@
                     "type": "string",
                     "format": "directory-path",
                     "description": "The output directory where the results will be saved. You have to use absolute paths to storage on Cloud infrastructure.",
-                    "fa_icon": "fas fa-folder-open"
+                    "fa_icon": "fas fa-folder-open",
+                    "default": "results"
                 }
             }
         },
@@ -73,10 +74,12 @@
                     "fa_icon": "fas fa-tachometer-alt",
                     "description": "Compile a benchmarking report for Seqera Platform runs."
                 },
-                "benchmark_report_cost_allocation_file": {
+                "benchmark_aws_cur_report": {
                     "type": "string",
                     "fa_icon": "fas fa-dollar-sign",
-                    "description": "Cost allocation report from cloud provider. Currently only AWS CUR reports are supported."
+                    "description": "AWS CUR report from data exports.",
+                    "pattern": "^\\S+\\.parquet",
+                    "format": "file-path"
                 }
             },
             "required": ["seqera_api_endpoint"]

@@ -6,14 +6,14 @@ process BENCHMARK_REPORT {
     input:
     path run_dumps
     path benchmark_samplesheet
-    path benchmark_report_cost_allocation_file
+    path benchmark_aws_cur_report
 
     output:
     path "benchmark_report.html" , emit: benchmark_html
     path "versions.yml"          , emit: versions
 
     script:
-    def aws_cost_param = benchmark_report_cost_allocation_file ? "--profile cost -P aws_cost:/${benchmark_report_cost_allocation_file}" : ""
+    def aws_cost_param = benchmark_aws_cur_report ? "--profile cost -P aws_cost:/${benchmark_aws_cur_report}" : ""
     """
     initial_workdir="\$PWD"
 

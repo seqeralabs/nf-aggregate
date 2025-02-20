@@ -88,10 +88,10 @@ workflow NF_AGGREGATE {
     }
 
     //
-    // MODULE: Generate bencharmk report
+    // MODULE: Generate benchmark report
     //
     if (params.run_benchmark) {
-        aws_cur_report = params.benchmark_report_cost_allocation_file ? Channel.fromPath(params.benchmark_report_cost_allocation_file) : []
+        aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
 
         // Create the CSV file using collectFile
         SEQERA_RUNS_DUMP.out.run_dump
