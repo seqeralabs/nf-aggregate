@@ -6,7 +6,7 @@ process BENCHMARK_REPORT {
 
     input:
     path run_dumps
-    path benchmark_samplesheet
+    val  groups
     path benchmark_aws_cur_report
 
     output:
@@ -15,26 +15,34 @@ process BENCHMARK_REPORT {
 
     script:
     def aws_cost_param = benchmark_aws_cur_report ? "--profile cost -P aws_cost:/${benchmark_aws_cur_report}" : ""
+    def benchmark_samplesheet = "benchmark_samplesheet.csv"
+
     """
-    initial_workdir="\$PWD"
-
-    export HOME=\$PWD
-    export QUARTO_CACHE=/tmp/quarto/cache
-    export XDG_CACHE_HOME=/tmp/quarto
-    mkdir -p /tmp/quarto/cache
-
     # Set up R environment from renv
     export R_LIBS_USER=/project/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu
+    # Store task work directory at beginning
+    TASK_DIR="\$PWD"
+
+    # Create the samplesheet header
+    echo "group,file_path" > ${benchmark_samplesheet}
+
+    # Add each group and file path with full task directory path
+    ${groups.withIndex().collect { group, idx ->
+        "echo '${group},/project/${run_dumps[idx]}' >> ${benchmark_samplesheet}"
+    }.join('\n')}
+
+    # Copy run dumps to /project directory
+    cp -r ${run_dumps} /project/
 
     cd /project
     quarto render main_benchmark_report.qmd \\
-        -P log_csv:"\$initial_workdir/"${benchmark_samplesheet} \\
+        -P log_csv:"\$TASK_DIR/"${benchmark_samplesheet} \\
         $aws_cost_param \\
         --output-dir .\\
         --output benchmark_report.html
 
-    cp /project/benchmark_report.html "\$initial_workdir/"
-    cd "\$initial_workdir/"
+    cp /project/benchmark_report.html "\$TASK_DIR/"
+    cd "\$TASK_DIR/"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

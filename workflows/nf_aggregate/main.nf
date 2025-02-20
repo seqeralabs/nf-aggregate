@@ -93,22 +93,24 @@ workflow NF_AGGREGATE {
     if (params.run_benchmark) {
         aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
 
-        // Create the CSV file using collectFile
-        SEQERA_RUNS_DUMP.out.run_dump
-            .map { meta, run_dir ->
-                // Create a line for the CSV
-                "${meta.group},${run_dir}"
-            }
-            .collectFile(
-                name: 'benchmark_samplesheet.csv',
-                seed: 'group,file_path',
-                newLine: true
-            )
-            .set { ch_benchmark_csv }
+        // // Create the CSV file using collectFile
+        // SEQERA_RUNS_DUMP.out.run_dump
+        //     .map { meta, run_dir ->
+        //         // Extract filename and prepend '../'
+        //         def filename = "../${file(run_dir).getName()}"
+        //         // Create a line for the CSV
+        //         "${meta.group},${filename}"
+        //     }
+        //     .collectFile(
+        //         name: 'benchmark_samplesheet.csv',
+        //         seed: 'group,file_path',
+        //         newLine: true
+        //     )
+        //     .set { ch_benchmark_csv }
 
         BENCHMARK_REPORT (
             SEQERA_RUNS_DUMP.out.run_dump.collect{it[1]},
-            ch_benchmark_csv,
+            SEQERA_RUNS_DUMP.out.run_dump.collect{it[0].group},
             aws_cur_report
         )
     }
