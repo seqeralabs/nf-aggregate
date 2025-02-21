@@ -1,0 +1,31 @@
+nextflow_process {
+    name "Test Process BENCHMARK_REPORT"
+    script "../main.nf"
+    process "BENCHMARK_REPORT"
+
+    // TODO: Should run without AWS cost report
+
+    test("Should run with removing failed tasks") {
+        when {
+            process {
+                """
+                input[0] = [file("modules/local/benchmark_report/tests/runs_dump/4Bi5xBK6E2Nbhj")]
+                input[1] = ["group1"]
+                input[2] = []
+                input[3] = true
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            assert snapshot(process.out).match()
+            assert path(process.out.benchmark_html.get(0)).exists()
+            assert path(process.out.versions.get(0)).exists()
+        }
+    }
+
+    // TODO: Should run with multiple runs
+    // TODO: Should run with AWS cost report
+    // TODO: Should run with remove failed tasks
+}

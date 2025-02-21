@@ -1,0 +1,77 @@
+{
+  "id" : "60fj4f5UEugLFrdDHOjYGJ",
+  "computeEnv" : {
+    "id" : "4gVZCvyQkFBGLAq8Vh1q2E",
+    "name" : "deleted-6691228547460385",
+    "platform" : "aws-batch",
+    "config" : {
+      "region" : "eu-west-1",
+      "computeQueue" : "TowerForge-4gVZCvyQkFBGLAq8Vh1q2E-work",
+      "executionRole" : "arn:aws:iam::893329243595:role/TowerForge-4gVZCvyQkFBGLAq8Vh1q2E-ExecutionRole",
+      "headQueue" : "TowerForge-4gVZCvyQkFBGLAq8Vh1q2E-head",
+      "headJobRole" : "arn:aws:iam::893329243595:role/TowerForge-4gVZCvyQkFBGLAq8Vh1q2E-FargateRole",
+      "volumes" : [ ],
+      "workDir" : "s3://nf-tower-bucket",
+      "waveEnabled" : true,
+      "fusion2Enabled" : true,
+      "nvnmeStorageEnabled" : true,
+      "forge" : {
+        "type" : "SPOT",
+        "minCpus" : 0,
+        "maxCpus" : 500,
+        "gpuEnabled" : false,
+        "instanceTypes" : [ "c6id", "m6id", "r6id" ],
+        "subnets" : [ ],
+        "securityGroups" : [ ],
+        "disposeOnDeletion" : true,
+        "allowBuckets" : [ ],
+        "efsCreate" : false,
+        "fargateHeadEnabled" : true,
+        "arm64Enabled" : false
+      },
+      "forgedResources" : [ {
+        "IamRole" : "arn:aws:iam::893329243595:role/TowerForge-4gVZCvyQkFBGLAq8Vh1q2E-ServiceRole"
+      }, {
+        "IamRole" : "arn:aws:iam::893329243595:role/TowerForge-4gVZCvyQkFBGLAq8Vh1q2E-ExecutionRole"
+      }, {
+        "IamInstanceProfile" : "arn:aws:iam::893329243595:instance-profile/TowerForge-4gVZCvyQkFBGLAq8Vh1q2E-InstanceRole"
+      }, {
+        "IamRole" : "arn:aws:iam::893329243595:role/TowerForge-4gVZCvyQkFBGLAq8Vh1q2E-FargateRole"
+      }, {
+        "BatchEnv" : "arn:aws:batch:eu-west-1:893329243595:compute-environment/TowerForge-4gVZCvyQkFBGLAq8Vh1q2E-head"
+      }, {
+        "BatchQueue" : "arn:aws:batch:eu-west-1:893329243595:job-queue/TowerForge-4gVZCvyQkFBGLAq8Vh1q2E-head"
+      }, {
+        "Ec2LaunchTemplate" : "TowerForge-4gVZCvyQkFBGLAq8Vh1q2E"
+      }, {
+        "BatchEnv" : "arn:aws:batch:eu-west-1:893329243595:compute-environment/TowerForge-4gVZCvyQkFBGLAq8Vh1q2E-work"
+      }, {
+        "BatchQueue" : "arn:aws:batch:eu-west-1:893329243595:job-queue/TowerForge-4gVZCvyQkFBGLAq8Vh1q2E-work"
+      } ],
+      "discriminator" : "aws-batch"
+    },
+    "dateCreated" : "2023-08-03T08:49:11Z",
+    "lastUpdated" : "2024-09-24T08:52:40Z",
+    "lastUsed" : "2024-09-24T02:31:15Z",
+    "deleted" : true,
+    "status" : "INVALID",
+    "message" : "Compute environment has been deleted",
+    "credentialsId" : "5R5EMRNv0M8DXAiJ4WkMH9",
+    "orgId" : 187965850823746,
+    "workspaceId" : 40230138858677
+  },
+  "pipeline" : "https://github.com/nf-core/rnaseq",
+  "workDir" : "s3://nf-tower-bucket",
+  "revision" : "3.12.0",
+  "configText" : "",
+  "towerConfig" : "",
+  "paramsText" : "{\"input\":\"https://api.tower.nf/workspaces/40230138858677/datasets/66XmaViCT87OV8aGYS2Pk1/v/1/n/samplesheet_test.csv\",\"outdir\":\"s3://nf-tower-bucket/rnaseq/crazy_wiles/results\",\"save_merged_fastq\":false,\"with_umi\":false,\"umitools_extract_method\":\"string\",\"skip_umi_extract\":false,\"umitools_bc_pattern\":\"NNNN\",\"umitools_grouping_method\":\"directional\",\"umitools_dedup_stats\":false,\"save_umi_intermeds\":false,\"bbsplit_fasta_list\":\"https://raw.githubusercontent.com/nf-core/test-datasets/rnaseq/reference/bbsplit_fasta_list.txt\",\"save_bbsplit_reads\":false,\"skip_bbsplit\":false,\"remove_ribo_rna\":false,\"ribo_database_manifest\":\"${projectDir}/assets/rrna-db-defaults.txt\",\"save_non_ribo_reads\":false,\"fasta\":\"https://raw.githubusercontent.com/nf-core/test-datasets/rnaseq/reference/genome.fasta\",\"gtf\":\"https://raw.githubusercontent.com/nf-core/test-datasets/rnaseq/reference/genes.gtf.gz\",\"gff\":\"https://raw.githubusercontent.com/nf-core/test-datasets/rnaseq/reference/genes.gff.gz\",\"transcript_fasta\":\"https://raw.githubusercontent.com/nf-core/test-datasets/rnaseq/reference/transcriptome.fasta\",\"additional_fasta\":\"https://raw.githubusercontent.com/nf-core/test-datasets/rnaseq/reference/gfp.fa.gz\",\"hisat2_index\":\"https://raw.githubusercontent.com/nf-core/test-datasets/rnaseq/reference/hisat2.tar.gz\",\"rsem_index\":\"https://raw.githubusercontent.com/nf-core/test-datasets/rnaseq/reference/rsem.tar.gz\",\"salmon_index\":\"https://raw.githubusercontent.com/nf-core/test-datasets/rnaseq/reference/salmon.tar.gz\",\"hisat2_build_memory\":\"200.GB\",\"gencode\":false,\"gtf_extra_attributes\":\"gene_name\",\"gtf_group_features\":\"gene_id\",\"featurecounts_group_type\":\"gene_biotype\",\"featurecounts_feature_type\":\"exon\",\"save_reference\":false,\"igenomes_base\":\"s3://ngi-igenomes/igenomes\",\"igenomes_ignore\":false,\"trimmer\":\"trimgalore\",\"min_trimmed_reads\":10000,\"skip_trimming\":false,\"save_trimmed\":false,\"aligner\":\"star_salmon\",\"pseudo_aligner\":\"salmon\",\"bam_csi_index\":false,\"star_ignore_sjdbgtf\":false,\"min_mapped_reads\":5,\"stringtie_ignore_gtf\":false,\"save_unaligned\":false,\"save_align_intermeds\":false,\"skip_markduplicates\":false,\"skip_alignment\":false,\"skip_pseudo_alignment\":false,\"rseqc_modules\":\"bam_stat,inner_distance,infer_experiment,junction_annotation,junction_saturation,read_distribution,read_duplication\",\"deseq2_vst\":true,\"skip_bigwig\":false,\"skip_stringtie\":false,\"skip_fastqc\":false,\"skip_preseq\":true,\"skip_dupradar\":false,\"skip_qualimap\":false,\"skip_rseqc\":false,\"skip_biotype_qc\":false,\"skip_deseq2_qc\":false,\"skip_multiqc\":false,\"skip_qc\":false,\"custom_config_version\":\"master\",\"custom_config_base\":\"https://raw.githubusercontent.com/nf-core/configs/master\",\"config_profile_name\":\"Test profile\",\"config_profile_description\":\"Minimal test dataset to check pipeline function\",\"test_data_base\":\"https://raw.githubusercontent.com/nf-core/test-datasets/rnaseq3\",\"max_cpus\":2,\"max_memory\":\"6.GB\",\"max_time\":\"6.h\",\"help\":false,\"version\":false,\"publish_dir_mode\":\"copy\",\"plaintext_email\":false,\"max_multiqc_email_size\":\"25.MB\",\"monochrome_logs\":false,\"validate_params\":true,\"show_hidden_params\":false}",
+  "preRunScript" : "export CAPSULE_LOG=none\nexport NXF_VER=23.08.0-edge\nexport NXF_FILE_ROOT=s3://nf-tower-bucket/scratch/$TOWER_WORKFLOW_ID",
+  "resume" : false,
+  "pullLatest" : false,
+  "stubRun" : false,
+  "runName" : "crazy_wiles",
+  "configProfiles" : [ "test" ],
+  "dateCreated" : "2023-05-19T09:26:56Z",
+  "lastUpdated" : "2023-10-24T04:36:41Z"
+}
