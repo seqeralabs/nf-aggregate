@@ -3,3 +3,5 @@ reports:
     display: "MultiQC HTML report"
   "*_gantt.html":
     display: "GANTT plot of task execution in a run, grouped by 'instance-id' if available."
+  benchmark_report.html:
+    display: "Benchmarking HTML report"
