@@ -1,8 +1,6 @@
 process BENCHMARK_REPORT {
-    debug true
 
     container 'cr.seqera.io/scidev/benchmark-reports:sha-7fe0d8e'
-    stageInMode 'copy'
 
     input:
     path run_dumps
