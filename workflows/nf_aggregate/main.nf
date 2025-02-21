@@ -66,7 +66,8 @@ workflow NF_AGGREGATE {
         BENCHMARK_REPORT (
             SEQERA_RUNS_DUMP.out.run_dump.collect{it[1]},
             SEQERA_RUNS_DUMP.out.run_dump.collect{it[0].group},
-            aws_cur_report
+            aws_cur_report,
+            params.remove_failed_tasks
         )
         ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions.first())
     }

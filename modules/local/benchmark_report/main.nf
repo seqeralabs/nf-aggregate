@@ -6,6 +6,7 @@ process BENCHMARK_REPORT {
     path run_dumps
     val  groups
     path benchmark_aws_cur_report
+    val  remove_failed_tasks
 
     output:
     path "benchmark_report.html" , emit: benchmark_html
@@ -14,6 +15,8 @@ process BENCHMARK_REPORT {
     script:
     def aws_cost_param = benchmark_aws_cur_report ? "--profile cost -P aws_cost:\$TASK_DIR/${benchmark_aws_cur_report}" : ""
     def benchmark_samplesheet = "benchmark_samplesheet.csv"
+    def failed_tasks = remove_failed_tasks ? "-P remove_failed_tasks:true" : ""
+
     """
     # Set up R environment from renv
     export R_LIBS_USER=/project/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu
@@ -33,6 +36,7 @@ process BENCHMARK_REPORT {
     quarto render main_benchmark_report.qmd \\
         -P log_csv:"\$TASK_DIR/"${benchmark_samplesheet} \\
         $aws_cost_param \\
+        $failed_tasks \\
         --output-dir .\\
         --output benchmark_report.html
 
