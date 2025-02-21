@@ -14,7 +14,7 @@ process BENCHMARK_REPORT {
     path "versions.yml"          , emit: versions
 
     script:
-    def aws_cost_param = benchmark_aws_cur_report ? "--profile cost -P aws_cost:/${benchmark_aws_cur_report}" : ""
+    def aws_cost_param = benchmark_aws_cur_report ? "--profile cost -P aws_cost:\$TASK_DIR/${benchmark_aws_cur_report}" : ""
     def benchmark_samplesheet = "benchmark_samplesheet.csv"
 
     """
