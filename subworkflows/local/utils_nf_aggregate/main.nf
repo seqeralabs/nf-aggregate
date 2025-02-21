@@ -15,6 +15,7 @@ import java.nio.file.Paths
 include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline/main'
 include { getWorkflowVersion        } from '../../nf-core/utils_nextflow_pipeline/main'
 include { UTILS_NFVALIDATION_PLUGIN } from '../../nf-core/utils_nfvalidation_plugin/main.nf'
+include { samplesheetToList }         from 'plugin/nf-schema'
 
 /*
 ========================================================================================
@@ -53,9 +54,8 @@ workflow PIPELINE_INITIALISATION {
 
     // Read in ids from --input file
     Channel
-        .from(file(params.input))
-        .splitCsv(header:true, sep:',', strip:true)
-        .unique()
+        .fromList(samplesheetToList(params.input, "assets/schema_input.json"))
+        .flatten()
         .set { ch_ids }
 
     emit:
