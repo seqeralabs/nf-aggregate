@@ -1,6 +1,7 @@
 process BENCHMARK_REPORT {
 
     container 'cr.seqera.io/scidev/benchmark-reports:sha-7fe0d8e'
+    containerOptions '--user root'
 
     input:
     path run_dumps
@@ -18,19 +19,17 @@ process BENCHMARK_REPORT {
     """
     # Set up R environment from renv
     export R_LIBS_USER=/project/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu
-    # Store task work directory at beginning
     TASK_DIR="\$PWD"
 
-    # Create the samplesheet header
+    # Setup cache directories
+    export QUARTO_CACHE=/tmp/quarto/cache
+    export XDG_CACHE_HOME=/tmp/quarto
+
+    # Create the benchmark samplesheet csv
     echo "group,file_path" > ${benchmark_samplesheet}
-
-    # Add each group and file path with full task directory path
     ${groups.withIndex().collect { group, idx ->
-        "echo '${group},/project/${run_dumps[idx]}' >> ${benchmark_samplesheet}"
+        "echo \"${group},\$TASK_DIR/${run_dumps[idx]}\" >> ${benchmark_samplesheet}"
     }.join('\n')}
-
-    # Copy run dumps to /project directory
-    cp -r ${run_dumps} /project/
 
     cd /project
     quarto render main_benchmark_report.qmd \\
