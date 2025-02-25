@@ -66,7 +66,7 @@ id,workspace,group
 4VLRs7nuqbAhDy,community/showcase,group2
 ```
 
-You can also include a `benchmark_aws_cur_report` parameter to include the AWS Cost and Usage Report in the benchmark report. This should be a path to a valid AWS Cost and Usage Report CSV file (locally or in your cloud bucket). To run nf-aggregate with benchmark reports, you can use the following command:
+To incorporate AWS cost data into the benchmark report, use the benchmark_aws_cur_report parameter. This should point to a valid AWS Cost and Usage Report (CUR) file in Parquet format, supporting both CUR 1.0 and CUR 2.0 schemas. The file can be stored locally or in a cloud bucket. To run nf-aggregate and generate benchmark reports, you can use the following command:
 
 ```
 nextflow run seqeralabs/nf-aggregate \
