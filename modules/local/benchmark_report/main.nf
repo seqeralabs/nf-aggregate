@@ -42,7 +42,7 @@ process BENCHMARK_REPORT {
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         r: \$(R --version | head -1 | sed 's/R version \\([0-9.]*\\).*/\\1/')
-        quarto-cli: \$(quarto -v)
-        END_VERSIONS
+        quarto-cli: \$(quarto --version | head -1 | sed 's/quarto //g')
+END_VERSIONS
     """
 }
