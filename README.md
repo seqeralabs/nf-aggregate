@@ -56,6 +56,26 @@ nextflow run seqeralabs/nf-aggregate \
 
 If you are using a Seqera Platform Enterprise instance that is secured with a private CA SSL certificate not recognized by default Java certificate authorities, you can specify a custom `cacerts` store path through the `--java_truststore_path` parameter and optionally, a password with the `--java_truststore_password`. This certificate will be used to achieve connectivity with your Seqera Platform instance through API and CLI.
 
+### Benchmark reports
+
+If you want to generate a benchmark report comparing multiple runs, you can include a `group` column in your `run_ids.csv` file. This allows you to organize and analyze runs based on custom groupings in the final report.
+
+```
+id,workspace,group
+3VcLMAI8wyy0Ld,community/showcase,group1
+4VLRs7nuqbAhDy,community/showcase,group2
+```
+
+To incorporate AWS cost data into the benchmark report, use the benchmark_aws_cur_report parameter. This should point to a valid AWS Cost and Usage Report (CUR) file in Parquet format, supporting both CUR 1.0 and CUR 2.0 schemas. The file can be stored locally or in a cloud bucket. To run nf-aggregate and generate benchmark reports, you can use the following command:
+
+```
+nextflow run seqeralabs/nf-aggregate \
+    --input run_ids.csv \
+    --outdir ./results \
+    --run_benchmark \
+    --benchmark_aws_cur_report ./aws_cost_report.parquet
+```
+
 ## Output
 
 The results from the pipeline will be published in the path specified by the `--outdir` and will consist of the following contents:

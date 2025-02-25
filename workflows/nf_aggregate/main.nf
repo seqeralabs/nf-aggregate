@@ -5,10 +5,11 @@
 include { SEQERA_RUNS_DUMP     } from '../../modules/local/seqera_runs_dump'
 include { PLOT_RUN_GANTT       } from '../../modules/local/plot_run_gantt'
 include { MULTIQC              } from '../../modules/nf-core/multiqc'
+include { BENCHMARK_REPORT     } from '../../modules/local/benchmark_report'
 include { paramsSummaryMultiqc } from '../../subworkflows/local/utils_nf_aggregate'
 include { getProcessVersions   } from '../../subworkflows/local/utils_nf_aggregate'
 include { getWorkflowVersions  } from '../../subworkflows/local/utils_nf_aggregate'
-include { paramsSummaryMap     } from 'plugin/nf-validation'
+include { paramsSummaryMap     } from 'plugin/nf-schema'
 
 workflow NF_AGGREGATE {
 
@@ -55,6 +56,20 @@ workflow NF_AGGREGATE {
         ch_runs_for_gantt
     )
     ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions.first())
+
+    //
+    // MODULE: Generate benchmark report
+    //
+    if (params.generate_benchmark_report) {
+        aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
+
+        BENCHMARK_REPORT (
+            SEQERA_RUNS_DUMP.out.run_dump.collect{it[1]},
+            SEQERA_RUNS_DUMP.out.run_dump.collect{it[0].group},
+            aws_cur_report
+        )
+        ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions.first())
+    }
 
     //
     // Collate software versions

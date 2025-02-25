@@ -1,10 +1,10 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/seqeralabs/nf-aggregate/main/nextflow_schema.json",
     "title": "seqeralabs/nf-aggregate pipeline parameters",
     "description": "Minimal nf-core pipeline compatible with template",
     "type": "object",
-    "definitions": {
+    "$defs": {
         "input_output_options": {
             "title": "Input/output options",
             "type": "object",
@@ -26,7 +26,8 @@
                     "type": "string",
                     "format": "directory-path",
                     "description": "The output directory where the results will be saved. You have to use absolute paths to storage on Cloud infrastructure.",
-                    "fa_icon": "fas fa-folder-open"
+                    "fa_icon": "fas fa-folder-open",
+                    "default": "results"
                 }
             }
         },
@@ -67,6 +68,18 @@
                     "type": "boolean",
                     "description": "Skip MultiQC.",
                     "fa_icon": "fas fa-fast-forward"
+                },
+                "generate_benchmark_report": {
+                    "type": "boolean",
+                    "fa_icon": "fas fa-tachometer-alt",
+                    "description": "Compile a benchmarking report for Seqera Platform runs."
+                },
+                "benchmark_aws_cur_report": {
+                    "type": "string",
+                    "fa_icon": "fas fa-dollar-sign",
+                    "description": "AWS CUR report from data exports.",
+                    "pattern": "^\\S+\\.parquet",
+                    "format": "file-path"
                 }
             },
             "required": ["seqera_api_endpoint"]
@@ -127,7 +140,8 @@
                 "modules_testdata_base_path": {
                     "type": "string",
                     "description": "Base path / URL for data used in the modules",
-                    "hidden": true
+                    "hidden": true,
+                    "default": "s3://ngi-igenomes/testdata/nf-core/modules/"
                 },
                 "validate_params": {
                     "type": "boolean",
@@ -169,13 +183,13 @@
     },
     "allOf": [
         {
-            "$ref": "#/definitions/input_output_options"
+            "$ref": "#/$defs/input_output_options"
         },
         {
-            "$ref": "#/definitions/pipeline_options"
+            "$ref": "#/$defs/pipeline_options"
         },
         {
-            "$ref": "#/definitions/generic_options"
+            "$ref": "#/$defs/generic_options"
         }
     ]
 }
