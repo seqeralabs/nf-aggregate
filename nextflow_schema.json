@@ -177,9 +177,6 @@
                     "help_text": "Allows samples in the samplesheet to be duplicates of each other.",
                     "hidden": true,
                     "fa_icon": "fas fa-clone"
-                },
-                "validationSchemaIgnoreParams": {
-                    "type": "string"
                 }
             }
         }
