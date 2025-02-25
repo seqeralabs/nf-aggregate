@@ -58,6 +58,20 @@ workflow NF_AGGREGATE {
     ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions.first())
 
     //
+    // MODULE: Generate benchmark report
+    //
+    if (params.generate_benchmark_report) {
+        aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
+
+        BENCHMARK_REPORT (
+            SEQERA_RUNS_DUMP.out.run_dump.collect{it[1]},
+            SEQERA_RUNS_DUMP.out.run_dump.collect{it[0].group},
+            aws_cur_report
+        )
+        ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions.first())
+    }
+
+    //
     // Collate software versions
     //
     ch_versions
@@ -85,19 +99,6 @@ workflow NF_AGGREGATE {
             multiqc_logo.toList()
         )
         ch_multiqc_report = MULTIQC.out.report
-    }
-
-    //
-    // MODULE: Generate benchmark report
-    //
-    if (params.run_benchmark) {
-        aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
-
-        BENCHMARK_REPORT (
-            SEQERA_RUNS_DUMP.out.run_dump.collect{it[1]},
-            SEQERA_RUNS_DUMP.out.run_dump.collect{it[0].group},
-            aws_cur_report
-        )
     }
 
     emit:

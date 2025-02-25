@@ -69,7 +69,7 @@
                     "description": "Skip MultiQC.",
                     "fa_icon": "fas fa-fast-forward"
                 },
-                "run_benchmark": {
+                "generate_benchmark_report": {
                     "type": "boolean",
                     "fa_icon": "fas fa-tachometer-alt",
                     "description": "Compile a benchmarking report for Seqera Platform runs."
@@ -140,7 +140,8 @@
                 "modules_testdata_base_path": {
                     "type": "string",
                     "description": "Base path / URL for data used in the modules",
-                    "hidden": true
+                    "hidden": true,
+                    "default": "s3://ngi-igenomes/testdata/nf-core/modules/"
                 },
                 "validate_params": {
                     "type": "boolean",
@@ -176,6 +177,9 @@
                     "help_text": "Allows samples in the samplesheet to be duplicates of each other.",
                     "hidden": true,
                     "fa_icon": "fas fa-clone"
+                },
+                "validationSchemaIgnoreParams": {
+                    "type": "string"
                 }
             }
         }

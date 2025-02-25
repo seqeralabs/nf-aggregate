@@ -14,7 +14,6 @@ process BENCHMARK_REPORT {
     script:
     def aws_cost_param = benchmark_aws_cur_report ? "--profile cost -P aws_cost:\$TASK_DIR/${benchmark_aws_cur_report}" : ""
     def benchmark_samplesheet = "benchmark_samplesheet.csv"
-
     """
     # Set up R environment from renv
     export R_LIBS_USER=/project/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu
@@ -42,7 +41,8 @@ process BENCHMARK_REPORT {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
+        r: \$(R --version | head -1 | sed 's/R version \\([0-9.]*\\).*/\\1/')
         quarto-cli: \$(quarto -v)
-    END_VERSIONS
+        END_VERSIONS
     """
 }
