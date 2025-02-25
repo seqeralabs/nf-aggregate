@@ -58,7 +58,7 @@ If you are using a Seqera Platform Enterprise instance that is secured with a pr
 
 ### Benchmark reports
 
-If you want to generate a benchmark report comparing yours runs, you can include a `group` column in your `run_ids.csv` file. This will be used to group the runs in the report.
+If you want to generate a benchmark report comparing multiple runs, you can include a `group` column in your `run_ids.csv` file. This allows you to organize and analyze runs based on custom groupings in the final report.
 
 ```
 id,workspace,group
