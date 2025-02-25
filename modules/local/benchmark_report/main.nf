@@ -15,7 +15,7 @@ process BENCHMARK_REPORT {
     script:
     def aws_cost_param = benchmark_aws_cur_report ? "--profile cost -P aws_cost:\$TASK_DIR/${benchmark_aws_cur_report}" : ""
     def benchmark_samplesheet = "benchmark_samplesheet.csv"
-    def failed_tasks = remove_failed_tasks ? "-P remove_failed_tasks:true" : ""
+    def failed_tasks = remove_failed_tasks ? "-P remove_failed_tasks:True" : ""
 
     """
     # Set up R environment from renv

@@ -69,7 +69,7 @@ workflow NF_AGGREGATE {
             aws_cur_report,
             params.remove_failed_tasks
         )
-        ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions.first())
+        ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions)
     }
 
     //
