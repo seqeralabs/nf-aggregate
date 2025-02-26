@@ -43,10 +43,10 @@ workflow NF_AGGREGATE {
     // MODULE: Generate Gantt chart for workflow execution
     //
     SEQERA_RUNS_DUMP.out.run_dump
-        .filter { meta, run_dir ->
+        .filter { meta, _run_dir ->
             meta.fusion && !skip_run_gantt
         }
-        .set {  -> ch_runs_for_gantt }
+        .set { ch_runs_for_gantt }
 
     PLOT_RUN_GANTT(
         ch_runs_for_gantt
@@ -60,8 +60,8 @@ workflow NF_AGGREGATE {
         aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
 
         BENCHMARK_REPORT(
-            SEQERA_RUNS_DUMP.out.run_dump.collect {  -> it[1] },
-            SEQERA_RUNS_DUMP.out.run_dump.collect {  -> it[0].group },
+            SEQERA_RUNS_DUMP.out.run_dump.collect { it[1] },
+            SEQERA_RUNS_DUMP.out.run_dump.collect { it[0].group },
             aws_cur_report,
             params.remove_failed_tasks,
         )
@@ -73,10 +73,10 @@ workflow NF_AGGREGATE {
     //
     ch_versions
         .unique()
-        .map {  -> getProcessVersions(it) }
+        .map { getProcessVersions(it) }
         .mix(Channel.of(getWorkflowVersions()))
         .collectFile(storeDir: "${params.outdir}/pipeline_info", name: 'collated_software_mqc_versions.yml', newLine: true)
-        .set {  -> ch_collated_versions }
+        .set { ch_collated_versions }
 
     //
     // MODULE: MultiQC
@@ -88,7 +88,7 @@ workflow NF_AGGREGATE {
         ch_workflow_summary = Channel.value(paramsSummaryMultiqc(summary_params))
         ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
         ch_multiqc_files = ch_multiqc_files.mix(ch_collated_versions)
-        ch_multiqc_files = ch_multiqc_files.mix(SEQERA_RUNS_DUMP.out.run_dump.collect {  -> it[1] })
+        ch_multiqc_files = ch_multiqc_files.mix(SEQERA_RUNS_DUMP.out.run_dump.collect { it[1] })
 
         MULTIQC(
             ch_multiqc_files.collect(),
