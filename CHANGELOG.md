@@ -13,11 +13,13 @@ Special thanks to the following for their contributions to the release:
 - [Edmund Miller](https://github.com/edmundmiller)
 - [Florian Wuennemann](https://github.com/FloWuenne)
 - [Maxime Garcia](https://github.com/maxulysse)
+- [Rob Syme](https://github.com/robsyme)
 
 Thank you to everyone else that has contributed by reporting bugs, enhancements or in any other way, shape or form.
 
 ### Enhancements & fixes
 
+- [PR #71](https://github.com/seqeralabs/nf-aggregate/pull/71) - Reduce stuttering in nextflow_schema.json
 - [PR #73](https://github.com/seqeralabs/nf-aggregate/pull/73) - Add process for generating Benchmark reports
 - [PR #74](https://github.com/seqeralabs/nf-aggregate/pull/74) - Add process for generating Benchmark reports
 - [PR #75](https://github.com/seqeralabs/nf-aggregate/pull/75) - Skip failed jobs in benchmarking report
