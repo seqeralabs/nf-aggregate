@@ -1,8 +1,8 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://raw.githubusercontent.com/seqeralabs/nf-aggregate/main/nextflow_schema.json",
+    "$id": "https://raw.githubusercontent.com/seqeralabs/nf-aggregate/master/nextflow_schema.json",
     "title": "seqeralabs/nf-aggregate pipeline parameters",
-    "description": "Minimal nf-core pipeline compatible with template",
+    "description": "Pipeline to aggregate pertinent metrics across pipeline runs on the Seqera Platform.",
     "type": "object",
     "$defs": {
         "input_output_options": {
@@ -31,64 +31,6 @@
                 }
             }
         },
-        "pipeline_options": {
-            "title": "Pipeline-specific options",
-            "type": "object",
-            "fa_icon": "fas fa-terminal",
-            "description": "Generic options for the pipeline.",
-            "help_text": "Generic options for the pipeline.",
-            "properties": {
-                "seqera_api_endpoint": {
-                    "type": "string",
-                    "default": "https://api.cloud.seqera.io",
-                    "description": "Seqera Platform API endpoint URL.",
-                    "fa_icon": "fas fa-question-circle"
-                },
-                "seqera_cli_extra_args": {
-                    "type": "string",
-                    "description": "Extra arguments to pass to the Seqera Platform CLI command in addition to defaults defined by the pipeline.",
-                    "fa_icon": "fas fa-plus"
-                },
-                "java_truststore_path": {
-                    "type": "string",
-                    "description": "Path to custom cacerts Java truststore used by Seqera Platform.",
-                    "fa_icon": "fas fa-key"
-                },
-                "java_truststore_password": {
-                    "type": "string",
-                    "description": "Password for custom cacerts Java truststore used by Seqera Platform.",
-                    "fa_icon": "fas fa-key"
-                },
-                "skip_run_gantt": {
-                    "type": "boolean",
-                    "description": "Skip GANTT chart creation for each run.",
-                    "fa_icon": "fas fa-fast-forward"
-                },
-                "skip_multiqc": {
-                    "type": "boolean",
-                    "description": "Skip MultiQC.",
-                    "fa_icon": "fas fa-fast-forward"
-                },
-                "generate_benchmark_report": {
-                    "type": "boolean",
-                    "fa_icon": "fas fa-tachometer-alt",
-                    "description": "Compile a benchmarking report for Seqera Platform runs."
-                },
-                "benchmark_aws_cur_report": {
-                    "type": "string",
-                    "fa_icon": "fas fa-dollar-sign",
-                    "description": "AWS CUR report from data exports.",
-                    "pattern": "^\\S+\\.parquet",
-                    "format": "file-path"
-                },
-                "remove_failed_tasks": {
-                    "type": "boolean",
-                    "fa_icon": "fas fa-times-circle",
-                    "description": "Remove failed tasks from the benchmark report."
-                }
-            },
-            "required": ["seqera_api_endpoint"]
-        },
         "generic_options": {
             "title": "Generic options",
             "type": "object",
@@ -96,12 +38,6 @@
             "description": "Less common options for the pipeline, typically set in a config file.",
             "help_text": "These options are common to all nf-core pipelines and allow you to customise some of the core preferences for how the pipeline runs.\n\nTypically these options would be set in a Nextflow config file loaded for all pipeline runs, such as `~/.nextflow/config`.",
             "properties": {
-                "help": {
-                    "type": "boolean",
-                    "description": "Display help text.",
-                    "fa_icon": "fas fa-question-circle",
-                    "hidden": true
-                },
                 "version": {
                     "type": "boolean",
                     "description": "Display version and exit.",
@@ -182,6 +118,19 @@
                     "help_text": "Allows samples in the samplesheet to be duplicates of each other.",
                     "hidden": true,
                     "fa_icon": "fas fa-clone"
+                },
+                "pipelines_testdata_base_path": {
+                    "type": "string",
+                    "fa_icon": "far fa-check-circle",
+                    "description": "Base URL or local path to location of pipeline test dataset files",
+                    "default": "https://raw.githubusercontent.com/nf-core/test-datasets/",
+                    "hidden": true
+                },
+                "trace_report_suffix": {
+                    "type": "string",
+                    "fa_icon": "far calendar",
+                    "description": "Suffix to add to the trace report filename. Default is the date and time in the format yyyy-MM-dd_HH-mm-ss.",
+                    "hidden": true
                 }
             }
         }

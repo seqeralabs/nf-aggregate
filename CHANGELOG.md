@@ -3,6 +3,26 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## dev
+
+### Credits
+
+Special thanks to the following for their contributions to the release:
+
+- [Adam Talbot](https://github.com/adamrtalbot)
+- [Edmund Miller](https://github.com/edmundmiller)
+- [Florian Wuennemann](https://github.com/FloWuenne)
+- [Maxime Garcia](https://github.com/maxulysse)
+
+Thank you to everyone else that has contributed by reporting bugs, enhancements or in any other way, shape or form.
+
+### Enhancements & fixes
+
+- [PR #73](https://github.com/seqeralabs/nf-aggregate/pull/73) - Add process for generating Benchmark reports
+- [PR #74](https://github.com/seqeralabs/nf-aggregate/pull/74) - Add process for generating Benchmark reports
+- [PR #75](https://github.com/seqeralabs/nf-aggregate/pull/75) - Skip failed jobs in benchmarking report
+- [PR #76](https://github.com/seqeralabs/nf-aggregate/pull/76) - Sync with nf-core tools 3.2.0
+
 ## [[0.5.0](https://github.com/seqeralabs/nf-aggregate/releases/tag/0.5.0)] - 2024-11-12
 
 ### Credits
