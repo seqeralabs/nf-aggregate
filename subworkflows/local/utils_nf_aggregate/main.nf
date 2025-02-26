@@ -12,10 +12,10 @@ import java.nio.file.Paths
 ========================================================================================
 */
 
-include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline/main'
-include { getWorkflowVersion        } from '../../nf-core/utils_nextflow_pipeline/main'
-include { UTILS_NFVALIDATION_PLUGIN } from '../../nf-core/utils_nfvalidation_plugin/main.nf'
-include { samplesheetToList }         from 'plugin/nf-schema'
+include { UTILS_NEXTFLOW_PIPELINE } from '../../nf-core/utils_nextflow_pipeline'
+include { getWorkflowVersion      } from '../../nf-core/utils_nextflow_pipeline'
+include { UTILS_NFSCHEMA_PLUGIN   } from '../../nf-core/utils_nfschema_plugin'
+include { samplesheetToList       } from 'plugin/nf-schema'
 
 /*
 ========================================================================================
@@ -43,7 +43,8 @@ workflow PIPELINE_INITIALISATION {
     def pre_help_text = ''
     def post_help_text = ''
     def String workflow_command = "nextflow run ${workflow.manifest.name} -profile <docker/singularity/.../institute> --input ids.txt --outdir <OUTDIR>"
-    UTILS_NFVALIDATION_PLUGIN (
+
+    UTILS_NFSCHEMA_PLUGIN (
         params.help,
         workflow_command,
         pre_help_text,
@@ -59,7 +60,7 @@ workflow PIPELINE_INITIALISATION {
         .set { ch_ids }
 
     emit:
-    ids            = ch_ids
+    ids = ch_ids
 }
 
 /*
