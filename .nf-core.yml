@@ -46,7 +46,7 @@ lint:
 nf_core_version: 3.2.0
 repository_type: pipeline
 template:
-  author: SciDev Team, Seqera
+  author: SciDev Team
   description: Pipeline to aggregate pertinent metrics across pipeline runs on the
     Seqera Platform.
   force: false
