@@ -20,7 +20,6 @@ Thank you to everyone else that has contributed by reporting bugs, enhancements 
 ### Enhancements & fixes
 
 - [PR #71](https://github.com/seqeralabs/nf-aggregate/pull/71) - Reduce stuttering in nextflow_schema.json
-- [PR #73](https://github.com/seqeralabs/nf-aggregate/pull/73) - Add process for generating Benchmark reports
 - [PR #74](https://github.com/seqeralabs/nf-aggregate/pull/74) - Add process for generating Benchmark reports
 - [PR #75](https://github.com/seqeralabs/nf-aggregate/pull/75) - Skip failed jobs in benchmarking report
 - [PR #78](https://github.com/seqeralabs/nf-aggregate/pull/78) - Sync with nf-core tools 3.2.0
