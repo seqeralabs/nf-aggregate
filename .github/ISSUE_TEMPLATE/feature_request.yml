@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest an idea for the nf/aggregate pipeline
+description: Suggest an idea for the seqeralabs/nf-aggregate pipeline
 labels: enhancement
 body:
   - type: textarea

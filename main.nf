@@ -1,13 +1,11 @@
 #!/usr/bin/env nextflow
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    nf/aggregate
+    seqeralabs/nf-aggregate
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Github : https://github.com/nf/aggregate
+    Github : https://github.com/seqeralabs/nf-aggregate
 ----------------------------------------------------------------------------------------
 */
-
-nextflow.enable.dsl = 2
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -15,10 +13,9 @@ nextflow.enable.dsl = 2
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { AGGREGATE  } from './workflows/aggregate'
-include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_aggregate_pipeline'
-include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_aggregate_pipeline'
-
+include { NF-AGGREGATE  } from './workflows/nf-aggregate'
+include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_nf-aggregate_pipeline'
+include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_nf-aggregate_pipeline'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     NAMED WORKFLOWS FOR PIPELINE
@@ -28,7 +25,7 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_aggr
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow NF_AGGREGATE {
+workflow SEQERALABS_NF-AGGREGATE {
 
     take:
     samplesheet // channel: samplesheet read in from --input
@@ -38,13 +35,11 @@ workflow NF_AGGREGATE {
     //
     // WORKFLOW: Run pipeline
     //
-    AGGREGATE (
+    NF-AGGREGATE (
         samplesheet
     )
-
     emit:
-    multiqc_report = AGGREGATE.out.multiqc_report // channel: /path/to/multiqc_report.html
-
+    multiqc_report = NF-AGGREGATE.out.multiqc_report // channel: /path/to/multiqc_report.html
 }
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -55,13 +50,11 @@ workflow NF_AGGREGATE {
 workflow {
 
     main:
-
     //
     // SUBWORKFLOW: Run initialisation tasks
     //
     PIPELINE_INITIALISATION (
         params.version,
-        params.help,
         params.validate_params,
         params.monochrome_logs,
         args,
@@ -72,10 +65,9 @@ workflow {
     //
     // WORKFLOW: Run main workflow
     //
-    NF_AGGREGATE (
+    SEQERALABS_NF-AGGREGATE (
         PIPELINE_INITIALISATION.out.samplesheet
     )
-
     //
     // SUBWORKFLOW: Run completion tasks
     //
@@ -86,7 +78,7 @@ workflow {
         params.outdir,
         params.monochrome_logs,
         params.hook_url,
-        NF_AGGREGATE.out.multiqc_report
+        SEQERALABS_NF-AGGREGATE.out.multiqc_report
     )
 }
 
