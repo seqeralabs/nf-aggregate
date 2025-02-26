@@ -13,8 +13,6 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
-ch_multiqc_logo          = params.multiqc_logo   ? Channel.fromPath(params.multiqc_logo, checkIfExists: true) : Channel.fromPath("$projectDir/assets/seqera_logo_colour.png", checkIfExists: true )
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -29,16 +27,23 @@ include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nf_aggregat
 // WORKFLOW: Execute a single named workflow for the pipeline
 //
 workflow {
+    ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
+    ch_multiqc_logo = params.multiqc_logo ? Channel.fromPath(params.multiqc_logo, checkIfExists: true) : Channel.fromPath("${projectDir}/assets/seqera_logo_colour.png", checkIfExists: true)
 
     //
     // SUBWORKFLOW: Run initialisation tasks
     //
-    PIPELINE_INITIALISATION ()
+    PIPELINE_INITIALISATION(
+        params.version,
+        params.validate_params,
+        params.outdir,
+        params.input,
+    )
 
     //
     // WORKFLOW: Run primary workflows for the pipeline
     //
-    NF_AGGREGATE (
+    NF_AGGREGATE(
         PIPELINE_INITIALISATION.out.ids,
         ch_multiqc_custom_config,
         ch_multiqc_logo,
@@ -46,12 +51,6 @@ workflow {
         params.skip_run_gantt,
         params.skip_multiqc,
         params.java_truststore_path,
-        params.java_truststore_password
+        params.java_truststore_password,
     )
 }
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    THE END
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/

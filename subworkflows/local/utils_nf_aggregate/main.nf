@@ -24,6 +24,11 @@ include { samplesheetToList       } from 'plugin/nf-schema'
 */
 
 workflow PIPELINE_INITIALISATION {
+    take:
+    version           // boolean: Display version and exit
+    validate_params   // boolean: Boolean whether to validate parameters against the schema at runtime
+    outdir            //  string: The output directory where the results will be saved
+    input             //  string: Path to input samplesheet
 
     main:
 
@@ -31,31 +36,21 @@ workflow PIPELINE_INITIALISATION {
     // Print version and exit if required and dump pipeline parameters to JSON file
     //
     UTILS_NEXTFLOW_PIPELINE (
-        params.version,
+        version,
         true,
-        params.outdir,
+        outdir,
         workflow.profile.tokenize(',').intersect(['conda', 'mamba']).size() >= 1
     )
 
-    //
-    // Validate parameters and generate parameter summary to stdout
-    //
-    def pre_help_text = ''
-    def post_help_text = ''
-    def String workflow_command = "nextflow run ${workflow.manifest.name} -profile <docker/singularity/.../institute> --input ids.txt --outdir <OUTDIR>"
-
     UTILS_NFSCHEMA_PLUGIN (
-        params.help,
-        workflow_command,
-        pre_help_text,
-        post_help_text,
-        params.validate_params,
-        "nextflow_schema.json"
+        workflow,
+        validate_params,
+        null
     )
 
     // Read in ids from --input file
     Channel
-        .fromList(samplesheetToList(params.input, "assets/schema_input.json"))
+        .fromList(samplesheetToList(input, "assets/schema_input.json"))
         .flatten()
         .set { ch_ids }
 
