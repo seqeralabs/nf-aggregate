@@ -80,6 +80,11 @@
                     "description": "AWS CUR report from data exports.",
                     "pattern": "^\\S+\\.parquet",
                     "format": "file-path"
+                },
+                "remove_failed_tasks": {
+                    "type": "boolean",
+                    "fa_icon": "fas fa-times-circle",
+                    "description": "Remove failed tasks from the benchmark report."
                 }
             },
             "required": ["seqera_api_endpoint"]
