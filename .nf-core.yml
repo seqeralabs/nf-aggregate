@@ -43,7 +43,7 @@ lint:
     - process.time
   pipeline_name_conventions: false
   schema_lint: false
-nf_core_version: 3.3.0.dev0
+nf_core_version: 3.3.0
 repository_type: pipeline
 template:
   author: SciDev Team, Seqera
