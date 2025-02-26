@@ -12,10 +12,10 @@ import java.nio.file.Paths
 ========================================================================================
 */
 
-include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline/main'
-include { getWorkflowVersion        } from '../../nf-core/utils_nextflow_pipeline/main'
-include { UTILS_NFVALIDATION_PLUGIN } from '../../nf-core/utils_nfvalidation_plugin/main.nf'
-include { samplesheetToList }         from 'plugin/nf-schema'
+include { UTILS_NEXTFLOW_PIPELINE } from '../../nf-core/utils_nextflow_pipeline'
+include { getWorkflowVersion      } from '../../nf-core/utils_nextflow_pipeline'
+include { UTILS_NFSCHEMA_PLUGIN   } from '../../nf-core/utils_nfschema_plugin'
+include { samplesheetToList       } from 'plugin/nf-schema'
 
 /*
 ========================================================================================
@@ -24,6 +24,11 @@ include { samplesheetToList }         from 'plugin/nf-schema'
 */
 
 workflow PIPELINE_INITIALISATION {
+    take:
+    version           // boolean: Display version and exit
+    validate_params   // boolean: Boolean whether to validate parameters against the schema at runtime
+    outdir            //  string: The output directory where the results will be saved
+    input             //  string: Path to input samplesheet
 
     main:
 
@@ -31,35 +36,26 @@ workflow PIPELINE_INITIALISATION {
     // Print version and exit if required and dump pipeline parameters to JSON file
     //
     UTILS_NEXTFLOW_PIPELINE (
-        params.version,
+        version,
         true,
-        params.outdir,
+        outdir,
         workflow.profile.tokenize(',').intersect(['conda', 'mamba']).size() >= 1
     )
 
-    //
-    // Validate parameters and generate parameter summary to stdout
-    //
-    def pre_help_text = ''
-    def post_help_text = ''
-    def String workflow_command = "nextflow run ${workflow.manifest.name} -profile <docker/singularity/.../institute> --input ids.txt --outdir <OUTDIR>"
-    UTILS_NFVALIDATION_PLUGIN (
-        params.help,
-        workflow_command,
-        pre_help_text,
-        post_help_text,
-        params.validate_params,
-        "nextflow_schema.json"
+    UTILS_NFSCHEMA_PLUGIN (
+        workflow,
+        validate_params,
+        null
     )
 
     // Read in ids from --input file
     Channel
-        .fromList(samplesheetToList(params.input, "assets/schema_input.json"))
+        .fromList(samplesheetToList(input, "assets/schema_input.json"))
         .flatten()
         .set { ch_ids }
 
     emit:
-    ids            = ch_ids
+    ids = ch_ids
 }
 
 /*
