@@ -37,7 +37,7 @@ workflow NF_AGGREGATE {
         java_truststore_path ?: '',
         java_truststore_password ?: '',
     )
-    ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions.first())
+    ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions)
 
     //
     // MODULE: Generate Gantt chart for workflow execution
@@ -51,7 +51,7 @@ workflow NF_AGGREGATE {
     PLOT_RUN_GANTT(
         ch_runs_for_gantt
     )
-    ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions.first())
+    ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
 
     //
     // MODULE: Generate benchmark report
