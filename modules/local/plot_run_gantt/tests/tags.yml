@@ -1,2 +1,0 @@
-plot_run_gantt:
-  - modules/local/plot_run_gantt/**
