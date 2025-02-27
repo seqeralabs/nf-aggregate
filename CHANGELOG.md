@@ -23,7 +23,7 @@ Thank you to everyone else that has contributed by reporting bugs, enhancements 
 - [PR #74](https://github.com/seqeralabs/nf-aggregate/pull/74) - Add process for generating Benchmark reports
 - [PR #75](https://github.com/seqeralabs/nf-aggregate/pull/75) - Skip failed jobs in benchmarking report
 - [PR #78](https://github.com/seqeralabs/nf-aggregate/pull/78) - Sync with nf-core tools 3.2.0
-- [PR #79](https://github.com/seqeralabs/nf-aggregate/pull/79) - nf-test auto sharding + better pipeline level test
+- [PR #79](https://github.com/seqeralabs/nf-aggregate/pull/79) - nf-test auto sharding
 
 ## [[0.5.0](https://github.com/seqeralabs/nf-aggregate/releases/tag/0.5.0)] - 2024-11-12
 
