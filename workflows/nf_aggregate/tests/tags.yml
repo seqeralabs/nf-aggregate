@@ -1,2 +1,0 @@
-workflows_nf_aggregate:
-  - workflows/nf_aggregate/**
