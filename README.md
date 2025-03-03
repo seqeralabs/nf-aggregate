@@ -69,7 +69,7 @@ id,workspace,group
 4VLRs7nuqbAhDy,community/showcase,group2
 ```
 
-To incorporate AWS cost data into the benchmark report, use the `benchmark_aws_cur_report` parameter. This should point to a valid AWS Cost and Usage Report (CUR) file in Parquet format, currently only supporting CUR1.0. The file can be stored locally or in a cloud bucket.
+To incorporate AWS cost data into the benchmark report, use the `benchmark_aws_cur_report` parameter. This should point to a valid AWS Cost and Usage Report (CUR) file in Parquet format, currently only supporting CUR 1.0. The file can be stored locally or in a cloud bucket.
 To run nf-aggregate and generate benchmark reports, you can use the following command:
 
 ```
