@@ -80,7 +80,7 @@ nextflow run seqeralabs/nf-aggregate \
     --benchmark_aws_cur_report ./aws_cost_report.parquet
 ```
 
-The benchmark report can be generated with or without cost data - simply omit the `--benchmark_aws_cur_report` parameter if cost analysis is not needed.
+The benchmark report can be generated without cost data - simply omit the `--benchmark_aws_cur_report` parameter if cost analysis is not needed.
 
 ## Output
 
