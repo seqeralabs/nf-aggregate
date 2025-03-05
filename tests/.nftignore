@@ -4,7 +4,7 @@ multiqc/multiqc_data/multiqc_data.json
 multiqc/multiqc_data/multiqc_general_stats.txt
 multiqc/multiqc_data/multiqc_sources.txt
 multiqc/multiqc_data/multiqc_software_version.txt
-s.txt:md5,ffd82573d0a86a65849475c90973c s.txt
+multiqc/multiqc_data/multiqc_seqera_cli.txt
 multiqc/multiqc_plots/{svg,pdf,png}/*.{svg,pdf,png}
 multiqc/multiqc_report.html
 nf-core_*/gantt/*_gantt.html
