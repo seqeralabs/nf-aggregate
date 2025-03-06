@@ -9,4 +9,4 @@ multiqc/multiqc_plots/{svg,pdf,png}/*.{svg,pdf,png}
 multiqc/multiqc_report.html
 nf-core_*/gantt/*_gantt.html
 pipeline_info/*.{html,json,txt,yml}
-runs_dump/**/service-info.json
+**/runs_dump/**/service-info.json
