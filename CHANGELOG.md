@@ -28,7 +28,6 @@ Thank you to everyone else that has contributed by reporting bugs, enhancements 
 - [PR #82](https://github.com/seqeralabs/nf-aggregate/pull/82) - Loosened samplesheet validation for benchmark groups
 - [PR #84](https://github.com/seqeralabs/nf-aggregate/pull/84) - Added CUR2.0 support to benchmark reports and fixed task table cost
 
-
 ## [[0.5.0](https://github.com/seqeralabs/nf-aggregate/releases/tag/0.5.0)] - 2024-11-12
 
 ### Credits
