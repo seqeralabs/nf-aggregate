@@ -1,7 +1,8 @@
 include { getRunMetadata } from './functions'
 
 process SEQERA_RUNS_DUMP {
-    tag "$meta.id"
+    tag "${meta.id}"
+
     conda 'tower-cli=0.9.2'
     container 'seqeralabs/nf-aggregate:tower-cli-0.9.2--hdfd78af_1'
 
@@ -13,7 +14,7 @@ process SEQERA_RUNS_DUMP {
 
     output:
     tuple val(metaOut), path("${prefix}"), emit: run_dump
-    path "versions.yml"                  , emit: versions
+    path "versions.yml",                   emit: versions
 
     script:
     def args = task.ext.args ?: ''
@@ -25,18 +26,18 @@ process SEQERA_RUNS_DUMP {
     javaTrustStorePassword = java_truststore_password ? "-Djavax.net.ssl.trustStorePassword=${java_truststore_password}" : ''
     """
     tw \\
-        $args \\
-        $javaTrustStore \\
-        $javaTrustStorePassword \\
+        ${args} \\
+        ${javaTrustStore} \\
+        ${javaTrustStorePassword} \\
         --url=${api_endpoint} \\
-        --access-token=$TOWER_ACCESS_TOKEN \\
+        --access-token=${TOWER_ACCESS_TOKEN} \\
         runs \\
         dump \\
         -id=${meta.id} \\
         --workspace=${meta.workspace} \\
         --output="${prefix}.tar.gz" \\
-        $fusion \\
-        $args2
+        ${fusion} \\
+        ${args2}
 
     mkdir -p ${prefix}
     tar \\
