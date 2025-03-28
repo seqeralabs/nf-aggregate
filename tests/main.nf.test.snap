@@ -3,14 +3,14 @@
         "content": [
             10,
             {
-                "Workflow": {
-                    "seqeralabs/nf-aggregate": "0.6.0"
-                },
                 "PLOT_RUN_GANTT": {
                     "python": "3.9.19",
                     "pandas": "1.1.5",
                     "plotly_express": "0.4.1",
                     "click": "8.0.1"
+                },
+                "Workflow": {
+                    "seqeralabs/nf-aggregate": "0.6.0"
                 },
                 "SEQERA_RUNS_DUMP": {
                     "seqera-cli": "0.9.2 (build 39a2ec6)"
@@ -149,8 +149,8 @@
         ],
         "meta": {
             "nf-test": "0.9.2",
-            "nextflow": "25.01.0"
+            "nextflow": "25.02.1"
         },
-        "timestamp": "2025-03-06T15:24:45.778706803"
+        "timestamp": "2025-03-28T16:04:22.823812178"
     }
 }
