@@ -1,8 +1,11 @@
+# seqeralabs/nf-aggregate
+
 [![GitHub Actions CI Status](https://github.com/seqeralabs/nf-aggregate/actions/workflows/ci.yml/badge.svg)](https://github.com/seqeralabs/nf-aggregate/actions/workflows/ci.yml)
 [![GitHub Actions Linting Status](https://github.com/seqeralabs/nf-aggregate/actions/workflows/linting.yml/badge.svg)](https://github.com/seqeralabs/nf-aggregate/actions/workflows/linting.yml)
 [![nf-test](https://img.shields.io/badge/unit_tests-nf--test-337ab7.svg)](https://www.nf-test.com)
 
-[![Nextflow](https://img.shields.io/badge/nextflow%20DSL2-%E2%89%A523.10.0-23aa62.svg)](https://www.nextflow.io/)
+[![Nextflow](https://img.shields.io/badge/version-%E2%89%A524.04.2-green?style=flat&logo=nextflow&logoColor=white&color=%230DC09D&link=https%3A%2F%2Fnextflow.io)](https://www.nextflow.io/)
+[![nf-core template version](https://img.shields.io/badge/nf--core_template-3.3.0.dev0-green?style=flat&logo=nfcore&logoColor=white&color=%2324B064&link=https%3A%2F%2Fnf-co.re)](https://github.com/nf-core/tools/releases/tag/3.3.0.dev0)
 [![run with conda](http://img.shields.io/badge/run%20with-conda-3EB049?labelColor=000000&logo=anaconda)](https://docs.conda.io/en/latest/)
 [![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://www.docker.com/)
 [![run with singularity](https://img.shields.io/badge/run%20with-singularity-1d355c.svg?labelColor=000000)](https://sylabs.io/docs/)
@@ -55,6 +58,29 @@ nextflow run seqeralabs/nf-aggregate \
 ```
 
 If you are using a Seqera Platform Enterprise instance that is secured with a private CA SSL certificate not recognized by default Java certificate authorities, you can specify a custom `cacerts` store path through the `--java_truststore_path` parameter and optionally, a password with the `--java_truststore_password`. This certificate will be used to achieve connectivity with your Seqera Platform instance through API and CLI.
+
+### Benchmark reports
+
+If you want to generate a benchmark report comparing multiple runs, you can include a `group` column in your `run_ids.csv` file. This allows you to organize and analyze runs based on custom groupings in the final report.
+
+```
+id,workspace,group
+3VcLMAI8wyy0Ld,community/showcase,group1
+4VLRs7nuqbAhDy,community/showcase,group2
+```
+
+To incorporate AWS cost data into the benchmark report, use the `benchmark_aws_cur_report` parameter. This should point to a valid AWS Cost and Usage Report (CUR) file in Parquet format, currently only supporting CUR 1.0. The file can be stored locally or in a cloud bucket.
+To run nf-aggregate and generate benchmark reports, you can use the following command:
+
+```
+nextflow run seqeralabs/nf-aggregate \
+    --input run_ids.csv \
+    --outdir ./results \
+    --generate_benchmark_report \
+    --benchmark_aws_cur_report ./aws_cost_report.parquet
+```
+
+The benchmark report can be generated without cost data - simply omit the `--benchmark_aws_cur_report` parameter if cost analysis is not needed.
 
 ## Output
 

@@ -1,8 +1,6 @@
-repository_type: pipeline
-nf_core_version: 2.14.1
 lint:
-  actions_ci: False
-  base_config: False
+  actions_ci: false
+  base_config: false
   files_exist:
     - .github/.dockstore.yml
     - .github/ISSUE_TEMPLATE/config.yml
@@ -34,8 +32,8 @@ lint:
     - assets/nf-aggregate_logo_light.png
     - docs/images/nf-aggregate_logo_dark.png
     - docs/images/nf-aggregate_logo_light.png
-  modules_config: False
-  multiqc_config: False
+  modules_config: false
+  multiqc_config: false
   nextflow_config:
     - custom_config
     - manifest.homePage
@@ -43,11 +41,21 @@ lint:
     - process.cpus
     - process.memory
     - process.time
-  schema_lint: False
-  pipeline_name_conventions: False
+  pipeline_name_conventions: false
+  schema_lint: false
+nf_core_version: 3.2.0
+repository_type: pipeline
 template:
-  prefix: seqeralabs
-  skip:
+  author: SciDev Team
+  description: Pipeline to aggregate pertinent metrics across pipeline runs on the
+    Seqera Platform.
+  force: false
+  is_nfcore: false
+  name: nf-aggregate
+  org: seqeralabs
+  outdir: .
+  skip_features:
     - ci
     - igenomes
     - nf_core_configs
+  version: 0.6.0

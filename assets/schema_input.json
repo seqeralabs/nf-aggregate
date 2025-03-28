@@ -1,5 +1,5 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/seqeralabs/nf-aggregate/main/assets/schema_input.json",
     "title": "nf-aggregate pipeline - params.input schema",
     "description": "Schema for the file provided with params.input",
@@ -10,12 +10,20 @@
             "id": {
                 "type": "string",
                 "pattern": "^[A-Za-z0-9]{9,14}$",
-                "errorMessage": "Please provide a valid Seqera Platform run identifier"
+                "errorMessage": "Please provide a valid Seqera Platform run identifier",
+                "meta": ["id"]
             },
             "workspace": {
                 "type": "string",
                 "pattern": "^[a-zA-Z0-9](?:[a-zA-Z0-9]|[-_](?=[a-zA-Z0-9])){1,38}/[a-zA-Z0-9](?:[a-zA-Z0-9]|[-_](?=[a-zA-Z0-9])){1,38}$",
-                "errorMessage": "Please provide a valid Seqera Platform Workspace name"
+                "errorMessage": "Please provide a valid Seqera Platform Workspace name",
+                "meta": ["workspace"]
+            },
+            "group": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][-a-zA-Z0-9_ ]{0,37}$",
+                "errorMessage": "Please provide a valid group name",
+                "meta": ["group"]
             }
         },
         "required": ["id", "workspace"]
