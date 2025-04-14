@@ -13,7 +13,7 @@
                     "seqeralabs/nf-aggregate": "0.6.0"
                 },
                 "SEQERA_RUNS_DUMP": {
-                    "seqera-cli": "0.9.2 (build 39a2ec6)"
+                    "seqera-cli": "0.11.2 (build 2a4e8d5)"
                 }
             },
             [
@@ -115,42 +115,42 @@
                 "seqera_cli_cpu_time_plot.txt:md5,390f4051d6092a84a2b3f73ab10643c5",
                 "seqera_cli_process_statuses_plot.txt:md5,13414743798b07baebe846fb8d20bdde",
                 "seqera_cli_wall_time_plot.txt:md5,abc859f5fe0dabfcded8c658de70725a",
-                "workflow-launch.json:md5,a842489f283947ea92a4f88826bbabf0",
+                "workflow-launch.json:md5,e628f293acd704c57ed7ad7c3432a73e",
                 "workflow-load.json:md5,947517e30d5485ad97601923f2ccb2f5",
-                "workflow-metadata.json:md5,99ec56750319402d9eed979b51527d0e",
+                "workflow-metadata.json:md5,5c83e4ebc83982c35a9f8378ea984ce5",
                 "workflow-metrics.json:md5,a862f20aabadbc5ab0be91642dffc00c",
-                "workflow-tasks.json:md5,7301efc1db5ee06cd57be6b6ea901f36",
-                "workflow.json:md5,59f3848c26e6b99155240a61e57222bf",
-                "workflow-launch.json:md5,6fdbe8c3a57a9e0e11d65d0057a074e4",
+                "workflow-tasks.json:md5,359044869a60162d6dea94eb1759422e",
+                "workflow.json:md5,7c341a64f87ffae84b1024188184f4b2",
+                "workflow-launch.json:md5,63103791dfe1fa048e8ae17a7bd27447",
                 "workflow-load.json:md5,7fe53d3eb1bd3e8ab882d011a751b832",
-                "workflow-metadata.json:md5,01f59714a52a57456219a95cdb29cb5a",
+                "workflow-metadata.json:md5,a536a5c829bd0a4441b647eef3fc10ec",
                 "workflow-metrics.json:md5,15b8927b842c6fd1fc738af2e8d3462e",
-                "workflow-tasks.json:md5,26adadf43dd7f5d9996b3ff6c5698ff6",
-                "workflow.json:md5,0f7da8cd7d2bfe2b72bc0dc4cbb0fbc0",
-                "workflow-launch.json:md5,032225ac0735972950537a3b5e913662",
+                "workflow-tasks.json:md5,aea381edad7df39e2828ce63ba456c86",
+                "workflow.json:md5,66bb892f5323f66b33be0dffb5a19112",
+                "workflow-launch.json:md5,44c727a7586ffc5db92f8f94e0a56a90",
                 "workflow-load.json:md5,4f02d5a24ab89aa648cd4346785c8f2c",
-                "workflow-metadata.json:md5,4347508e26b93645bd393157856f0860",
+                "workflow-metadata.json:md5,207d9db4477cb7e205fb54b98206bf41",
                 "workflow-metrics.json:md5,13a5b5d7447fad4a8baa053d1abf85e5",
-                "workflow-tasks.json:md5,577a7472816b7729012a9291d97ff150",
-                "workflow.json:md5,658701f8d7af1b7112534a7f58cd9aa7",
-                "workflow-launch.json:md5,1ccf29020c410b00fdc02537ce7a813e",
+                "workflow-tasks.json:md5,e327f5aae611c7f731a470bd7390d967",
+                "workflow.json:md5,59f8a9ea713a57ea48470ff0f92cc7e5",
+                "workflow-launch.json:md5,35fe5e90f51f101b22e4f0683bdf2184",
                 "workflow-load.json:md5,2f5abdb8efc1fdb249378cb1af093a4a",
-                "workflow-metadata.json:md5,2fc6fdbe5bfc7cc90b92725c586c3cd3",
+                "workflow-metadata.json:md5,25f9e1ffcf312b5683e1b6c1adb47726",
                 "workflow-metrics.json:md5,5cb0d8e859991831eff666eed1c97b3e",
-                "workflow-tasks.json:md5,bf390ebbe51b2dc7aea4c60a4a02ee97",
-                "workflow.json:md5,a81b1319f6a6038d1b2de9f8c7ddb8b6",
-                "workflow-launch.json:md5,56995097a449167c11769a566c7d2716",
+                "workflow-tasks.json:md5,e4b3c44af8c6c2663d767c8b009fa959",
+                "workflow.json:md5,ade88ad661d37554229e75fc1d2b9ee4",
+                "workflow-launch.json:md5,43ff8fd9b6217bb6eee542b354a7ebde",
                 "workflow-load.json:md5,bebdd4917d3b769a656744ba25241898",
-                "workflow-metadata.json:md5,3dcba41db4802a3a43e6660e7cd9b759",
+                "workflow-metadata.json:md5,afd35f96d1eb85bc5aedfd6f04b6f2a7",
                 "workflow-metrics.json:md5,fa417298bc5c9c73c1c2bc1daf6e0406",
-                "workflow-tasks.json:md5,84b7baa01cb692faa5466d8b577f61d6",
-                "workflow.json:md5,8e1bcf993c75642a766adea2d3b4ee30"
+                "workflow-tasks.json:md5,10d3c1d5f0ff578c64702e9649e57c3a",
+                "workflow.json:md5,63adb36ad806a5d6ba5ebaed7866a3d3"
             ]
         ],
         "meta": {
             "nf-test": "0.9.2",
-            "nextflow": "25.02.1"
+            "nextflow": "25.02.3"
         },
-        "timestamp": "2025-03-28T16:04:22.823812178"
+        "timestamp": "2025-04-14T16:39:50.36237"
     }
 }
