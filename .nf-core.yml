@@ -1,0 +1,98 @@
+repository_type: pipeline
+
+nf_core_version: 3.2.0
+
+lint:
+  files_unchanged:
+    - .prettierignore
+    - .prettierignore
+    - .prettierignore
+    - .github/CONTRIBUTING.md
+    - .github/PULL_REQUEST_TEMPLATE.md
+    - .prettierignore
+    - .prettierignore
+    - .prettierignore
+    - .prettierignore
+    - .github/CONTRIBUTING.md
+    - .github/PULL_REQUEST_TEMPLATE.md
+    - .prettierignore
+    - CODE_OF_CONDUCT.md
+    - assets/nf-core-nf-aggregate_logo_light.png
+    - docs/images/nf-core-nf-aggregate_logo_light.png
+    - docs/images/nf-core-nf-aggregate_logo_dark.png
+    - .github/ISSUE_TEMPLATE/bug_report.yml
+    - .github/CONTRIBUTING.md
+    - .github/PULL_REQUEST_TEMPLATE.md
+    - assets/email_template.txt
+    - docs/README.md
+  modules_config: false
+  nextflow_config: false
+  multiqc_config:
+    - report_comment
+  files_exist:
+    - conf/igenomes.config
+    - conf/igenomes_ignored.config
+    - conf/igenomes.config
+    - CITATIONS.md
+    - conf/base.config
+    - conf/modules.config
+    - modules.json
+    - assets/email_template.html
+    - assets/sendmail_template.txt
+    - assets/email_template.txt
+    - docs/output.md
+    - docs/README.md
+    - docs/usage.md
+    - conf/test.config
+    - conf/test_full.config
+    - .github/workflows/ci.yml
+    - conf/igenomes.config
+    - conf/igenomes_ignored.config
+    - CITATIONS.md
+    - conf/base.config
+    - conf/modules.config
+    - modules.json
+    - assets/email_template.html
+    - assets/sendmail_template.txt
+    - assets/email_template.txt
+    - docs/output.md
+    - docs/README.md
+    - docs/usage.md
+    - conf/test.config
+    - conf/test_full.config
+    - .github/workflows/ci.yml
+    - CODE_OF_CONDUCT.md
+    - assets/nf-core-nf-aggregate_logo_light.png
+    - docs/images/nf-core-nf-aggregate_logo_light.png
+    - docs/images/nf-core-nf-aggregate_logo_dark.png
+    - .github/ISSUE_TEMPLATE/config.yml
+    - .github/workflows/awstest.yml
+    - .github/workflows/awsfulltest.yml
+  nfcore_components: false
+  modules_json: false
+  base_config: false
+  included_configs: false
+
+template:
+  org: seqeralabs
+  name: nf-aggregate
+  description: Pipeline to aggregate pertinent metrics across pipeline runs on the
+    Seqera Platform (beta)
+  author: Edmund Miller
+  version: 0.6.0
+  force: true
+  outdir: nf-agg
+  skip_features:
+    - igenomes
+    - nf_core_configs
+    - citations
+    - gitpod
+    - fastqc
+    - modules
+    - email
+    - adaptivecard
+    - slackreport
+    - documentation
+    - test_config
+    - rocrate
+  is_nfcore: false
