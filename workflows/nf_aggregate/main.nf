@@ -50,7 +50,6 @@ workflow NF_AGGREGATE {
 
     // Merge run dumps with external runs
     SEQERA_RUNS_DUMP.out.run_dump
-        .collect()
         .mix(ids_split.external)
         .set{ ch_all_runs }
 

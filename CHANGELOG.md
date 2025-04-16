@@ -3,7 +3,34 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.6.0
+## 0.7.0
+
+Special thanks to the following for their contributions to the release:
+
+- [Edmund Miller](https://github.com/edmundmiller)
+- [Florian Wuennemann](https://github.com/FloWuenne)
+- [Maxime Garcia](https://github.com/maxulysse)
+
+Thank you to everyone else that has contributed by reporting bugs, enhancements or in any other way, shape or form.
+
+### Enhancements & fixes
+
+- [PR #88](https://github.com/seqeralabs/nf-aggregate/pull/88) - Update tw cli container version to 0.11.2 and allow .nextflow.log to be missing from tw call
+- [PR #89](https://github.com/seqeralabs/nf-aggregate/pull/89) - Enable usage of external run dumps with nf-aggregate & update devcontainer specifications
+
+### Software dependencies
+
+| Dependency  | Old version | New version |
+| ----------- | ----------- | ----------- |
+| `tower-cli` | 0.9.2       | 0.11.2      |
+
+> **NB:** Dependency has been **updated** if both old and new version information is present.
+>
+> **NB:** Dependency has been **added** if just the new version information is present.
+>
+> **NB:** Dependency has been **removed** if new version information isn't present.
+
+## [[0.6.0](https://github.com/seqeralabs/nf-aggregate/releases/tag/0.6.0] - 2024-03-31)
 
 ### Credits
 
