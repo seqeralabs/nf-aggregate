@@ -51,11 +51,8 @@ workflow NF_AGGREGATE {
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions)
 
     // Merge run dumps with external runs
-    ch_external
-        .ifEmpty {
-            SEQERA_RUNS_DUMP.out.run_dump
-        }
-        .mix(SEQERA_RUNS_DUMP.out.run_dump)
+    SEQERA_RUNS_DUMP.out.run_dump
+        .mix(ch_external)
         .set { ch_all_runs }
 
     //
