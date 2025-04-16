@@ -30,6 +30,10 @@
                 "pattern": "^(?:/[^/]+)+/?$",
                 "errorMessage": "Please provide a valid file system path",
                 "meta": ["logs"]
+            },
+            "fusion": {
+                "type": "boolean",
+                "meta": ["fusion"]
             }
         },
         "required": ["id", "workspace"]

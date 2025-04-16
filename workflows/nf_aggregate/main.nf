@@ -24,16 +24,14 @@ workflow NF_AGGREGATE {
 
     main:
 
-    ids
+    // Split ids into runs to fetch logs from platform deployment and runs provided externally
+        ids
         .branch {meta ->
             external: meta.workspace == 'external'
+                return [meta, meta.logs]
             fetch_run_dumps: true
         }
-        .set { ids_split }
-
-    ids_split.external
-        .map { meta -> [[meta],meta.logs]}
-        .set { ch_external }
+        .set { ids_split}
 
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
@@ -52,22 +50,23 @@ workflow NF_AGGREGATE {
 
     // Merge run dumps with external runs
     SEQERA_RUNS_DUMP.out.run_dump
-        .mix(ch_external)
-        .set { ch_all_runs }
+        .collect()
+        .mix(ids_split.external)
+        .set{ ch_all_runs }
 
     //
     // MODULE: Generate Gantt chart for workflow execution
     //
-    ch_all_runs
-        .filter { meta, _run_dir ->
-            meta.fusion && !skip_run_gantt && !meta.logs
-        }
-        .set { ch_runs_for_gantt }
+    if(!params.skip_run_gantt){
+        ch_all_runs
+            .filter { meta, _run_dir -> meta.fusion}
+            .set { ch_runs_for_gantt }
 
-    PLOT_RUN_GANTT(
-        ch_runs_for_gantt
-    )
-    ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
+        PLOT_RUN_GANTT(
+            ch_runs_for_gantt
+        )
+        ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
+    }
 
     //
     // MODULE: Generate benchmark report
