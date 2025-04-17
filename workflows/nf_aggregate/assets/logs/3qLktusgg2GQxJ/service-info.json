@@ -1,0 +1,40 @@
+{
+  "version" : "25.1.0-cycle5",
+  "apiVersion" : "1.37.0",
+  "commitId" : "6d3c60c",
+  "authTypes" : [ "auth0", "email" ],
+  "loginPath" : "/login",
+  "navbar" : {
+    "menus" : [ {
+      "label" : "Docs",
+      "url" : "https://docs.seqera.io"
+    }, {
+      "label" : "Community",
+      "url" : "https://community.seqera.io/"
+    }, {
+      "label" : "Feedback",
+      "url" : "https://feedback.seqera.io/"
+    } ]
+  },
+  "heartbeatInterval" : 3960,
+  "userWorkspaceEnabled" : true,
+  "allowInstanceCredentials" : false,
+  "landingUrl" : "https://seqera.io",
+  "termsOfUseUrl" : "https://seqera.io/legal/terms-of-use",
+  "contentUrl" : "https://user-data.cloud.seqera.io",
+  "analytics" : {
+    "hubspotId" : "6705631",
+    "posthogApiKey" : "phc_pLVMvF3StGtifZ71oQrnQ99FGD1luzjIcG3xrs1PIaW",
+    "posthogApiHost" : "https://eu.i.posthog.com"
+  },
+  "allowLocalRepos" : true,
+  "contentMaxFileSize" : 26214400,
+  "waveEnabled" : true,
+  "groundswellEnabled" : true,
+  "forgePrefix" : "TowerForge",
+  "seqeraCloud" : true,
+  "evalWorkspaceIds" : [ 40230138858677 ],
+  "contactEmail" : "support@seqera.io",
+  "allowNextflowCliLogs" : false,
+  "logoutUrl" : "https://seqera.eu.auth0.com/v2/logout?client_id=cwbyNZ1n4FGRv2PFcb5wpzkKytGLFdlf&redirectTo=https://cloud.seqera.io/logout"
+}
