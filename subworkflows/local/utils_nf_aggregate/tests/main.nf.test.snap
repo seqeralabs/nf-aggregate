@@ -3,46 +3,76 @@
         "content": [
             [
                 {
+                    "fusion": [
+                        
+                    ],
                     "group": [
                         
                     ],
                     "id": "2lXd1j7OwZVfxh",
+                    "logs": [
+                        
+                    ],
                     "workspace": "community/showcase"
                 },
                 {
+                    "fusion": [
+                        
+                    ],
                     "group": [
                         
                     ],
                     "id": "38QXz4OfQDpwOV",
+                    "logs": [
+                        
+                    ],
                     "workspace": "community/showcase"
                 },
                 {
+                    "fusion": [
+                        
+                    ],
                     "group": [
                         
                     ],
                     "id": "3iFMo0NtH1Byvy",
+                    "logs": [
+                        
+                    ],
                     "workspace": "community/showcase"
                 },
                 {
+                    "fusion": [
+                        
+                    ],
                     "group": [
                         
                     ],
                     "id": "4Bi5xBK6E2Nbhj",
+                    "logs": [
+                        
+                    ],
                     "workspace": "community/showcase"
                 },
                 {
+                    "fusion": [
+                        
+                    ],
                     "group": [
                         
                     ],
                     "id": "4LWT4uaXDaGcDY",
+                    "logs": [
+                        
+                    ],
                     "workspace": "community/showcase"
                 }
             ]
         ],
         "meta": {
             "nf-test": "0.9.2",
-            "nextflow": "25.01.0"
+            "nextflow": "24.10.4"
         },
-        "timestamp": "2025-02-26T16:10:24.54507716"
+        "timestamp": "2025-04-19T22:12:59.208411"
     }
 }
