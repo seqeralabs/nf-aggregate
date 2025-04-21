@@ -9,11 +9,11 @@
                     "plotly_express": "0.4.1",
                     "click": "8.0.1"
                 },
-                "SEQERA_RUNS_DUMP": {
-                    "seqera-cli": "0.11.2 (build 2a4e8d5)"
-                },
                 "Workflow": {
                     "seqeralabs/nf-aggregate": "0.6.0"
+                },
+                "SEQERA_RUNS_DUMP": {
+                    "seqera-cli": "0.11.2 (build 2a4e8d5)"
                 }
             },
             [
@@ -149,9 +149,9 @@
         ],
         "meta": {
             "nf-test": "0.9.2",
-            "nextflow": "24.10.4"
+            "nextflow": "24.10.5"
         },
-        "timestamp": "2025-04-21T12:17:25.813489"
+        "timestamp": "2025-04-21T15:24:31.092134"
     },
     "-profile test_benchmark": {
         "content": [
@@ -163,11 +163,11 @@
                     "plotly_express": "0.4.1",
                     "click": "8.0.1"
                 },
-                "SEQERA_RUNS_DUMP": {
-                    "seqera-cli": "0.11.2 (build 2a4e8d5)"
-                },
                 "Workflow": {
                     "seqeralabs/nf-aggregate": "0.6.0"
+                },
+                "SEQERA_RUNS_DUMP": {
+                    "seqera-cli": "0.11.2 (build 2a4e8d5)"
                 }
             },
             [
@@ -303,8 +303,8 @@
         ],
         "meta": {
             "nf-test": "0.9.2",
-            "nextflow": "24.10.4"
+            "nextflow": "24.10.5"
         },
-        "timestamp": "2025-04-21T12:18:06.874209"
+        "timestamp": "2025-04-21T15:25:12.357412"
     }
 }
