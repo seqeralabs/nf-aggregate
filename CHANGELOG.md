@@ -3,6 +3,10 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# dev
+
+- [PR #79](https://github.com/seqeralabs/nf-aggregate/pull/79) - nf-test auto sharding
+
 ## 0.6.0
 
 ### Credits
@@ -23,7 +27,10 @@ Thank you to everyone else that has contributed by reporting bugs, enhancements 
 - [PR #74](https://github.com/seqeralabs/nf-aggregate/pull/74) - Add process for generating Benchmark reports
 - [PR #75](https://github.com/seqeralabs/nf-aggregate/pull/75) - Skip failed jobs in benchmarking report
 - [PR #78](https://github.com/seqeralabs/nf-aggregate/pull/78) - Sync with nf-core tools 3.2.0
-- [PR #79](https://github.com/seqeralabs/nf-aggregate/pull/79) - nf-test auto sharding
+- [PR #80](https://github.com/seqeralabs/nf-aggregate/pull/90) - Snapshots for pipeline level tests with nft-utils
+- [PR #81](https://github.com/seqeralabs/nf-aggregate/pull/81) - Update report parameters and fix option to remove cost analysis
+- [PR #82](https://github.com/seqeralabs/nf-aggregate/pull/82) - Loosened samplesheet validation for benchmark groups
+- [PR #84](https://github.com/seqeralabs/nf-aggregate/pull/84) - Added CUR2.0 support to benchmark reports and fixed task table cost
 
 ## [[0.5.0](https://github.com/seqeralabs/nf-aggregate/releases/tag/0.5.0)] - 2024-11-12
 

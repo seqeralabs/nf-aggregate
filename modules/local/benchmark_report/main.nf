@@ -1,6 +1,6 @@
 process BENCHMARK_REPORT {
 
-    container 'cr.seqera.io/scidev/benchmark-reports:sha-b370978'
+    container 'cr.seqera.io/scidev/benchmark-reports:sha-48cfed7'
 
     input:
     path run_dumps
