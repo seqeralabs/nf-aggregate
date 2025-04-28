@@ -38,7 +38,11 @@ nextflow_pipeline {
 
         when {
             params {
-                outdir = "$outputDir"
+                input                        = "${projectDir}/workflows/nf_aggregate/assets/test_benchmark.csv"
+                outdir                       = "$outputDir"
+                generate_benchmark_report    = true
+                skip_run_gantt               = true
+                skip_multiqc                 = true
             }
         }
 
