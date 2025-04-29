@@ -27,8 +27,8 @@
             },
             "logs": {
                 "type": "string",
-                "pattern": "^(?:/[^/]+)+/?$",
-                "errorMessage": "Please provide a valid file system path",
+                "pattern": "^\\S+$",
+                "errorMessage": "Please provide a valid file path to your Seqera Platform logs.",
                 "meta": ["logs"]
             },
             "fusion": {

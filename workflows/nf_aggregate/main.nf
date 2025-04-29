@@ -31,7 +31,7 @@ workflow NF_AGGREGATE {
                 return [meta, meta.logs]
             fetch_run_dumps: true
         }
-        .set { ids_split}
+        .set { ids_split }
 
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()

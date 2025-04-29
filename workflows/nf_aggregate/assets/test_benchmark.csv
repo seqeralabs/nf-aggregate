@@ -1,3 +1,3 @@
-id,workspace,group,logs
-3qLktusgg2GQxJ,community/showcase,test1,/workflows/nf_aggregate/assets/logs/3qLktusgg2GQxJ.tar.gz
-2VeeQznQdp3rxo,community/showcase,test2,/workflows/nf_aggregate/assets/logs/2VeeQznQdp3rxo.tar.gz
+id,workspace,group,logs,fusion
+3qLktusgg2GQxJ,external,test1,/workflows/nf_aggregate/assets/logs/3qLktusgg2GQxJ.tar.gz,true
+2VeeQznQdp3rxo,external,test2,/workflows/nf_aggregate/assets/logs/2VeeQznQdp3rxo.tar.gz,true
