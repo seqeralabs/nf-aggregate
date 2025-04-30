@@ -10,3 +10,4 @@ multiqc/multiqc_report.html
 nf-core_*/gantt/*_gantt.html
 pipeline_info/*.{html,json,txt,yml}
 **/runs_dump/**/service-info.json
+benchmark_report/benchmark_report.html

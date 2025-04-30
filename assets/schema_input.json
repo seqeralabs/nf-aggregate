@@ -15,8 +15,8 @@
             },
             "workspace": {
                 "type": "string",
-                "pattern": "^[a-zA-Z0-9](?:[a-zA-Z0-9]|[-_](?=[a-zA-Z0-9])){1,38}/[a-zA-Z0-9](?:[a-zA-Z0-9]|[-_](?=[a-zA-Z0-9])){1,38}$",
-                "errorMessage": "Please provide a valid Seqera Platform Workspace name",
+                "pattern": "^(?:external|[a-zA-Z0-9][a-zA-Z0-9-_]{0,38}/[a-zA-Z0-9][a-zA-Z0-9-_]{0,38})$",
+                "errorMessage": "Please provide a valid Seqera Platform Workspace name or 'external'",
                 "meta": ["workspace"]
             },
             "group": {
@@ -24,6 +24,17 @@
                 "pattern": "^[a-zA-Z0-9][-a-zA-Z0-9_ ]{0,37}$",
                 "errorMessage": "Please provide a valid group name",
                 "meta": ["group"]
+            },
+            "logs": {
+                "type": "string",
+                "format": "file-path",
+                "pattern": "^\\S+$",
+                "errorMessage": "Please provide a valid file path to your Seqera Platform logs.",
+                "meta": ["logs"]
+            },
+            "fusion": {
+                "type": "boolean",
+                "meta": ["fusion"]
             }
         },
         "required": ["id", "workspace"]

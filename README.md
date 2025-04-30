@@ -69,6 +69,21 @@ id,workspace,group
 4VLRs7nuqbAhDy,community/showcase,group2
 ```
 
+## Use logs from an external Seqera Platform deployment
+
+Sometimes we want to compile benchmark reports from runs from two different Seqera platform deployments, for example a dev and a production environment to compare performance. External logs in nf-aggregate can be used by specifying the workspace as `external` and providing some additional optional columns that point to the log folder and specify whether these external logs contain fusion logs (did you export them with the `--add-fusion-logs` flag in your `tw run dumps`. If they do contain fusion logs, you can generate a gannt plot for them, as for runs supplied only via id.)
+
+Here is an example of using a mix of run ids for which we want to extract logs from our platform deployment and some run logs from another deployment we want to compare. In the example below, `1JI5B1avuj3o58` is a run that contains fusion logs, while `1vsww7GjKBsVNa` does not contain fusion logs.
+
+```
+id,workspace,group,logs,fusion
+3VcLMAI8wyy0Ld,community/showcase,group1,
+1JI5B1avuj3o58,external,group2,/path/to/my/run_dumps_tarball.tar.gz,true
+1vsww7GjKBsVNa,external,group2,/path/to/my/run_dumps_folder,false
+```
+
+## Incorporate AWS split cost allocation data
+
 To incorporate AWS cost data into the benchmark report, use the `benchmark_aws_cur_report` parameter. This should point to a valid AWS Cost and Usage Report (CUR) file in Parquet format, currently only supporting CUR 1.0. The file can be stored locally or in a cloud bucket.
 To run nf-aggregate and generate benchmark reports, you can use the following command:
 
