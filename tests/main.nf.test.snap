@@ -151,17 +151,23 @@
             "nf-test": "0.9.2",
             "nextflow": "24.10.4"
         },
-        "timestamp": "2025-04-30T01:20:14.1003"
+        "timestamp": "2025-04-30T02:04:58.464733"
     },
     "-profile test_benchmark": {
         "content": [
-            0,
+            1,
             {
+                "BENCHMARK_REPORT": {
+                    "r": "4.4.2",
+                    "quarto-cli": "1.5.55"
+                },
                 "Workflow": {
                     "seqeralabs/nf-aggregate": "0.6.0"
                 }
             },
             [
+                "benchmark_report",
+                "benchmark_report/benchmark_report.html",
                 "pipeline_info",
                 "pipeline_info/collated_software_mqc_versions.yml"
             ],
@@ -173,6 +179,6 @@
             "nf-test": "0.9.2",
             "nextflow": "24.10.4"
         },
-        "timestamp": "2025-04-29T13:14:19.800151"
+        "timestamp": "2025-04-30T02:09:18.441826"
     }
 }

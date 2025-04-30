@@ -36,7 +36,6 @@ workflow NF_AGGREGATE {
         fetch_run_dumps: true
     }
     .set { ids_split }
-    ids_split.external.view()
 
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
