@@ -25,13 +25,18 @@ workflow NF_AGGREGATE {
     main:
 
     // Split ids into runs to fetch logs from platform deployment and runs provided externally
-        ids
-        .branch {meta ->
-            external: meta.workspace == 'external'
+    ids
+    .branch {meta ->
+        external: meta.workspace == 'external'
+            if (meta.logs =~ /workflows\/nf_aggregate\/assets\/logs\//) {
+                return [meta, projectDir + meta.logs]
+            } else {
                 return [meta, meta.logs]
-            fetch_run_dumps: true
-        }
-        .set { ids_split }
+            }
+        fetch_run_dumps: true
+    }
+    .set { ids_split }
+    ids_split.external.view()
 
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
