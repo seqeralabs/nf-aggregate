@@ -9,11 +9,11 @@
                     "plotly_express": "0.4.1",
                     "click": "8.0.1"
                 },
-                "SEQERA_RUNS_DUMP": {
-                    "seqera-cli": "0.11.2 (build 2a4e8d5)"
-                },
                 "Workflow": {
                     "seqeralabs/nf-aggregate": "0.6.0"
+                },
+                "SEQERA_RUNS_DUMP": {
+                    "seqera-cli": "0.11.2 (build 2a4e8d5)"
                 }
             },
             [
@@ -157,12 +157,12 @@
         "content": [
             1,
             {
+                "Workflow": {
+                    "seqeralabs/nf-aggregate": "0.6.0"
+                },
                 "BENCHMARK_REPORT": {
                     "r": "4.4.2",
                     "quarto-cli": "1.5.55"
-                },
-                "Workflow": {
-                    "seqeralabs/nf-aggregate": "0.6.0"
                 }
             },
             [
@@ -172,7 +172,7 @@
                 "pipeline_info/collated_software_mqc_versions.yml"
             ],
             [
-                
+
             ]
         ],
         "meta": {
