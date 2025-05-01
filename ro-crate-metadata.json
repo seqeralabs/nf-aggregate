@@ -22,8 +22,8 @@
             "@id": "./",
             "@type": "Dataset",
             "creativeWorkStatus": "Stable",
-            "datePublished": "2025-02-26T16:38:08+00:00",
-            "description": "# seqeralabs/nf-aggregate\n\n[![GitHub Actions CI Status](https://github.com/seqeralabs/nf-aggregate/actions/workflows/ci.yml/badge.svg)](https://github.com/seqeralabs/nf-aggregate/actions/workflows/ci.yml)\n[![GitHub Actions Linting Status](https://github.com/seqeralabs/nf-aggregate/actions/workflows/linting.yml/badge.svg)](https://github.com/seqeralabs/nf-aggregate/actions/workflows/linting.yml)\n[![nf-test](https://img.shields.io/badge/unit_tests-nf--test-337ab7.svg)](https://www.nf-test.com)\n\n[![Nextflow](https://img.shields.io/badge/version-%E2%89%A524.04.2-green?style=flat&logo=nextflow&logoColor=white&color=%230DC09D&link=https%3A%2F%2Fnextflow.io)](https://www.nextflow.io/)\n[![nf-core template version](https://img.shields.io/badge/nf--core_template-3.3.0.dev0-green?style=flat&logo=nfcore&logoColor=white&color=%2324B064&link=https%3A%2F%2Fnf-co.re)](https://github.com/nf-core/tools/releases/tag/3.3.0.dev0)\n[![run with conda](http://img.shields.io/badge/run%20with-conda-3EB049?labelColor=000000&logo=anaconda)](https://docs.conda.io/en/latest/)\n[![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://www.docker.com/)\n[![run with singularity](https://img.shields.io/badge/run%20with-singularity-1d355c.svg?labelColor=000000)](https://sylabs.io/docs/)\n[![Launch on Seqera Platform](https://img.shields.io/badge/Launch%20%F0%9F%9A%80-Seqera%20Platform-%234256e7)](https://cloud.seqera.io/launch?pipeline=https://github.com/seqeralabs/nf-aggregate)\n\n## Introduction\n\n**seqeralabs/nf-aggregate** is a Nextflow pipeline to aggregate pertinent metrics across pipeline runs on the Seqera Platform.\n\n<p align=\"center\">\n  <img src=\"assets/multiqc_screenshot.png\" alt=\"MultiQC screenshot\" width=\"75%\"/>\n</p>\n\nThe pipeline performs the following steps:\n\n1. Downloads run information via the Seqera CLI in parallel\n2. Runs MultiQC to aggregate all of the run metrics into a single report\n\nYou can download an example MultiQC report [here](assets/multiqc_report.html).\n\n## Prerequisites\n\n- [Nextflow](https://www.nextflow.io/docs/latest/getstarted.html#installation) >=23.10.0\n- Account in [Seqera Platform](https://seqera.io/platform/)\n- [Access token](https://docs.seqera.io/platform/23.3.0/api/overview#authentication) which is your personal authorization token for the Seqera Platform CLI. This can be created in the user menu under **Your tokens**. Export the token as a shell variable directly into your terminal if running the pipelie locally. You will not need to set this if running the pipeline within the Seqera Platform as it will automatically be inherited from the executing environment.\n\n  ```bash\n  export TOWER_ACCESS_TOKEN=<your access token>\n  ```\n\n## Usage\n\nThe primary input to the pipeline is a file containing a list of run identifiers from the Seqera Platform. These can be obtained from details in the runs page for any pipeline execution. For example, we can create a file called `run_ids.csv` with the following contents:\n\n```\nid,workspace\n4Bi5xBK6E2Nbhj,community/showcase\n4LWT4uaXDaGcDY,community/showcase\n38QXz4OfQDpwOV,community/showcase\n2lXd1j7OwZVfxh,community/showcase\n```\n\nThis pipeline can then be executed with the following command:\n\n```\nnextflow run seqeralabs/nf-aggregate \\\n    --input run_ids.csv \\\n    --outdir ./results \\\n    -profile docker\n```\n\nIf you are using a Seqera Platform Enterprise instance that is secured with a private CA SSL certificate not recognized by default Java certificate authorities, you can specify a custom `cacerts` store path through the `--java_truststore_path` parameter and optionally, a password with the `--java_truststore_password`. This certificate will be used to achieve connectivity with your Seqera Platform instance through API and CLI.\n\n### Benchmark reports\n\nIf you want to generate a benchmark report comparing multiple runs, you can include a `group` column in your `run_ids.csv` file. This allows you to organize and analyze runs based on custom groupings in the final report.\n\n```\nid,workspace,group\n3VcLMAI8wyy0Ld,community/showcase,group1\n4VLRs7nuqbAhDy,community/showcase,group2\n```\n\nTo incorporate AWS cost data into the benchmark report, use the benchmark_aws_cur_report parameter. This should point to a valid AWS Cost and Usage Report (CUR) file in Parquet format, supporting both CUR 1.0 and CUR 2.0 schemas. The file can be stored locally or in a cloud bucket. To run nf-aggregate and generate benchmark reports, you can use the following command:\n\n```\nnextflow run seqeralabs/nf-aggregate \\\n    --input run_ids.csv \\\n    --outdir ./results \\\n    --run_benchmark \\\n    --benchmark_aws_cur_report ./aws_cost_report.parquet\n```\n\n## Output\n\nThe results from the pipeline will be published in the path specified by the `--outdir` and will consist of the following contents:\n\n```\n./results\n\u251c\u2500\u2500 multiqc/\n\u2502   \u251c\u2500\u2500 multiqc_data/\n\u2502   \u251c\u2500\u2500 multiqc_plots/\n\u2502   \u2514\u2500\u2500 multiqc_report.html                 ## MultiQC report\n\u251c\u2500\u2500 nf-core_rnaseq/\n\u2502   \u251c\u2500\u2500 gantt/\n\u2502   \u2502   \u2514\u2500\u2500 4Bi5xBK6E2Nbhj_gantt.html       ## Gantt plot for run\n\u2502   \u2514\u2500\u2500 runs_dump/\n\u2502       \u2514\u2500\u2500 4Bi5xBK6E2Nbhj/                 ## Output of 'tw runs dump'\n\u2502           \u251c\u2500\u2500 service-info.json\n\u2502           \u251c\u2500\u2500 workflow-launch.json\n\u2502           \u251c\u2500\u2500 workflow-load.json\n\u2502           \u251c\u2500\u2500 workflow-metrics.json\n\u2502           \u251c\u2500\u2500 workflow-tasks.json\n\u2502           \u2514\u2500\u2500 workflow.json\n\u2514\u2500\u2500 pipeline_info/\n```\n\n> [!NOTE]\n> Gantt plots depend on information derived from the Fusion logs. For that reason, Gantt plots will be ommitted from the pipeline outputs for non-Fusion runs, irrespective of whether the `--skip_run_gantt` parameter has been set.\n\n## Contributions and Support\n\nIf you would like to contribute to this pipeline, please see the [contributing guidelines](.github/CONTRIBUTING.md).\n\n## Credits\n\nnf-aggregate was written by the Scientific Development and MultiQC teams at [Seqera Labs](https://seqera.io/).\n\n## Citations\n\nThis pipeline uses code and infrastructure developed and maintained by the [nf-core](https://nf-co.re) community, reused here under the [MIT license](https://github.com/nf-core/tools/blob/master/LICENSE).\n\nYou can cite the `nf-core` publication as follows:\n\n> **The nf-core framework for community-curated bioinformatics pipelines.**\n>\n> Philip Ewels, Alexander Peltzer, Sven Fillinger, Harshil Patel, Johannes Alneberg, Andreas Wilm, Maxime Ulysse Garcia, Paolo Di Tommaso & Sven Nahnsen.\n>\n> _Nat Biotechnol._ 2020 Feb 13. doi: [10.1038/s41587-020-0439-x](https://dx.doi.org/10.1038/s41587-020-0439-x).\n",
+            "datePublished": "2025-05-01T20:41:52+00:00",
+            "description": "# seqeralabs/nf-aggregate\n\n[![GitHub Actions CI Status](https://github.com/seqeralabs/nf-aggregate/actions/workflows/ci.yml/badge.svg)](https://github.com/seqeralabs/nf-aggregate/actions/workflows/ci.yml)\n[![GitHub Actions Linting Status](https://github.com/seqeralabs/nf-aggregate/actions/workflows/linting.yml/badge.svg)](https://github.com/seqeralabs/nf-aggregate/actions/workflows/linting.yml)\n[![nf-test](https://img.shields.io/badge/unit_tests-nf--test-337ab7.svg)](https://www.nf-test.com)\n\n[![Nextflow](https://img.shields.io/badge/version-%E2%89%A524.04.2-green?style=flat&logo=nextflow&logoColor=white&color=%230DC09D&link=https%3A%2F%2Fnextflow.io)](https://www.nextflow.io/)\n[![nf-core template version](https://img.shields.io/badge/nf--core_template-3.3.0.dev0-green?style=flat&logo=nfcore&logoColor=white&color=%2324B064&link=https%3A%2F%2Fnf-co.re)](https://github.com/nf-core/tools/releases/tag/3.3.0.dev0)\n[![run with conda](http://img.shields.io/badge/run%20with-conda-3EB049?labelColor=000000&logo=anaconda)](https://docs.conda.io/en/latest/)\n[![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://www.docker.com/)\n[![run with singularity](https://img.shields.io/badge/run%20with-singularity-1d355c.svg?labelColor=000000)](https://sylabs.io/docs/)\n[![Launch on Seqera Platform](https://img.shields.io/badge/Launch%20%F0%9F%9A%80-Seqera%20Platform-%234256e7)](https://cloud.seqera.io/launch?pipeline=https://github.com/seqeralabs/nf-aggregate)\n\n## Introduction\n\n**seqeralabs/nf-aggregate** is a Nextflow pipeline to aggregate pertinent metrics across pipeline runs on the Seqera Platform.\n\n<p align=\"center\">\n  <img src=\"assets/multiqc_screenshot.png\" alt=\"MultiQC screenshot\" width=\"75%\"/>\n</p>\n\nThe pipeline performs the following steps:\n\n1. Downloads run information via the Seqera CLI in parallel\n2. Runs MultiQC to aggregate all of the run metrics into a single report\n\nYou can download an example MultiQC report [here](assets/multiqc_report.html).\n\n## Prerequisites\n\n- [Nextflow](https://www.nextflow.io/docs/latest/getstarted.html#installation) >=23.10.0\n- Account in [Seqera Platform](https://seqera.io/platform/)\n- [Access token](https://docs.seqera.io/platform/23.3.0/api/overview#authentication) which is your personal authorization token for the Seqera Platform CLI. This can be created in the user menu under **Your tokens**. Export the token as a shell variable directly into your terminal if running the pipelie locally. You will not need to set this if running the pipeline within the Seqera Platform as it will automatically be inherited from the executing environment.\n\n  ```bash\n  export TOWER_ACCESS_TOKEN=<your access token>\n  ```\n\n## Usage\n\nThe primary input to the pipeline is a file containing a list of run identifiers from the Seqera Platform. These can be obtained from details in the runs page for any pipeline execution. For example, we can create a file called `run_ids.csv` with the following contents:\n\n```\nid,workspace\n4Bi5xBK6E2Nbhj,community/showcase\n4LWT4uaXDaGcDY,community/showcase\n38QXz4OfQDpwOV,community/showcase\n2lXd1j7OwZVfxh,community/showcase\n```\n\nThis pipeline can then be executed with the following command:\n\n```\nnextflow run seqeralabs/nf-aggregate \\\n    --input run_ids.csv \\\n    --outdir ./results \\\n    -profile docker\n```\n\nIf you are using a Seqera Platform Enterprise instance that is secured with a private CA SSL certificate not recognized by default Java certificate authorities, you can specify a custom `cacerts` store path through the `--java_truststore_path` parameter and optionally, a password with the `--java_truststore_password`. This certificate will be used to achieve connectivity with your Seqera Platform instance through API and CLI.\n\n### Benchmark reports\n\nIf you want to generate a benchmark report comparing multiple runs, you can include a `group` column in your `run_ids.csv` file. This allows you to organize and analyze runs based on custom groupings in the final report.\n\n```\nid,workspace,group\n3VcLMAI8wyy0Ld,community/showcase,group1\n4VLRs7nuqbAhDy,community/showcase,group2\n```\n\n## Use logs from an external Seqera Platform deployment\n\nSometimes we want to compile benchmark reports from runs from two different Seqera platform deployments, for example a dev and a production environment to compare performance. External logs in nf-aggregate can be used by specifying the workspace as `external` and providing some additional optional columns that point to the log folder and specify whether these external logs contain fusion logs (did you export them with the `--add-fusion-logs` flag in your `tw run dumps`. If they do contain fusion logs, you can generate a gannt plot for them, as for runs supplied only via id.)\n\nHere is an example of using a mix of run ids for which we want to extract logs from our platform deployment and some run logs from another deployment we want to compare. In the example below, `1JI5B1avuj3o58` is a run that contains fusion logs, while `1vsww7GjKBsVNa` does not contain fusion logs.\n\n```\nid,workspace,group,logs,fusion\n3VcLMAI8wyy0Ld,community/showcase,group1,\n1JI5B1avuj3o58,external,group2,/path/to/my/run_dumps_tarball.tar.gz,true\n1vsww7GjKBsVNa,external,group2,/path/to/my/run_dumps_folder,false\n```\n\n## Incorporate AWS split cost allocation data\n\nTo incorporate AWS cost data into the benchmark report, use the `benchmark_aws_cur_report` parameter. This should point to a valid AWS Cost and Usage Report (CUR) file in Parquet format, currently only supporting CUR 1.0. The file can be stored locally or in a cloud bucket.\nTo run nf-aggregate and generate benchmark reports, you can use the following command:\n\n```\nnextflow run seqeralabs/nf-aggregate \\\n    --input run_ids.csv \\\n    --outdir ./results \\\n    --generate_benchmark_report \\\n    --benchmark_aws_cur_report ./aws_cost_report.parquet\n```\n\nThe benchmark report can be generated without cost data - simply omit the `--benchmark_aws_cur_report` parameter if cost analysis is not needed.\n\n## Output\n\nThe results from the pipeline will be published in the path specified by the `--outdir` and will consist of the following contents:\n\n```\n./results\n\u251c\u2500\u2500 multiqc/\n\u2502   \u251c\u2500\u2500 multiqc_data/\n\u2502   \u251c\u2500\u2500 multiqc_plots/\n\u2502   \u2514\u2500\u2500 multiqc_report.html                 ## MultiQC report\n\u251c\u2500\u2500 nf-core_rnaseq/\n\u2502   \u251c\u2500\u2500 gantt/\n\u2502   \u2502   \u2514\u2500\u2500 4Bi5xBK6E2Nbhj_gantt.html       ## Gantt plot for run\n\u2502   \u2514\u2500\u2500 runs_dump/\n\u2502       \u2514\u2500\u2500 4Bi5xBK6E2Nbhj/                 ## Output of 'tw runs dump'\n\u2502           \u251c\u2500\u2500 service-info.json\n\u2502           \u251c\u2500\u2500 workflow-launch.json\n\u2502           \u251c\u2500\u2500 workflow-load.json\n\u2502           \u251c\u2500\u2500 workflow-metrics.json\n\u2502           \u251c\u2500\u2500 workflow-tasks.json\n\u2502           \u2514\u2500\u2500 workflow.json\n\u2514\u2500\u2500 pipeline_info/\n```\n\n> [!NOTE]\n> Gantt plots depend on information derived from the Fusion logs. For that reason, Gantt plots will be ommitted from the pipeline outputs for non-Fusion runs, irrespective of whether the `--skip_run_gantt` parameter has been set.\n\n## Contributions and Support\n\nIf you would like to contribute to this pipeline, please see the [contributing guidelines](.github/CONTRIBUTING.md).\n\n## Credits\n\nnf-aggregate was written by the Scientific Development and MultiQC teams at [Seqera Labs](https://seqera.io/).\n\n## Citations\n\nThis pipeline uses code and infrastructure developed and maintained by the [nf-core](https://nf-co.re) community, reused here under the [MIT license](https://github.com/nf-core/tools/blob/master/LICENSE).\n\nYou can cite the `nf-core` publication as follows:\n\n> **The nf-core framework for community-curated bioinformatics pipelines.**\n>\n> Philip Ewels, Alexander Peltzer, Sven Fillinger, Harshil Patel, Johannes Alneberg, Andreas Wilm, Maxime Ulysse Garcia, Paolo Di Tommaso & Sven Nahnsen.\n>\n> _Nat Biotechnol._ 2020 Feb 13. doi: [10.1038/s41587-020-0439-x](https://dx.doi.org/10.1038/s41587-020-0439-x).\n",
             "hasPart": [
                 {
                     "@id": "main.nf"
@@ -83,7 +83,7 @@
             },
             "mentions": [
                 {
-                    "@id": "#64e2b660-1df5-45d8-a40a-7f30aaabe575"
+                    "@id": "#3b045978-57dc-48bc-b800-ab853d799344"
                 }
             ],
             "name": "seqeralabs/nf-aggregate"
@@ -111,15 +111,16 @@
                 "ComputationalWorkflow"
             ],
             "creator": [
-                {
-                    "@id": "#drpatelh@users.noreply.github.com"
-                },
+                "SciDev Team",
                 {
                     "@id": "#rob.syme@gmail.com"
+                },
+                {
+                    "@id": "#drpatelh@users.noreply.github.com"
                 }
             ],
             "dateCreated": "",
-            "dateModified": "2025-02-26T17:38:08Z",
+            "dateModified": "2025-05-01T20:41:52Z",
             "dct:conformsTo": "https://bioschemas.org/profiles/ComputationalWorkflow/1.0-RELEASE/",
             "keywords": [
                 "nf-core",
@@ -130,10 +131,10 @@
             ],
             "maintainer": [
                 {
-                    "@id": "#drpatelh@users.noreply.github.com"
+                    "@id": "#rob.syme@gmail.com"
                 },
                 {
-                    "@id": "#rob.syme@gmail.com"
+                    "@id": "#drpatelh@users.noreply.github.com"
                 }
             ],
             "name": [
@@ -147,10 +148,10 @@
             },
             "url": [
                 "https://github.com/seqeralabs/nf-aggregate",
-                "https://nf-co.re/seqeralabs/nf-aggregate/0.6.0/"
+                "https://nf-co.re/seqeralabs/nf-aggregate/0.7.0/"
             ],
             "version": [
-                "0.6.0"
+                "0.7.0"
             ]
         },
         {
@@ -166,11 +167,11 @@
             "version": "!>=24.04.2"
         },
         {
-            "@id": "#64e2b660-1df5-45d8-a40a-7f30aaabe575",
+            "@id": "#3b045978-57dc-48bc-b800-ab853d799344",
             "@type": "TestSuite",
             "instance": [
                 {
-                    "@id": "#d46b8e15-0f57-492e-a074-d3dfd14e3ba1"
+                    "@id": "#28702c69-f05e-4636-9631-7a2288f8f0fa"
                 }
             ],
             "mainEntity": {
@@ -179,7 +180,7 @@
             "name": "Test suite for seqeralabs/nf-aggregate"
         },
         {
-            "@id": "#d46b8e15-0f57-492e-a074-d3dfd14e3ba1",
+            "@id": "#28702c69-f05e-4636-9631-7a2288f8f0fa",
             "@type": "TestInstance",
             "name": "GitHub Actions workflow for testing seqeralabs/nf-aggregate",
             "resource": "repos/seqeralabs/nf-aggregate/actions/workflows/ci.yml",
@@ -283,16 +284,16 @@
             "url": "https://nf-co.re/"
         },
         {
-            "@id": "#drpatelh@users.noreply.github.com",
-            "@type": "Person",
-            "email": "drpatelh@users.noreply.github.com",
-            "name": "Harshil Patel"
-        },
-        {
             "@id": "#rob.syme@gmail.com",
             "@type": "Person",
             "email": "rob.syme@gmail.com",
             "name": "Rob Syme"
+        },
+        {
+            "@id": "#drpatelh@users.noreply.github.com",
+            "@type": "Person",
+            "email": "drpatelh@users.noreply.github.com",
+            "name": "Harshil Patel"
         }
     ]
 }
