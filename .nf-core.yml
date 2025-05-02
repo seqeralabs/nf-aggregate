@@ -58,4 +58,4 @@ template:
     - ci
     - igenomes
     - nf_core_configs
-  version: 0.6.0
+  version: 0.7.0
