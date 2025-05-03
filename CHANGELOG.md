@@ -17,12 +17,14 @@ Thank you to everyone else that has contributed by reporting bugs, enhancements 
 
 - [PR #88](https://github.com/seqeralabs/nf-aggregate/pull/88) - Update tw cli container version to 0.11.2 and allow .nextflow.log to be missing from tw call
 - [PR #89](https://github.com/seqeralabs/nf-aggregate/pull/89) - Enable usage of external run dumps with nf-aggregate & update devcontainer specifications
+- [PR #]() - Update benchmark report image to include a fix causing large memory footprint for reshaping large AWS cost report files
 
 ### Software dependencies
 
-| Dependency  | Old version | New version |
-| ----------- | ----------- | ----------- |
-| `tower-cli` | 0.9.2       | 0.11.2      |
+| Dependency        | Old version | New version |
+| ----------------- | ----------- | ----------- |
+| `tower-cli`       | 0.9.2       | 0.11.2      |
+| BENCHMARK_REPORTS | sha-48cfed7 | sha-a6d15e8 |
 
 > **NB:** Dependency has been **updated** if both old and new version information is present.
 >
