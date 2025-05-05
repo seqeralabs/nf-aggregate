@@ -3,8 +3,8 @@ include { getRunMetadata } from './functions'
 process SEQERA_RUNS_DUMP {
     tag "${meta.id}"
 
-    conda 'tower-cli=0.9.2'
-    container 'seqeralabs/nf-aggregate:tower-cli-0.9.2--hdfd78af_1'
+    conda 'tower-cli=0.11.2'
+    container 'community.wave.seqera.io/library/tower-cli:0.11.2--0f5ebc1e8a308611'
 
     input:
     val meta
@@ -37,7 +37,7 @@ process SEQERA_RUNS_DUMP {
         --workspace=${meta.workspace} \\
         --output="${prefix}.tar.gz" \\
         ${fusion} \\
-        ${args2}
+        ${args2} 2>&1 || if [ ! -f "${prefix}.tar.gz" ]; then exit 1; fi
 
     mkdir -p ${prefix}
     tar \\

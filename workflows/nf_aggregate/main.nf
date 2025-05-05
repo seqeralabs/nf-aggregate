@@ -24,6 +24,19 @@ workflow NF_AGGREGATE {
 
     main:
 
+    // Split ids into runs to fetch logs from platform deployment and runs provided externally
+    ids
+    .branch {meta ->
+        external: meta.workspace == 'external'
+            if (meta.logs =~ /workflows\/nf_aggregate\/assets\/logs\//) {
+                return [meta, projectDir + meta.logs]
+            } else {
+                return [meta, meta.logs]
+            }
+        fetch_run_dumps: true
+    }
+    .set { ids_split }
+
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
 
@@ -32,36 +45,42 @@ workflow NF_AGGREGATE {
     //
 
     SEQERA_RUNS_DUMP(
-        ids,
+        ids_split.fetch_run_dumps,
         seqera_api_endpoint,
         java_truststore_path ?: '',
         java_truststore_password ?: '',
     )
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions)
 
+    // Merge run dumps with external runs
+    SEQERA_RUNS_DUMP.out.run_dump
+        .mix(ids_split.external)
+        .set{ ch_all_runs }
+
     //
     // MODULE: Generate Gantt chart for workflow execution
     //
-    SEQERA_RUNS_DUMP.out.run_dump
-        .filter { meta, _run_dir ->
-            meta.fusion && !skip_run_gantt
-        }
-        .set { ch_runs_for_gantt }
+    if(!params.skip_run_gantt){
+        ch_all_runs
+            .filter { meta, _run_dir -> meta.fusion}
+            .set { ch_runs_for_gantt }
 
-    PLOT_RUN_GANTT(
-        ch_runs_for_gantt
-    )
-    ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
+        PLOT_RUN_GANTT(
+            ch_runs_for_gantt
+        )
+        ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
+    }
 
     //
     // MODULE: Generate benchmark report
     //
     if (params.generate_benchmark_report) {
+        // Check if cur report is specified
         aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
 
         BENCHMARK_REPORT(
-            SEQERA_RUNS_DUMP.out.run_dump.collect { it[1] },
-            SEQERA_RUNS_DUMP.out.run_dump.collect { it[0].group },
+            ch_all_runs.collect { it[1] },
+            ch_all_runs.collect { it[0].group },
             aws_cur_report,
             params.remove_failed_tasks,
         )
@@ -88,7 +107,7 @@ workflow NF_AGGREGATE {
         ch_workflow_summary = Channel.value(paramsSummaryMultiqc(summary_params))
         ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
         ch_multiqc_files = ch_multiqc_files.mix(ch_collated_versions)
-        ch_multiqc_files = ch_multiqc_files.mix(SEQERA_RUNS_DUMP.out.run_dump.collect { it[1] })
+        ch_multiqc_files = ch_multiqc_files.mix(ch_all_runs.collect { it[1] })
 
         MULTIQC(
             ch_multiqc_files.collect(),
