@@ -3,7 +3,7 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.7.0
+## [[0.7.0](https://github.com/seqeralabs/nf-aggregate/releases/tag/0.7.0)] - 2025-05-05
 
 Special thanks to the following for their contributions to the release:
 
@@ -32,7 +32,7 @@ Thank you to everyone else that has contributed by reporting bugs, enhancements 
 >
 > **NB:** Dependency has been **removed** if new version information isn't present.
 
-## [[0.6.0](https://github.com/seqeralabs/nf-aggregate/releases/tag/0.6.0] - 2024-03-31)
+## [[0.6.0](https://github.com/seqeralabs/nf-aggregate/releases/tag/0.6.0)] - 2025-03-31
 
 ### Credits
 
