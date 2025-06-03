@@ -60,7 +60,7 @@ workflow NF_AGGREGATE {
     //
     // MODULE: Generate Gantt chart for workflow execution
     //
-    if(!params.skip_run_gantt){
+    if(!skip_run_gantt){
         ch_all_runs
             .filter { meta, _run_dir -> meta.fusion}
             .set { ch_runs_for_gantt }
