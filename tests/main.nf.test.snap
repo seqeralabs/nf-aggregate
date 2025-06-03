@@ -1,14 +1,8 @@
 {
     "-profile test": {
         "content": [
-            10,
+            6,
             {
-                "PLOT_RUN_GANTT": {
-                    "python": "3.9.19",
-                    "pandas": "1.1.5",
-                    "plotly_express": "0.4.1",
-                    "click": "8.0.1"
-                },
                 "SEQERA_RUNS_DUMP": {
                     "seqera-cli": "0.11.2 (build 2a4e8d5)"
                 },
@@ -54,8 +48,6 @@
                 "multiqc/multiqc_plots/svg/seqera_cli_wall_time_plot.svg",
                 "multiqc/multiqc_report.html",
                 "nf-core_ampliseq",
-                "nf-core_ampliseq/gantt",
-                "nf-core_ampliseq/gantt/2lXd1j7OwZVfxh_gantt.html",
                 "nf-core_ampliseq/runs_dump",
                 "nf-core_ampliseq/runs_dump/2lXd1j7OwZVfxh",
                 "nf-core_ampliseq/runs_dump/2lXd1j7OwZVfxh/service-info.json",
@@ -66,9 +58,6 @@
                 "nf-core_ampliseq/runs_dump/2lXd1j7OwZVfxh/workflow-tasks.json",
                 "nf-core_ampliseq/runs_dump/2lXd1j7OwZVfxh/workflow.json",
                 "nf-core_rnaseq",
-                "nf-core_rnaseq/gantt",
-                "nf-core_rnaseq/gantt/4Bi5xBK6E2Nbhj_gantt.html",
-                "nf-core_rnaseq/gantt/4LWT4uaXDaGcDY_gantt.html",
                 "nf-core_rnaseq/runs_dump",
                 "nf-core_rnaseq/runs_dump/3iFMo0NtH1Byvy",
                 "nf-core_rnaseq/runs_dump/3iFMo0NtH1Byvy/service-info.json",
@@ -95,8 +84,6 @@
                 "nf-core_rnaseq/runs_dump/4LWT4uaXDaGcDY/workflow-tasks.json",
                 "nf-core_rnaseq/runs_dump/4LWT4uaXDaGcDY/workflow.json",
                 "nf-core_scrnaseq",
-                "nf-core_scrnaseq/gantt",
-                "nf-core_scrnaseq/gantt/38QXz4OfQDpwOV_gantt.html",
                 "nf-core_scrnaseq/runs_dump",
                 "nf-core_scrnaseq/runs_dump/38QXz4OfQDpwOV",
                 "nf-core_scrnaseq/runs_dump/38QXz4OfQDpwOV/service-info.json",
@@ -149,9 +136,9 @@
         ],
         "meta": {
             "nf-test": "0.9.2",
-            "nextflow": "24.10.4"
+            "nextflow": "25.04.3"
         },
-        "timestamp": "2025-05-02T03:31:32.312298"
+        "timestamp": "2025-06-03T20:39:31.908143839"
     },
     "-profile test_benchmark": {
         "content": [

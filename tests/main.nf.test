@@ -6,7 +6,7 @@ nextflow_pipeline {
     tag "nf-aggregate"
 
     test("-profile test") {
-
+        tag( "test")
         when {
             params {
                 outdir = "$outputDir"
@@ -34,7 +34,8 @@ nextflow_pipeline {
         }
     }
 
-        test("-profile test_benchmark") {
+    test("-profile test_benchmark") {
+        tag("benchmark")
 
         when {
             params {
