@@ -1,33 +1,42 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://raw.githubusercontent.com/seqeralabs/nf-aggregate/master/assets/schema_input.json",
-    "title": "seqeralabs/nf-aggregate pipeline - params.input schema",
+    "$id": "https://raw.githubusercontent.com/seqeralabs/nf-aggregate/main/assets/schema_input.json",
+    "title": "nf-aggregate pipeline - params.input schema",
     "description": "Schema for the file provided with params.input",
     "type": "array",
     "items": {
         "type": "object",
         "properties": {
-            "sample": {
+            "id": {
                 "type": "string",
-                "pattern": "^\\S+$",
-                "errorMessage": "Sample name must be provided and cannot contain spaces",
+                "pattern": "^[A-Za-z0-9]{9,14}$",
+                "errorMessage": "Please provide a valid Seqera Platform run identifier",
                 "meta": ["id"]
             },
-            "fastq_1": {
+            "workspace": {
                 "type": "string",
-                "format": "file-path",
-                "exists": true,
-                "pattern": "^\\S+\\.f(ast)?q\\.gz$",
-                "errorMessage": "FastQ file for reads 1 must be provided, cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+                "pattern": "^(?:external|[a-zA-Z0-9][a-zA-Z0-9-_]{0,38}/[a-zA-Z0-9][a-zA-Z0-9-_]{0,38})$",
+                "errorMessage": "Please provide a valid Seqera Platform Workspace name or 'external'",
+                "meta": ["workspace"]
             },
-            "fastq_2": {
+            "group": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][-a-zA-Z0-9_ ]{0,37}$",
+                "errorMessage": "Please provide a valid group name",
+                "meta": ["group"]
+            },
+            "logs": {
                 "type": "string",
                 "format": "file-path",
-                "exists": true,
-                "pattern": "^\\S+\\.f(ast)?q\\.gz$",
-                "errorMessage": "FastQ file for reads 2 cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+                "pattern": "^\\S+$",
+                "errorMessage": "Please provide a valid file path to your Seqera Platform logs.",
+                "meta": ["logs"]
+            },
+            "fusion": {
+                "type": "boolean",
+                "meta": ["fusion"]
             }
         },
-        "required": ["sample", "fastq_1"]
+        "required": ["id", "workspace"]
     }
 }

@@ -1,0 +1,41 @@
+nextflow_process {
+    name "Test Process BENCHMARK_REPORT"
+    script "../main.nf"
+    process "BENCHMARK_REPORT"
+
+        setup {
+            run("SEQERA_RUNS_DUMP") {
+                script "../../seqera_runs_dump/main.nf"
+                process {
+                    """
+                    input[0] = ['id': 'fjV0o6yPbbamB', 'workspace': 'community/showcase', 'group': 'group1']
+                    input[1] = "https://api.tower.nf"
+                    input[2] = ""
+                    input[3] = ""
+                    """
+                }
+            }
+        }
+
+    test("Should run with removing failed tasks") {
+        when {
+            params {
+                outdir = "tests/results"
+            }
+            process {
+                """
+                input[0] = SEQERA_RUNS_DUMP.out.run_dump.collect{it[1]}
+                input[1] = SEQERA_RUNS_DUMP.out.run_dump.collect{it[0].group}
+                input[2] = []
+                input[3] = true
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            assert path(process.out.benchmark_html.get(0)).exists()
+            assert path(process.out.versions.get(0)).exists()
+        }
+    }
+}

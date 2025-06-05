@@ -1,0 +1,53 @@
+include { getRunMetadata } from './functions'
+
+process SEQERA_RUNS_DUMP {
+    tag "${meta.id}"
+
+    conda 'tower-cli=0.11.2'
+    container 'community.wave.seqera.io/library/tower-cli:0.11.2--0f5ebc1e8a308611'
+
+    input:
+    val meta
+    val api_endpoint
+    val java_truststore_path
+    val java_truststore_password
+
+    output:
+    tuple val(metaOut), path("${prefix}"), emit: run_dump
+    path "versions.yml",                   emit: versions
+
+    script:
+    def args = task.ext.args ?: ''
+    def args2 = task.ext.args2 ?: ''
+    prefix = task.ext.prefix ?: "${meta.id}"
+    metaOut = meta + getRunMetadata(meta, log, api_endpoint, java_truststore_path, java_truststore_password)
+    def fusion = metaOut.fusion ? '--add-fusion-logs' : ''
+    javaTrustStore = java_truststore_path ? "-Djavax.net.ssl.trustStore=${java_truststore_path}" : ''
+    javaTrustStorePassword = java_truststore_password ? "-Djavax.net.ssl.trustStorePassword=${java_truststore_password}" : ''
+    """
+    tw \\
+        ${args} \\
+        ${javaTrustStore} \\
+        ${javaTrustStorePassword} \\
+        --url=${api_endpoint} \\
+        --access-token=${TOWER_ACCESS_TOKEN} \\
+        runs \\
+        dump \\
+        -id=${meta.id} \\
+        --workspace=${meta.workspace} \\
+        --output="${prefix}.tar.gz" \\
+        ${fusion} \\
+        ${args2} 2>&1 || if [ ! -f "${prefix}.tar.gz" ]; then exit 1; fi
+
+    mkdir -p ${prefix}
+    tar \\
+        -xvf \\
+        ${prefix}.tar.gz \\
+        -C ${prefix}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        seqera-cli: \$(echo \$(NO_COLOR=true tw --version 2>&1) | sed 's/^.*Tower CLI version //; s/ *\$//')
+    END_VERSIONS
+    """
+}

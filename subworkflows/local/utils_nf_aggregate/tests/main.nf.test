@@ -1,0 +1,42 @@
+nextflow_workflow {
+
+    name "Test Workflow PIPELINE_INITIALISATION"
+    script "../main.nf"
+    workflow "PIPELINE_INITIALISATION"
+
+    tag "subworkflows"
+    tag "subworkflows_local_utils_nf_aggregate"
+
+    stage {
+        symlink "nextflow_schema.json"
+        symlink "workflows/nf_aggregate/assets/test_run_ids.csv"
+    }
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                }
+
+            workflow {
+                """
+                // define inputs of the workflow here. Example:
+                input[0] = false
+                input[1] = false
+                input[2] = params.outdir
+                input[3] = "${projectDir}/workflows/nf_aggregate/assets/test_run_ids.csv"
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert snapshot(
+                    workflow.out.ids
+                ).match() }
+            )
+        }
+    }
+}

@@ -1,0 +1,44 @@
+nextflow_process {
+
+    name "Test Process PLOT_RUN_GANTT"
+    script "../main.nf"
+    process "PLOT_RUN_GANTT"
+
+    tag "modules"
+    tag "modules_local"
+    tag "plot_run_gantt"
+
+    test("Should run without failures") {
+
+        setup {
+            run("SEQERA_RUNS_DUMP") {
+                script "../../seqera_runs_dump/main.nf"
+                process {
+                    """
+                    input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
+                    input[1] = "https://api.tower.nf"
+                    input[2] = ""
+                    input[3] = ""
+                    """
+                }
+            }
+        }
+
+        when {
+            process {
+                """
+                input[0] = SEQERA_RUNS_DUMP.out.run_dump
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert path(process.out.html.get(0).get(1)).getText().contains("GANTT plot for run: 4Bi5xBK6E2Nbhj") },
+                { assert process.success }
+            )
+        }
+
+    }
+
+}

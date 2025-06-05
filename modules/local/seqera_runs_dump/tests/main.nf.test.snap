@@ -1,0 +1,25 @@
+{
+    "Should run without failures": {
+        "content": [
+            [
+                "service-info.json",
+                "workflow-launch.json"
+            ],
+            [
+                "workflow-load.json:md5,4f02d5a24ab89aa648cd4346785c8f2c",
+                "workflow-metadata.json:md5,8f3466573bb85a7005975d7929687ab5",
+                "workflow-metrics.json:md5,13a5b5d7447fad4a8baa053d1abf85e5",
+                "workflow-tasks.json:md5,e327f5aae611c7f731a470bd7390d967",
+                "workflow.json:md5,59f8a9ea713a57ea48470ff0f92cc7e5"
+            ],
+            [
+                "versions.yml:md5,f4475d693b7a861c1f17c8f6e265dda0"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "25.01.0"
+        },
+        "timestamp": "2025-04-14T16:30:25.863976"
+    }
+}
