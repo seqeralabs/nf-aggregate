@@ -142,8 +142,8 @@
             1,
             {
                 "BENCHMARK_REPORT": {
-                    "r": "4.4.2",
-                    "quarto-cli": "1.5.55"
+                    "quarto-cli": "1.5.55",
+                    "r": "4.4.2"
                 }
             },
             [
