@@ -13,7 +13,7 @@ nextflow_process {
         when {
             process {
                 """
-                input[0] = ['id': '4Bi5xBK6E2Nbhj', 'workspace': 'community/showcase']
+                input[0] = ['id': 'ULVYH4G9KM9sP', 'workspace': 'seqeralabs/showcase']
                 input[1] = "https://api.cloud.seqera.io"
                 input[2] = ""
                 input[3] = ""
