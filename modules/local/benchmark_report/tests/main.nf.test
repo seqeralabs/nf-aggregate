@@ -9,7 +9,7 @@ nextflow_process {
                 process {
                     """
                     input[0] = ['id': 'fjV0o6yPbbamB', 'workspace': 'community/showcase', 'group': 'group1']
-                    input[1] = "https://api.tower.nf"
+                    input[1] = "https://api.cloud.seqera.io"
                     input[2] = ""
                     input[3] = ""
                     """
