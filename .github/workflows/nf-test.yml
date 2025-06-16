@@ -34,7 +34,6 @@ env:
   NXF_SINGULARITY_LIBRARYDIR: ${{ github.workspace }}/.singularity
   TOWER_ACCESS_TOKEN: ${{ secrets.TOWER_ACCESS_TOKEN }}
 
-
 jobs:
   nf-test-changes:
     name: nf-test-changes
