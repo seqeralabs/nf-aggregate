@@ -1,4 +1,3 @@
-
 Long getWorkspaceId(orgName, workspaceName, api_endpoint, authHeader) {
     Map response
     try {
@@ -33,6 +32,10 @@ Map getRunMetadata(meta, log, api_endpoint, trustStorePath, trustStorePassword) 
     def (orgName, workspaceName) = meta.workspace.tokenize("/")
 
     def token = System.getenv("TOWER_ACCESS_TOKEN")
+    if (!token) {
+        log.error "TOWER_ACCESS_TOKEN environment variable is required but not set or empty"
+        throw new nextflow.exception.ProcessException("TOWER_ACCESS_TOKEN environment variable is required but not set or empty")
+    }
     def authHeader = ["Authorization": "Bearer ${token}"]
     def workspaceId = getWorkspaceId(orgName, workspaceName, api_endpoint, authHeader)
     def endpointUrl = "${api_endpoint}/workflow/${runId}?workspaceId=${workspaceId}"
