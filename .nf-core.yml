@@ -1,5 +1,4 @@
 lint:
-  actions_ci: false
   base_config: false
   files_exist:
     - .github/.dockstore.yml
@@ -43,7 +42,9 @@ lint:
     - process.time
   pipeline_name_conventions: false
   schema_lint: false
-nf_core_version: 3.2.0
+  nf_test_content:
+    - tests/nextflow.config
+nf_core_version: 3.3.1
 repository_type: pipeline
 template:
   author: SciDev Team
