@@ -59,11 +59,6 @@ nextflow run seqeralabs/nf-aggregate \
 
 If you are using a Seqera Platform Enterprise instance that is secured with a private CA SSL certificate not recognized by default Java certificate authorities, you can specify a custom `cacerts` store path through the `--java_truststore_path` parameter and optionally, a password with the `--java_truststore_password`. This certificate will be used to achieve connectivity with your Seqera Platform instance through API and CLI.
 
-This configuration:
-1. Downloads the private CA certificate from your Seqera Platform server
-2. Creates a custom Java truststore with the certificate
-3. Configures Java to use the custom truststore for SSL connections
-
 ### Benchmark reports
 
 If you want to generate a benchmark report comparing multiple runs, you can include a `group` column in your `run_ids.csv` file. This allows you to organize and analyze runs based on custom groupings in the final report.
@@ -144,6 +139,11 @@ export JAVA_TOOL_OPTIONS="-Djavax.net.ssl.trustStore=$(pwd)/truststore.jks -Djav
    }
 }
 ```
+This configuration:
+1. Downloads the private CA certificate from your Seqera Platform server
+2. Creates a custom Java truststore with the certificate
+3. Configures Java to use the custom truststore for SSL connections
+
 
 ## Contributions and Support
 
