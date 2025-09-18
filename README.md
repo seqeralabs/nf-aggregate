@@ -59,22 +59,6 @@ nextflow run seqeralabs/nf-aggregate \
 
 If you are using a Seqera Platform Enterprise instance that is secured with a private CA SSL certificate not recognized by default Java certificate authorities, you can specify a custom `cacerts` store path through the `--java_truststore_path` parameter and optionally, a password with the `--java_truststore_password`. This certificate will be used to achieve connectivity with your Seqera Platform instance through API and CLI.
 
-### Running on Seqera Platform Enterprise with Private CA
-
-When running nf-aggregate on Seqera Platform Enterprise with a private CA certificate, the containers used by the pipeline tasks don't include the private certificate by default. As a workaround, you can add the following snippet under **Advanced options → Nextflow config** (replace `mptf.cxpg.dev-seqera.net` with your actual Seqera Platform Server URL):
-
-```groovy
-process {
-   withName: SEQERA_RUNS_DUMP {
-     beforeScript = '''
-keytool -printcert -rfc -sslserver mptf.cxpg.dev-seqera.net:443 > PRIVATE_CERT.pem
-keytool -importcert -alias seqera-ca -file PRIVATE_CERT.pem -keystore truststore.jks -storepass changeit -noprompt
-export JAVA_TOOL_OPTIONS="-Djavax.net.ssl.trustStore=$(pwd)/truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
-'''
-   }
-}
-```
-
 This configuration:
 1. Downloads the private CA certificate from your Seqera Platform server
 2. Creates a custom Java truststore with the certificate
@@ -144,6 +128,22 @@ The results from the pipeline will be published in the path specified by the `--
 
 > [!NOTE]
 > Gantt plots depend on information derived from the Fusion logs. For that reason, Gantt plots will be ommitted from the pipeline outputs for non-Fusion runs, irrespective of whether the `--skip_run_gantt` parameter has been set.
+
+### Running on Seqera Platform Enterprise with Private CA
+
+When running nf-aggregate on Seqera Platform Enterprise with a private CA certificate, the containers used by the pipeline tasks don't include the private certificate by default. As a workaround, you can add the following snippet under **Advanced options → Nextflow config** (replace `tower-server-url` (no https) with your actual Seqera Platform Server URL):
+
+```groovy
+process {
+   withName: SEQERA_RUNS_DUMP {
+     beforeScript = '''
+keytool -printcert -rfc -sslserver tower-server-url:443 > PRIVATE_CERT.pem
+keytool -importcert -alias seqera-ca -file PRIVATE_CERT.pem -keystore truststore.jks -storepass changeit -noprompt
+export JAVA_TOOL_OPTIONS="-Djavax.net.ssl.trustStore=$(pwd)/truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+'''
+   }
+}
+```
 
 ## Contributions and Support
 
