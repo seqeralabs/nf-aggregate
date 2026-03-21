@@ -2,14 +2,16 @@
 // WORKFLOW: Run main seqeralabs/nf-aggregate workflow
 //
 
-include { BENCHMARK_REPORT     } from '../../modules/local/benchmark_report'
-include { PLOT_RUN_GANTT       } from '../../modules/local/plot_run_gantt'
-include { SEQERA_RUNS_DUMP     } from '../../modules/local/seqera_runs_dump'
-include { MULTIQC              } from '../../modules/nf-core/multiqc'
-include { getProcessVersions   } from '../../subworkflows/local/utils_nf_aggregate'
-include { getWorkflowVersions  } from '../../subworkflows/local/utils_nf_aggregate'
-include { paramsSummaryMultiqc } from '../../subworkflows/local/utils_nf_aggregate'
-include { paramsSummaryMap     } from 'plugin/nf-schema'
+include { BENCHMARK_REPORT       } from '../../modules/local/benchmark_report'
+include { BENCHMARK_REPORT_V2    } from '../../modules/local/benchmark_report_v2'
+include { PLOT_RUN_GANTT         } from '../../modules/local/plot_run_gantt'
+include { SEQERA_RUNS_DUMP       } from '../../modules/local/seqera_runs_dump'
+include { MULTIQC                } from '../../modules/nf-core/multiqc'
+include { getProcessVersions     } from '../../subworkflows/local/utils_nf_aggregate'
+include { getWorkflowVersions    } from '../../subworkflows/local/utils_nf_aggregate'
+include { paramsSummaryMultiqc   } from '../../subworkflows/local/utils_nf_aggregate'
+include { paramsSummaryMap       } from 'plugin/nf-schema'
+include { request; fromJson; toJson } from 'plugin/nf-boost'
 
 workflow NF_AGGREGATE {
     take:
@@ -24,19 +26,6 @@ workflow NF_AGGREGATE {
 
     main:
 
-    // Split ids into runs to fetch logs from platform deployment and runs provided externally
-    ids
-    .branch {meta ->
-        external: meta.workspace == 'external'
-            if (meta.logs =~ /workflows\/nf_aggregate\/assets\/logs\//) {
-                return [meta, projectDir + meta.logs]
-            } else {
-                return [meta, meta.logs]
-            }
-        fetch_run_dumps: true
-    }
-    .set { ids_split }
-
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
 
@@ -45,43 +34,74 @@ workflow NF_AGGREGATE {
     //
 
     SEQERA_RUNS_DUMP(
-        ids_split.fetch_run_dumps,
+        ids,
         seqera_api_endpoint,
         java_truststore_path ?: '',
         java_truststore_password ?: '',
     )
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions)
 
-    // Merge run dumps with external runs
-    SEQERA_RUNS_DUMP.out.run_dump
-        .mix(ids_split.external)
-        .set{ ch_all_runs }
-
     //
     // MODULE: Generate Gantt chart for workflow execution
     //
-    if(!skip_run_gantt){
-        ch_all_runs
-            .filter { meta, _run_dir -> meta.fusion}
-            .set { ch_runs_for_gantt }
+    SEQERA_RUNS_DUMP.out.run_dump
+        .filter { meta, _run_dir ->
+            meta.fusion && !skip_run_gantt
+        }
+        .set { ch_runs_for_gantt }
 
-        PLOT_RUN_GANTT(
-            ch_runs_for_gantt
+    PLOT_RUN_GANTT(
+        ch_runs_for_gantt
+    )
+    ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
+
+    //
+    // MODULE: Generate benchmark report (v2 — API + DuckDB + eCharts)
+    //
+    if (params.generate_benchmark_report) {
+        aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
+
+        // Fetch run data directly from Seqera API using nf-boost
+        ch_run_data = ids.map { meta ->
+            def data = SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
+            data.meta = [id: meta.id, workspace: meta.workspace, group: meta.group ?: 'default']
+            return data
+        }
+
+        // Write each run's data to a JSON file, collect into one directory
+        ch_run_jsons = ch_run_data.map { data ->
+            def json_file = file("${workDir}/run_data/${data.meta.id}.json")
+            json_file.parent.mkdirs()
+            json_file.text = toJson(data)
+            return json_file
+        }
+
+        ch_data_dir = ch_run_jsons
+            .collect()
+            .map { files ->
+                def dir = file("${workDir}/benchmark_data")
+                dir.mkdirs()
+                files.each { f -> f.copyTo(dir.resolve(f.name)) }
+                return dir
+            }
+
+        BENCHMARK_REPORT_V2(
+            ch_data_dir,
+            aws_cur_report,
         )
-        ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
+        ch_versions = ch_versions.mix(BENCHMARK_REPORT_V2.out.versions)
     }
 
     //
-    // MODULE: Generate benchmark report
+    // MODULE: Generate benchmark report (v1 — R/Quarto, legacy)
     //
-    if (params.generate_benchmark_report) {
-        // Check if cur report is specified
-        aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
+    if (params.generate_benchmark_report_legacy) {
+        aws_cur_report_legacy = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
 
         BENCHMARK_REPORT(
-            ch_all_runs.collect { it[1] },
-            ch_all_runs.collect { it[0].group },
-            aws_cur_report,
+            SEQERA_RUNS_DUMP.out.run_dump.collect { it[1] },
+            SEQERA_RUNS_DUMP.out.run_dump.collect { it[0].group },
+            aws_cur_report_legacy,
             params.remove_failed_tasks,
         )
         ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions)
@@ -107,7 +127,7 @@ workflow NF_AGGREGATE {
         ch_workflow_summary = Channel.value(paramsSummaryMultiqc(summary_params))
         ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
         ch_multiqc_files = ch_multiqc_files.mix(ch_collated_versions)
-        ch_multiqc_files = ch_multiqc_files.mix(ch_all_runs.collect { it[1] })
+        ch_multiqc_files = ch_multiqc_files.mix(SEQERA_RUNS_DUMP.out.run_dump.collect { it[1] })
 
         MULTIQC(
             ch_multiqc_files.collect(),
