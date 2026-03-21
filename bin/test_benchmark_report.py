@@ -106,3 +106,47 @@ class TestNestedTaskUnwrap:
         # Just verify count — no xfail needed since both rows will exist,
         # they just won't have correct data.
         assert count == 2
+
+
+# ── Bug: CUR old format missing nf_ column ──────────────────────────────────
+
+class TestCurOldFormatColumnDetection:
+    """Old CUR parquet may have resource_tags_user_unique_run_id but NOT
+    resource_tags_user_nf_unique_run_id. Query must not reference missing columns.
+    """
+
+    def _write_old_cur_parquet(self, tmp_path, run_id="run1", include_nf_col=False):
+        """Write a minimal old-format CUR parquet."""
+        db = duckdb.connect()
+        nf_col = f", NULL::VARCHAR AS resource_tags_user_nf_unique_run_id" if include_nf_col else ""
+        path = os.path.join(tmp_path, "cur.parquet")
+        db.execute(f"""
+            COPY (
+                SELECT
+                    '{run_id}' AS resource_tags_user_unique_run_id,
+                    'PROC_A' AS resource_tags_user_pipeline_process,
+                    'abcdef1234567890' AS resource_tags_user_task_hash,
+                    10.0 AS line_item_unblended_cost,
+                    8.0 AS split_line_item_split_cost,
+                    2.0 AS split_line_item_unused_cost
+                    {nf_col}
+            ) TO '{path}' (FORMAT PARQUET)
+        """)
+        db.close()
+        return path
+
+    @pytest.mark.xfail(strict=True, reason="build_database CUR query hardcodes both tag columns, crashes on old format")
+    def test_old_format_without_nf_column(self, tmp_path):
+        cur = self._write_old_cur_parquet(tmp_path, run_id="run1")
+        run = _make_run(tasks=[_flat_task()])
+        db = build_database([run], cur)
+        # Should not crash, and costs table should exist
+        tables = {r[0] for r in db.execute("SHOW TABLES").fetchall()}
+        assert "costs" in tables
+
+    def test_old_format_with_both_columns(self, tmp_path):
+        cur = self._write_old_cur_parquet(tmp_path, run_id="run1", include_nf_col=True)
+        run = _make_run(tasks=[_flat_task()])
+        db = build_database([run], cur)
+        tables = {r[0] for r in db.execute("SHOW TABLES").fetchall()}
+        assert "costs" in tables
