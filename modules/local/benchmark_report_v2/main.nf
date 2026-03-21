@@ -1,7 +1,7 @@
 // Benchmark report v2: Python + DuckDB + eCharts (replaces R/Quarto)
 process BENCHMARK_REPORT_V2 {
 
-    conda 'python=3.12 duckdb=1.3 jinja2=3.1 click=8.1 pyarrow=18'
+    conda 'python=3.12 duckdb=1.3 jinja2=3.1 typer=0.15 pyarrow=18'
     container 'ghcr.io/seqeralabs/nf-agg:python-duckdb'
 
     input:
