@@ -233,7 +233,6 @@ class TestCurHashJoinMismatch:
         db.close()
         return path
 
-    @pytest.mark.xfail(strict=True, reason="LEFT(t.hash, 8) includes '/' so never matches CUR hash")
     def test_cur_costs_override_task_costs(self, tmp_path):
         """When CUR data is present, query_run_costs should use CUR cost (10.0)
         not the task-level cost (1.50)."""
@@ -247,7 +246,6 @@ class TestCurHashJoinMismatch:
         # Should use CUR cost, not task-level
         assert costs[0]["cost"] == pytest.approx(10.0)
 
-    @pytest.mark.xfail(strict=True, reason="LEFT(t.hash, 8) includes '/' so never matches CUR hash")
     def test_cur_used_and_unused_cost_split(self, tmp_path):
         """CUR provides used_cost and unused_cost breakdown."""
         task = _flat_task(hash_val="ab/cdef1234567890", cost=1.50)

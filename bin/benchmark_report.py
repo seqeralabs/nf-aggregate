@@ -328,7 +328,7 @@ def query_run_costs(db: duckdb.DuckDBPyConnection) -> list[dict]:
                 ROUND(SUM(COALESCE(c.unused_cost, 0)), 2) AS unused_cost,
             FROM runs r
             LEFT JOIN tasks t ON r.run_id = t.run_id
-            LEFT JOIN costs c ON t.run_id = c.run_id AND LEFT(t.hash, 8) = c.hash
+            LEFT JOIN costs c ON t.run_id = c.run_id AND LEFT(REPLACE(t.hash, '/', ''), 8) = c.hash
             GROUP BY r.run_id, r."group"
             ORDER BY r."group"
         """)
@@ -448,7 +448,7 @@ def query_cost_overview(db: duckdb.DuckDBPyConnection) -> list[dict] | None:
             SUM(c.unused_cost) AS unused_cost,
             COUNT(*) AS n_tasks,
         FROM tasks t
-        LEFT JOIN costs c ON t.run_id = c.run_id AND LEFT(t.hash, 8) = c.hash
+        LEFT JOIN costs c ON t.run_id = c.run_id AND LEFT(REPLACE(t.hash, '/', ''), 8) = c.hash
         GROUP BY t."group", t.process_short
         ORDER BY total_cost DESC
     """)
