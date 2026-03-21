@@ -11,6 +11,19 @@ import duckdb
 from jinja2 import Environment, FileSystemLoader, BaseLoader
 
 
+def fetch_dicts(db: duckdb.DuckDBPyConnection, sql: str) -> list[dict]:
+    """Execute SQL and return list of dicts (no pandas needed)."""
+    result = db.execute(sql)
+    columns = [desc[0] for desc in result.description]
+    return [dict(zip(columns, row)) for row in result.fetchall()]
+
+
+def table_exists(db: duckdb.DuckDBPyConnection, name: str) -> bool:
+    """Check if a table exists in the database."""
+    tables = [row[0] for row in db.execute("SHOW TABLES").fetchall()]
+    return name in tables
+
+
 def load_run_data(data_dir: Path) -> list[dict]:
     """Load all run JSON files from the data directory."""
     runs = []
@@ -57,7 +70,12 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
             "container_engine": wf.get("containerEngine", ""),
         })
 
-    db.execute("CREATE TABLE runs AS SELECT * FROM read_json_auto(?)", [json.dumps(run_rows)])
+    import tempfile, os
+    # DuckDB read_json_auto needs a file path, not a string
+    runs_tmp = os.path.join(tempfile.gettempdir(), "nfagg_runs.json")
+    with open(runs_tmp, "w") as f:
+        json.dump(run_rows, f)
+    db.execute(f"CREATE TABLE runs AS SELECT * FROM read_json_auto('{runs_tmp}')")
 
     # -- tasks table --
     task_rows = []
@@ -94,7 +112,10 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
             })
 
     if task_rows:
-        db.execute("CREATE TABLE tasks AS SELECT * FROM read_json_auto(?)", [json.dumps(task_rows)])
+        tasks_tmp = os.path.join(tempfile.gettempdir(), "nfagg_tasks.json")
+        with open(tasks_tmp, "w") as f:
+            json.dump(task_rows, f)
+        db.execute(f"CREATE TABLE tasks AS SELECT * FROM read_json_auto('{tasks_tmp}')")
         # Add derived columns
         db.execute("""
             ALTER TABLE tasks ADD COLUMN process_short VARCHAR;
@@ -128,7 +149,10 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
             metrics_rows.append(row)
 
     if metrics_rows:
-        db.execute("CREATE TABLE metrics AS SELECT * FROM read_json_auto(?)", [json.dumps(metrics_rows)])
+        metrics_tmp = os.path.join(tempfile.gettempdir(), "nfagg_metrics.json")
+        with open(metrics_tmp, "w") as f:
+            json.dump(metrics_rows, f)
+        db.execute(f"CREATE TABLE metrics AS SELECT * FROM read_json_auto('{metrics_tmp}')")
 
     # -- costs table (optional AWS CUR parquet) --
     if cur_path and Path(cur_path).exists():
@@ -156,7 +180,7 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
 
 def query_benchmark_overview(db: duckdb.DuckDBPyConnection) -> dict:
     """Grouped summary stats per group for overview charts."""
-    return db.execute("""
+    return fetch_dicts(db, """
         SELECT
             "group",
             pipeline,
@@ -170,12 +194,12 @@ def query_benchmark_overview(db: duckdb.DuckDBPyConnection) -> dict:
         FROM runs
         GROUP BY "group", pipeline
         ORDER BY "group"
-    """).fetchdf().to_dict(orient="records")
+    """)
 
 
 def query_run_overview(db: duckdb.DuckDBPyConnection) -> list[dict]:
     """Per-run summary table."""
-    return db.execute("""
+    return fetch_dicts(db, """
         SELECT
             run_id,
             "group",
@@ -193,23 +217,22 @@ def query_run_overview(db: duckdb.DuckDBPyConnection) -> list[dict]:
             fusion_enabled,
         FROM runs
         ORDER BY "group", start
-    """).fetchdf().to_dict(orient="records")
+    """)
 
 
 def query_process_overview(db: duckdb.DuckDBPyConnection) -> list[dict]:
     """Per-process metrics (box plot data from /metrics endpoint)."""
-    tables = db.execute("SHOW TABLES").fetchdf()["name"].tolist()
-    if "metrics" not in tables:
+    if not table_exists(db, "metrics"):
         return []
-    return db.execute("""
+    return fetch_dicts(db, """
         SELECT * FROM metrics
         ORDER BY process
-    """).fetchdf().to_dict(orient="records")
+    """)
 
 
 def query_task_overview(db: duckdb.DuckDBPyConnection) -> list[dict]:
     """Task-level data for scatter plots."""
-    return db.execute("""
+    return fetch_dicts(db, """
         SELECT
             run_id,
             "group",
@@ -226,15 +249,14 @@ def query_task_overview(db: duckdb.DuckDBPyConnection) -> list[dict]:
         FROM tasks
         WHERE status = 'COMPLETED'
         ORDER BY process_short, duration_ms DESC
-    """).fetchdf().to_dict(orient="records")
+    """)
 
 
 def query_cost_overview(db: duckdb.DuckDBPyConnection) -> list[dict] | None:
     """Cost breakdown if AWS CUR data available."""
-    tables = db.execute("SHOW TABLES").fetchdf()["name"].tolist()
-    if "costs" not in tables:
+    if not table_exists(db, "costs"):
         return None
-    return db.execute("""
+    return fetch_dicts(db, """
         SELECT
             t."group",
             t.process_short,
@@ -246,7 +268,7 @@ def query_cost_overview(db: duckdb.DuckDBPyConnection) -> list[dict] | None:
         LEFT JOIN costs c ON t.run_id = c.run_id AND LEFT(t.hash, 8) = c.hash
         GROUP BY t."group", t.process_short
         ORDER BY total_cost DESC
-    """).fetchdf().to_dict(orient="records")
+    """)
 
 
 def render_report(data: dict, output_path: str) -> None:
