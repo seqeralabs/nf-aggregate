@@ -214,32 +214,50 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
 
     # ── costs table (optional AWS CUR parquet) ──
     if cur_path and Path(cur_path).exists():
-        # Detect which run-id tag column(s) exist in the parquet
         cur_cols = {r[0] for r in db.execute(
             f"SELECT column_name FROM (DESCRIBE SELECT * FROM read_parquet('{cur_path}'))"
         ).fetchall()}
-        has_nf_run_id = "resource_tags_user_nf_unique_run_id" in cur_cols
-        has_run_id = "resource_tags_user_unique_run_id" in cur_cols
 
-        if has_run_id and has_nf_run_id:
-            run_id_expr = "COALESCE(resource_tags_user_unique_run_id, resource_tags_user_nf_unique_run_id)"
-            where_clause = "resource_tags_user_unique_run_id IS NOT NULL OR resource_tags_user_nf_unique_run_id IS NOT NULL"
-        elif has_run_id:
-            run_id_expr = "resource_tags_user_unique_run_id"
-            where_clause = "resource_tags_user_unique_run_id IS NOT NULL"
-        elif has_nf_run_id:
-            run_id_expr = "resource_tags_user_nf_unique_run_id"
-            where_clause = "resource_tags_user_nf_unique_run_id IS NOT NULL"
+        # New CUR format: resource_tags is MAP(VARCHAR, VARCHAR) with keys
+        # like 'user_unique_run_id', 'user_task_hash', 'user_pipeline_process'.
+        # Old format: flattened columns like resource_tags_user_unique_run_id.
+        is_map_format = "resource_tags" in cur_cols and "resource_tags_user_unique_run_id" not in cur_cols
+
+        if is_map_format:
+            run_id_expr = "COALESCE(resource_tags['user_unique_run_id'], resource_tags['user_nf_unique_run_id'])"
+            process_expr = "resource_tags['user_pipeline_process']"
+            hash_expr = "LEFT(resource_tags['user_task_hash'], 8)"
+            where_clause = (
+                "resource_tags['user_unique_run_id'] IS NOT NULL "
+                "OR resource_tags['user_nf_unique_run_id'] IS NOT NULL"
+            )
         else:
-            run_id_expr = None
+            # Old flattened-column format
+            has_nf_run_id = "resource_tags_user_nf_unique_run_id" in cur_cols
+            has_run_id = "resource_tags_user_unique_run_id" in cur_cols
 
-        if run_id_expr:
+            if has_run_id and has_nf_run_id:
+                run_id_expr = "COALESCE(resource_tags_user_unique_run_id, resource_tags_user_nf_unique_run_id)"
+                where_clause = "resource_tags_user_unique_run_id IS NOT NULL OR resource_tags_user_nf_unique_run_id IS NOT NULL"
+            elif has_run_id:
+                run_id_expr = "resource_tags_user_unique_run_id"
+                where_clause = "resource_tags_user_unique_run_id IS NOT NULL"
+            elif has_nf_run_id:
+                run_id_expr = "resource_tags_user_nf_unique_run_id"
+                where_clause = "resource_tags_user_nf_unique_run_id IS NOT NULL"
+            else:
+                run_id_expr = None
+
+            process_expr = "resource_tags_user_pipeline_process"
+            hash_expr = "LEFT(resource_tags_user_task_hash, 8)"
+
+        if is_map_format or run_id_expr:
             db.execute(f"""
                 CREATE TABLE costs AS
                 SELECT
                     {run_id_expr} AS run_id,
-                    resource_tags_user_pipeline_process AS process,
-                    LEFT(resource_tags_user_task_hash, 8) AS hash,
+                    {process_expr} AS process,
+                    {hash_expr} AS hash,
                     SUM(COALESCE(split_line_item_split_cost, line_item_unblended_cost, 0)
                         + COALESCE(split_line_item_unused_cost, 0)) AS cost,
                     SUM(COALESCE(split_line_item_split_cost, line_item_unblended_cost, 0)) AS used_cost,

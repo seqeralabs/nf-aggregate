@@ -181,7 +181,6 @@ class TestCurNewMapFormat:
         db.close()
         return path
 
-    @pytest.mark.xfail(strict=True, reason="build_database doesn't support MAP(VARCHAR,VARCHAR) resource_tags yet")
     def test_map_format_creates_costs_table(self, tmp_path):
         cur = self._write_new_cur_parquet(tmp_path, run_id="run1")
         run = _make_run(tasks=[_flat_task()])
@@ -189,7 +188,6 @@ class TestCurNewMapFormat:
         tables = {r[0] for r in db.execute("SHOW TABLES").fetchall()}
         assert "costs" in tables
 
-    @pytest.mark.xfail(strict=True, reason="build_database doesn't support MAP(VARCHAR,VARCHAR) resource_tags yet")
     def test_map_format_extracts_run_id(self, tmp_path):
         cur = self._write_new_cur_parquet(tmp_path, run_id="run1")
         run = _make_run(tasks=[_flat_task()])
@@ -197,7 +195,6 @@ class TestCurNewMapFormat:
         rid = db.execute("SELECT run_id FROM costs").fetchone()[0]
         assert rid == "run1"
 
-    @pytest.mark.xfail(strict=True, reason="build_database doesn't support MAP(VARCHAR,VARCHAR) resource_tags yet")
     def test_map_format_extracts_costs(self, tmp_path):
         cur = self._write_new_cur_parquet(tmp_path, run_id="run1")
         run = _make_run(tasks=[_flat_task()])
