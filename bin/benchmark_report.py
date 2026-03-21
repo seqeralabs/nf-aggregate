@@ -6,8 +6,8 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-import click
 import duckdb
+import typer
 from jinja2 import Environment, BaseLoader
 
 
@@ -1124,20 +1124,24 @@ window.addEventListener('resize', () => {
 </html>"""
 
 
-@click.command()
-@click.option("--data-dir", type=click.Path(exists=True), required=True, help="Directory containing run JSON files")
-@click.option("--costs", type=click.Path(), default=None, help="AWS CUR parquet file")
-@click.option("--output", type=click.Path(), default="benchmark_report.html", help="Output HTML file")
-@click.option("--remove-failed", is_flag=True, default=True, help="Exclude failed tasks from analysis")
-def main(data_dir: str, costs: str | None, output: str, remove_failed: bool):
-    """Generate a benchmark report from Seqera Platform API data."""
-    runs = load_run_data(Path(data_dir))
-    if not runs:
-        click.echo("No run data found", err=True)
-        sys.exit(1)
+app = typer.Typer(add_completion=False)
 
-    click.echo(f"Loaded {len(runs)} runs")
-    db = build_database(runs, costs)
+
+@app.command()
+def main(
+    data_dir: Path = typer.Option(..., exists=True, help="Directory containing run JSON files"),
+    costs: Path | None = typer.Option(None, help="AWS CUR parquet file"),
+    output: Path = typer.Option(Path("benchmark_report.html"), help="Output HTML file"),
+    remove_failed: bool = typer.Option(True, help="Exclude failed tasks from analysis"),
+) -> None:
+    """Generate a benchmark report from Seqera Platform API data."""
+    runs = load_run_data(data_dir)
+    if not runs:
+        typer.echo("No run data found", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Loaded {len(runs)} runs")
+    db = build_database(runs, str(costs) if costs else None)
 
     if remove_failed:
         db.execute("DELETE FROM tasks WHERE status != 'COMPLETED' AND status != 'CACHED'")
@@ -1154,9 +1158,9 @@ def main(data_dir: str, costs: str | None, output: str, remove_failed: bool):
         "cost_overview": query_cost_overview(db),
     }
 
-    render_report(data, output)
-    click.echo(f"Report written to {output}")
+    render_report(data, str(output))
+    typer.echo(f"Report written to {output}")
 
 
 if __name__ == "__main__":
-    main()
+    app()
