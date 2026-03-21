@@ -8,6 +8,7 @@ process BENCHMARK_REPORT_V2 {
     path data_dir
     path benchmark_aws_cur_report
     path brand_yml
+    path logo_svg
 
     output:
     path "benchmark_report.html", emit: html
@@ -16,11 +17,13 @@ process BENCHMARK_REPORT_V2 {
     script:
     def cost_flag = benchmark_aws_cur_report ? "--costs ${benchmark_aws_cur_report}" : ""
     def brand_flag = brand_yml ? "--brand ${brand_yml}" : ""
+    def logo_flag = logo_svg ? "--logo ${logo_svg}" : ""
     """
     benchmark_report.py \\
         --data-dir ${data_dir} \\
         ${cost_flag} \\
         ${brand_flag} \\
+        ${logo_flag} \\
         --output benchmark_report.html
 
     cat <<-END_VERSIONS > versions.yml

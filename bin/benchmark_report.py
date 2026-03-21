@@ -419,7 +419,12 @@ def query_cost_overview(db: duckdb.DuckDBPyConnection) -> list[dict] | None:
     """)
 
 
-def render_report(data: dict, output_path: str, brand: dict | None = None) -> None:
+def render_report(
+    data: dict,
+    output_path: str,
+    brand: dict | None = None,
+    logo_svg: str | None = None,
+) -> None:
     brand = brand or load_brand()
     env = Environment(loader=BaseLoader())
     template = env.from_string(REPORT_TEMPLATE)
@@ -429,6 +434,7 @@ def render_report(data: dict, output_path: str, brand: dict | None = None) -> No
         brand_accent=brand["accent"],
         brand_accent_surface=brand["accent_surface"],
         brand_palette=brand["palette"],
+        logo_svg=logo_svg or "",
         **data,
     )
     Path(output_path).write_text(html)
@@ -526,10 +532,7 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 <nav class="navbar">
   <div class="container">
     <a class="navbar-brand" href="https://seqera.io">
-      <svg viewBox="0 0 120 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M18.8 5.6c-1.5-.9-3.4-.9-4.9 0L3.6 12c-1.5.9-2.4 2.5-2.4 4.2v3.1c0 1.7.9 3.3 2.4 4.2l2.5 1.4c1.5.9 3.4.9 4.9 0l10.3-5.9c1.5-.9 2.4-2.5 2.4-4.2v-3.1c0-1.7-.9-3.3-2.4-4.2L18.8 5.6z" fill="#4256E7"/>
-        <text x="30" y="21" font-family="Helvetica Neue, sans-serif" font-size="20" fill="#333" font-weight="300">seqera</text>
-      </svg>
+      {% if logo_svg %}{{ logo_svg }}{% else %}<span style="font-size:20px;font-weight:300">seqera</span>{% endif %}
     </a>
     <div class="navbar-right">Pipeline benchmarking report</div>
   </div>
@@ -1176,6 +1179,7 @@ def main(
     output: Path = typer.Option(Path("benchmark_report.html"), help="Output HTML file"),
     remove_failed: bool = typer.Option(True, help="Exclude failed tasks from analysis"),
     brand: Path | None = typer.Option(None, help="Brand YAML file for report colors"),
+    logo: Path | None = typer.Option(None, help="SVG logo file for report navbar"),
 ) -> None:
     """Generate a benchmark report from Seqera Platform API data."""
     runs = load_run_data(data_dir)
@@ -1190,6 +1194,7 @@ def main(
         db.execute("DELETE FROM tasks WHERE status != 'COMPLETED' AND status != 'CACHED'")
 
     brand_colors = load_brand(brand)
+    logo_svg = logo.read_text() if logo and logo.exists() else None
 
     data = {
         "benchmark_overview": query_benchmark_overview(db),
@@ -1203,7 +1208,7 @@ def main(
         "cost_overview": query_cost_overview(db),
     }
 
-    render_report(data, str(output), brand_colors)
+    render_report(data, str(output), brand_colors, logo_svg)
     typer.echo(f"Report written to {output}")
 
 
