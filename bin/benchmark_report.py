@@ -528,7 +528,10 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
   .side-nav { position: fixed; top: 50px; left: 0; width: 220px; padding: 15px 10px;
               background: {{ brand_neutral }}; border-right: 1px solid {{ brand_border }}; height: calc(100vh - 50px);
               overflow-y: auto; font-size: 12px; z-index: 100; }
-  .side-nav a { display: block; padding: 4px 8px; color: {{ brand_heading }}; text-decoration: none;
+  .nav-icon { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; flex-shrink: 0; }
+  .h-icon { width: 24px; height: 24px; vertical-align: -4px; margin-right: 6px; color: {{ brand_accent }}; }
+  .h-icon.sm { width: 20px; height: 20px; vertical-align: -3px; margin-right: 5px; }
+  .side-nav a { display: flex; align-items: center; padding: 4px 8px; color: {{ brand_heading }}; text-decoration: none;
                 border-left: 3px solid transparent; }
   .side-nav a:hover, .side-nav a.active { color: {{ brand_accent }}; border-left-color: {{ brand_accent }}; }
   .side-nav a.l2 { padding-left: 20px; color: {{ brand_accent }}; font-size: 11px; }
@@ -561,15 +564,34 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
   </div>
 </nav>
 
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <!-- Benchmark overview: dashboard/grid -->
+  <symbol id="ic-benchmark" viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1" fill="currentColor" opacity=".85"/><rect x="11" y="2" width="7" height="7" rx="1" fill="currentColor" opacity=".55"/><rect x="2" y="11" width="7" height="7" rx="1" fill="currentColor" opacity=".55"/><rect x="11" y="11" width="7" height="7" rx="1" fill="currentColor" opacity=".85"/></symbol>
+  <!-- Run overview: play/run -->
+  <symbol id="ic-run" viewBox="0 0 20 20"><path d="M6 3.5v13l10-6.5z" fill="currentColor"/></symbol>
+  <!-- Run summary: list/table -->
+  <symbol id="ic-table" viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="2" rx="1" fill="currentColor"/><rect x="3" y="9" width="14" height="2" rx="1" fill="currentColor"/><rect x="3" y="14" width="14" height="2" rx="1" fill="currentColor"/></symbol>
+  <!-- Run metrics: bar chart -->
+  <symbol id="ic-chart" viewBox="0 0 20 20"><rect x="2" y="10" width="4" height="8" rx="1" fill="currentColor"/><rect x="8" y="5" width="4" height="13" rx="1" fill="currentColor"/><rect x="14" y="2" width="4" height="16" rx="1" fill="currentColor"/></symbol>
+  <!-- Process overview: workflow/nodes -->
+  <symbol id="ic-process" viewBox="0 0 20 20"><circle cx="5" cy="10" r="3" fill="currentColor"/><circle cx="15" cy="5" r="2.5" fill="currentColor" opacity=".7"/><circle cx="15" cy="15" r="2.5" fill="currentColor" opacity=".7"/><line x1="7.5" y1="9" x2="12.5" y2="5.5" stroke="currentColor" stroke-width="1.5"/><line x1="7.5" y1="11" x2="12.5" y2="14.5" stroke="currentColor" stroke-width="1.5"/></symbol>
+  <!-- Task overview: checklist -->
+  <symbol id="ic-task" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 10l2.5 2.5L14 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <!-- Instance usage: server/stack -->
+  <symbol id="ic-instance" viewBox="0 0 20 20"><rect x="3" y="2" width="14" height="5" rx="1.5" fill="currentColor"/><rect x="3" y="9" width="14" height="5" rx="1.5" fill="currentColor" opacity=".65"/><circle cx="6" cy="4.5" r="1" fill="#fff"/><circle cx="6" cy="11.5" r="1" fill="#fff"/></symbol>
+  <!-- Task metrics: scatter/timing -->
+  <symbol id="ic-scatter" viewBox="0 0 20 20"><circle cx="5" cy="14" r="1.8" fill="currentColor"/><circle cx="9" cy="8" r="1.8" fill="currentColor" opacity=".75"/><circle cx="14" cy="11" r="1.8" fill="currentColor" opacity=".6"/><circle cx="16" cy="5" r="1.8" fill="currentColor" opacity=".45"/></symbol>
+</svg>
+
 <div class="side-nav" id="side-nav">
-  <a href="#benchmark-overview"><strong>1</strong> Benchmark overview</a>
-  <a href="#run-overview"><strong>2</strong> Run overview</a>
-  <a href="#run-summary" class="l2">2.1 Run summary</a>
-  <a href="#run-metrics" class="l2">2.2 Run metrics</a>
-  <a href="#process-overview"><strong>3</strong> Process overview</a>
-  <a href="#task-overview"><strong>4</strong> Task overview</a>
-  <a href="#task-instance-usage" class="l2">4.1 Task instance usage</a>
-  <a href="#task-metrics" class="l2">4.2 Task metrics</a>
+  <a href="#benchmark-overview"><svg class="nav-icon"><use href="#ic-benchmark"/></svg> Benchmark overview</a>
+  <a href="#run-overview"><svg class="nav-icon"><use href="#ic-run"/></svg> Run overview</a>
+  <a href="#run-summary" class="l2"><svg class="nav-icon"><use href="#ic-table"/></svg> Run summary</a>
+  <a href="#run-metrics" class="l2"><svg class="nav-icon"><use href="#ic-chart"/></svg> Run metrics</a>
+  <a href="#process-overview"><svg class="nav-icon"><use href="#ic-process"/></svg> Process overview</a>
+  <a href="#task-overview"><svg class="nav-icon"><use href="#ic-task"/></svg> Task overview</a>
+  <a href="#task-instance-usage" class="l2"><svg class="nav-icon"><use href="#ic-instance"/></svg> Instance usage</a>
+  <a href="#task-metrics" class="l2"><svg class="nav-icon"><use href="#ic-scatter"/></svg> Task metrics</a>
 </div>
 
 <div class="main-content">
@@ -581,7 +603,7 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 
   <!-- ═══ 1. Benchmark overview ═══════════════════════════ -->
   <div class="section" id="benchmark-overview">
-    <h1>1 &nbsp; Benchmark overview</h1>
+    <h1><svg class="h-icon"><use href="#ic-benchmark"/></svg> Benchmark overview</h1>
     <div class="dl-row">
       <dt>Failed task excluded</dt><dd>: Yes</dd>
     </div>
@@ -598,13 +620,13 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 
   <!-- ═══ 2. Run overview ═════════════════════════════════ -->
   <div class="section" id="run-overview">
-    <h1>2 &nbsp; Run overview</h1>
+    <h1><svg class="h-icon"><use href="#ic-run"/></svg> Run overview</h1>
     <p class="section-desc">
       <strong>Summary</strong><br>
       This section provides a high-level overview of the pipeline run metrics.
     </p>
 
-    <h2 id="run-summary">2.1 &nbsp; Run summary</h2>
+    <h2 id="run-summary"><svg class="h-icon sm"><use href="#ic-table"/></svg> Run summary</h2>
     <p class="section-desc">Summary of pipeline execution and infrastructure settings.</p>
     <div class="callout">
       <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
@@ -615,7 +637,7 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </div>
 
-    <h2 id="run-metrics">2.2 &nbsp; Run metrics</h2>
+    <h2 id="run-metrics"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Run metrics</h2>
     <p class="section-desc">This section provides a visual overview of the pipeline run metrics.</p>
     <div class="callout">
       <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
@@ -648,7 +670,7 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 
   <!-- ═══ 3. Process overview ═════════════════════════════ -->
   <div class="section" id="process-overview">
-    <h1>3 &nbsp; Process overview</h1>
+    <h1><svg class="h-icon"><use href="#ic-process"/></svg> Process overview</h1>
     <p class="section-desc">
       <strong>Summary</strong><br>
       This section provides a comparison of the process-level metrics for each pipeline
@@ -665,17 +687,17 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 
   <!-- ═══ 4. Task overview ════════════════════════════════ -->
   <div class="section" id="task-overview">
-    <h1>4 &nbsp; Task overview</h1>
+    <h1><svg class="h-icon"><use href="#ic-task"/></svg> Task overview</h1>
     <p class="section-desc">
       <strong>Summary</strong><br>
       This section provides an overview of task-level metrics for instance usage and runtime metrics.
     </p>
 
-    <h2 id="task-instance-usage">4.1 &nbsp; Task instance usage</h2>
+    <h2 id="task-instance-usage"><svg class="h-icon sm"><use href="#ic-instance"/></svg> Task instance usage</h2>
     <p class="section-desc">Number of tasks per instance type, grouped by pipeline run group.</p>
     <div class="chart" id="chart-instance-usage" style="height:500px"></div>
 
-    <h2 id="task-metrics">4.2 &nbsp; Task metrics</h2>
+    <h2 id="task-metrics"><svg class="h-icon sm"><use href="#ic-scatter"/></svg> Task metrics</h2>
     <p class="section-desc">
       This section provides a comparison between staging and run times for tasks.<br>
       <strong>Wait time</strong>: time from submission to task start.<br>
