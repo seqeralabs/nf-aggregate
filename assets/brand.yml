@@ -15,8 +15,9 @@ colors:
       rules:
         do_not:
           - NEVER as text on white
+          - NEVER use white text on Brand Green bg — use Dark Brand
         do:
-          - OK as button bg with brand text
+          - OK as button bg with Dark Brand text
           - Use for decorative fills, progress bars, illustrations
 
     deep_green:
@@ -34,7 +35,9 @@ colors:
       rules:
         do:
           - All hover/focus states
-          - Safe for text on any background including Soft Green
+          - Safe for text on White, Soft Green, or Soft Grey backgrounds
+        do_not:
+          - Don't use for long-reading body text or smaller font sizes
 
     soft_green:
       hex: "#E2F7F3"
@@ -52,14 +55,6 @@ colors:
           - Text on top — use Brand Dark or Body, not green
 
   brand_surface:
-    brand_deep:
-      hex: "#087F68"
-      contrast: "5.0:1 on white"
-      usage:
-        - Brand assets bg
-        - banners
-        - cards
-
     brand_dark:
       hex: "#201637"
       contrast: "17.3:1 on white"
@@ -95,3 +90,5 @@ colors:
       token: white
       usage:
         - Page background
+        - Text color on Deep Green or Dark Brand backgrounds
+        - Graphic elements on dark backgrounds
