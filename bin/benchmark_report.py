@@ -452,10 +452,13 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pipeline benchmarking report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Lucida Grande', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  body { font-family: 'Inter', Helvetica, sans-serif;
          background: {{ brand_white }}; color: {{ brand_heading }}; line-height: 1.6; font-size: 14px; }
   .container { max-width: 1200px; margin: 0 auto; padding: 0 15px; }
 
@@ -466,11 +469,11 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
   .navbar-right { color: {{ brand_border }}; font-size: 13px; }
 
   .section { margin-bottom: 40px; }
-  .section h1 { font-size: 26px; font-weight: 300; color: {{ brand_heading }}; margin-bottom: 5px;
+  .section h1 { font-size: 26px; font-weight: 600; color: {{ brand_heading }}; margin-bottom: 5px;
                  padding-bottom: 8px; border-bottom: 2px solid {{ brand_border }}; }
-  .section h2 { font-size: 20px; font-weight: 300; color: {{ brand_heading }}; margin: 25px 0 8px;
+  .section h2 { font-size: 20px; font-weight: 500; color: {{ brand_heading }}; margin: 25px 0 8px;
                  padding-bottom: 5px; border-bottom: 1px solid {{ brand_border }}; }
-  .section h3 { font-size: 17px; font-weight: 400; color: {{ brand_heading }}; margin: 20px 0 8px; }
+  .section h3 { font-size: 17px; font-weight: 500; color: {{ brand_heading }}; margin: 20px 0 8px; }
   .section-desc { color: {{ brand_accent }}; font-size: 13px; margin-bottom: 15px; line-height: 1.5; }
   .section-desc strong { color: {{ brand_heading }}; }
 
