@@ -419,6 +419,19 @@ def query_cost_overview(db: duckdb.DuckDBPyConnection) -> list[dict] | None:
     """)
 
 
+def _load_echarts_theme(theme_path: Path | None = None) -> str:
+    """Load eCharts theme JSON. Returns JSON string for inline registration."""
+    candidates = [
+        theme_path,
+        Path(__file__).resolve().parent.parent / "assets" / "seqera-echarts-theme.json",
+        Path("assets/seqera-echarts-theme.json"),
+    ]
+    for p in candidates:
+        if p and p.exists():
+            return p.read_text()
+    return "{}"
+
+
 def render_report(
     data: dict,
     output_path: str,
@@ -426,11 +439,13 @@ def render_report(
     logo_svg: str | None = None,
 ) -> None:
     brand = brand or load_brand()
+    echarts_theme_json = _load_echarts_theme()
     env = Environment(loader=BaseLoader())
     template = env.from_string(REPORT_TEMPLATE)
     html = template.render(
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         data_json=json.dumps(data, default=str),
+        echarts_theme_json=echarts_theme_json,
         brand_accent=brand["accent"],
         brand_accent_light=brand["accent_light"],
         brand_accent_surface=brand["accent_surface"],
@@ -681,6 +696,9 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 </footer>
 
 <script>
+// Register Seqera eCharts theme
+echarts.registerTheme('seqera', {{ echarts_theme_json }});
+
 const DATA = {{ data_json }};
 const COLORS = {{ brand_palette | tojson }};
 
