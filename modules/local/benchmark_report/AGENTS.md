@@ -1,6 +1,6 @@
-# benchmark_report_v2
+# benchmark_report
 
-Python + DuckDB + eCharts benchmark report. **Active path** — replaces the legacy R/Quarto module.
+Python + DuckDB + eCharts benchmark report.
 
 ## Process
 
@@ -30,5 +30,5 @@ Calls `bin/benchmark_report.py` with `--data-dir`, `--costs`, `--brand`, `--logo
 `tests/main.nf.test` — nf-test using local fixtures in `tests/data/`. Asserts process success, output file exists, and contains "Pipeline benchmarking report".
 
 ```bash
-nf-test test modules/local/benchmark_report_v2/tests/main.nf.test
+nf-test test modules/local/benchmark_report/tests/main.nf.test
 ```

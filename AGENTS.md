@@ -8,7 +8,7 @@ Nextflow pipeline to aggregate metrics across Seqera Platform pipeline runs. nf-
 input CSV (id, workspace, group)
   → SeqeraApi.fetchRunData() in map{} (4 API calls/run: workflow, metrics, tasks, progress)
   → collect JSON files
-  → BENCHMARK_REPORT_V2 process (Python + DuckDB + eCharts)
+  → BENCHMARK_REPORT process (Python + DuckDB + eCharts)
   → benchmark_report.html (~70KB self-contained)
 ```
 
@@ -39,7 +39,7 @@ Additional paths (always active):
 ```bash
 uv run --with duckdb --with jinja2 --with typer --with pyyaml --with pyarrow \
   python bin/benchmark_report.py \
-  --data-dir modules/local/benchmark_report_v2/tests/data \
+  --data-dir modules/local/benchmark_report/tests/data \
   --brand assets/brand.yml \
   --output /tmp/benchmark_report.html
 ```

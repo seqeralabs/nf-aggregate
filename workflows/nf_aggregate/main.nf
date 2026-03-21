@@ -2,7 +2,7 @@
 // WORKFLOW: Run main seqeralabs/nf-aggregate workflow
 //
 
-include { BENCHMARK_REPORT_V2    } from '../../modules/local/benchmark_report_v2'
+include { BENCHMARK_REPORT       } from '../../modules/local/benchmark_report'
 include { PLOT_RUN_GANTT         } from '../../modules/local/plot_run_gantt'
 include { SEQERA_RUNS_DUMP       } from '../../modules/local/seqera_runs_dump'
 include { MULTIQC                } from '../../modules/nf-core/multiqc'
@@ -84,13 +84,13 @@ workflow NF_AGGREGATE {
                 return dir
             }
 
-        BENCHMARK_REPORT_V2(
+        BENCHMARK_REPORT(
             ch_data_dir,
             aws_cur_report,
             file("${projectDir}/assets/brand.yml", checkIfExists: true),
             file("${projectDir}/assets/seqera_logo_color.svg", checkIfExists: true),
         )
-        ch_versions = ch_versions.mix(BENCHMARK_REPORT_V2.out.versions)
+        ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions)
     }
 
     //

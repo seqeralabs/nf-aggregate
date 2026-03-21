@@ -19,7 +19,7 @@ nf-boost `request()` + `map` → DuckDB → eCharts. Zero containers for data fe
 │           ↓ channel: [meta, workflow_json, tasks_json,  │
 │                       metrics_json, progress_json]     │
 │                                                        │
-│  .collect() ──→ BENCHMARK_REPORT_V2 (Python + DuckDB)   │
+│  .collect() ──→ BENCHMARK_REPORT (Python + DuckDB)   │
 │                  + optional AWS CUR parquet             │
 │                  ↓                                      │
 │             benchmark_report.html (eCharts)             │
@@ -51,7 +51,7 @@ def fetchRun(meta, apiEndpoint) {
 
 ### Step 2: Write JSON → DuckDB in Python process
 
-The `BENCHMARK_REPORT_V2` process receives all JSON data, loads into DuckDB, joins with optional AWS CUR parquet, and renders eCharts HTML.
+The `BENCHMARK_REPORT` process receives all JSON data, loads into DuckDB, joins with optional AWS CUR parquet, and renders eCharts HTML.
 
 #### DuckDB Tables
 
@@ -110,7 +110,7 @@ nf-agg/
 ├── workflows/nf_aggregate/main.nf     # orchestrator
 ├── modules/local/
 │   ├── seqera_runs_dump/               # tower-cli runs dump + metadata
-│   ├── benchmark_report_v2/            # Python + DuckDB + eCharts
+│   ├── benchmark_report/            # Python + DuckDB + eCharts
 │   └── plot_run_gantt/                 # fusion-only gantt
 ├── lib/
 │   └── SeqeraApi.groovy                # nf-boost request() wrappers

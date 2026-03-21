@@ -1,7 +1,7 @@
 nextflow_process {
-    name "Test Process BENCHMARK_REPORT_V2"
+    name "Test Process BENCHMARK_REPORT"
     script "../main.nf"
-    process "BENCHMARK_REPORT_V2"
+    process "BENCHMARK_REPORT"
 
     test("Should generate benchmark report from test data") {
         when {
