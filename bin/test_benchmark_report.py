@@ -256,3 +256,69 @@ class TestCurHashJoinMismatch:
         costs = query_run_costs(db)
         assert costs[0]["used_cost"] == pytest.approx(8.0)
         assert costs[0]["unused_cost"] == pytest.approx(2.0)
+
+
+# ── Integration: real fixture data from SD-1043 benchmarks ──────────────────
+
+@pytest.fixture
+def sarek_fixtures():
+    """Load the committed sarek test fixtures if available."""
+    data_dir = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "modules",
+        "local",
+        "benchmark_report",
+        "tests",
+        "data",
+    )
+    if not os.path.isdir(data_dir):
+        pytest.skip("Test fixture data not present")
+    runs = []
+    for f in sorted(os.listdir(data_dir)):
+        if f.endswith(".json"):
+            with open(os.path.join(data_dir, f)) as fh:
+                runs.append(json.load(fh))
+    if not runs:
+        pytest.skip("No JSON fixtures found")
+    return runs
+
+
+class TestSarekFixtures:
+    """Validate against real SD-1043 Sarek benchmark data."""
+
+    def test_loads_expected_run_count(self, sarek_fixtures):
+        db = build_database(sarek_fixtures)
+        count = db.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+        assert count == 2  # cpu + g5 fixtures
+
+    def test_tasks_not_empty(self, sarek_fixtures):
+        """Regression: before nested-task fix, all tasks had NULL fields."""
+        db = build_database(sarek_fixtures)
+        count = db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+        assert count > 0
+
+    def test_task_costs_are_nonzero(self, sarek_fixtures):
+        """Regression: nested-task bug caused all costs to be NULL/0."""
+        db = build_database(sarek_fixtures)
+        total = db.execute(
+            "SELECT SUM(cost) FROM tasks WHERE cost IS NOT NULL AND cost > 0"
+        ).fetchone()[0]
+        assert total is not None
+        assert total > 0
+
+    def test_groups_match_expected(self, sarek_fixtures):
+        db = build_database(sarek_fixtures)
+        groups = {
+            r[0]
+            for r in db.execute('SELECT DISTINCT "group" FROM runs').fetchall()
+        }
+        assert groups == {"cpu", "g5"}
+
+    def test_run_costs_query_succeeds(self, sarek_fixtures):
+        """Validates full query_run_costs path doesn't crash."""
+        db = build_database(sarek_fixtures)
+        costs = query_run_costs(db)
+        assert len(costs) == 2
+        for row in costs:
+            assert row["cost"] > 0
