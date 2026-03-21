@@ -1,36 +1,64 @@
 {
   "color": [
-    "#31C9AC",
     "#087F68",
+    "#45a1bf",
     "#201637",
-    "#0BB392",
-    "#055C4B",
-    "#50E3C2",
-    "#CFD0D1",
-    "#8A8B8C"
+    "#f4b548",
+    "#31C9AC",
+    "#8f3d56",
+    "#85c7c6",
+    "#a5cdee",
+    "#d2c6ac",
+    "#46a485"
   ],
   "backgroundColor": "#ffffff",
   "textStyle": {
     "color": "#201637",
-    "fontFamily": "'Lucida Grande', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    "fontFamily": "'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+    "fontSize": 12
   },
   "title": {
     "textStyle": {
       "color": "#201637",
-      "fontSize": 15,
-      "fontWeight": 400
+      "fontSize": 14,
+      "fontWeight": 500
     },
     "subtextStyle": {
-      "color": "#087F68"
+      "color": "#087F68",
+      "fontSize": 12
     },
+    "padding": 0,
+    "itemGap": 7,
+    "top": "1px",
     "left": "center"
+  },
+  "grid": {
+    "left": "1%",
+    "right": "4%",
+    "bottom": "0%",
+    "top": "15%",
+    "containLabel": true
   },
   "legend": {
     "textStyle": {
-      "color": "#201637"
-    }
+      "color": "#666",
+      "fontSize": 11
+    },
+    "icon": "circle",
+    "padding": [0, 0, 0, -7],
+    "animationDurationUpdate": 300
   },
   "tooltip": {
+    "borderRadius": 4,
+    "borderWidth": 1,
+    "borderColor": "#CFD0D1",
+    "textStyle": {
+      "fontSize": 12,
+      "fontWeight": 400,
+      "color": "#201637"
+    },
+    "padding": [6, 8],
+    "backgroundColor": "rgba(255,255,255,0.96)",
     "axisPointer": {
       "lineStyle": {
         "color": "#CFD0D1",
@@ -56,6 +84,8 @@
       }
     }
   },
+  "animationDuration": 500,
+  "animationDurationUpdate": 500,
   "dataZoom": {
     "borderColor": "#CFD0D1",
     "textStyle": {
@@ -157,13 +187,11 @@
       }
     },
     "axisTick": {
-      "show": false,
-      "lineStyle": {
-        "color": "#CFD0D1"
-      }
+      "show": false
     },
     "axisLabel": {
-      "color": "#201637"
+      "color": "#666",
+      "fontSize": 11
     },
     "splitLine": {
       "show": false,
@@ -179,24 +207,20 @@
   },
   "valueAxis": {
     "axisLine": {
-      "show": false,
-      "lineStyle": {
-        "color": "#CFD0D1"
-      }
+      "show": false
     },
     "axisTick": {
-      "show": false,
-      "lineStyle": {
-        "color": "#CFD0D1"
-      }
+      "show": false
     },
     "axisLabel": {
-      "color": "#087F68"
+      "color": "#666",
+      "fontSize": 11
     },
     "splitLine": {
       "show": true,
       "lineStyle": {
-        "color": ["#CFD0D1"]
+        "color": "#E8E8E8",
+        "width": 1
       }
     },
     "splitArea": {
@@ -205,29 +229,25 @@
       }
     },
     "nameTextStyle": {
-      "color": "#087F68"
+      "color": "#666",
+      "fontSize": 11
     }
   },
   "logAxis": {
     "axisLine": {
-      "show": false,
-      "lineStyle": {
-        "color": "#CFD0D1"
-      }
+      "show": false
     },
     "axisTick": {
-      "show": false,
-      "lineStyle": {
-        "color": "#CFD0D1"
-      }
+      "show": false
     },
     "axisLabel": {
-      "color": "#087F68"
+      "color": "#666"
     },
     "splitLine": {
       "show": true,
       "lineStyle": {
-        "color": ["#CFD0D1"]
+        "color": "#E8E8E8",
+        "width": 1
       }
     }
   },
@@ -239,18 +259,16 @@
       }
     },
     "axisTick": {
-      "show": false,
-      "lineStyle": {
-        "color": "#CFD0D1"
-      }
+      "show": false
     },
     "axisLabel": {
-      "color": "#201637"
+      "color": "#666"
     },
     "splitLine": {
       "show": true,
       "lineStyle": {
-        "color": ["#CFD0D1"]
+        "color": "#E8E8E8",
+        "width": 1
       }
     }
   },
@@ -268,7 +286,15 @@
   "bar": {
     "itemStyle": {
       "barBorderWidth": 0,
-      "barBorderColor": "#ffffff"
+      "barBorderColor": "#ffffff",
+      "borderRadius": [2, 2, 2, 2]
+    },
+    "barMaxWidth": 60,
+    "emphasis": {
+      "focus": "series"
+    },
+    "labelLayout": {
+      "hideOverlap": true
     }
   },
   "pie": {
@@ -281,7 +307,10 @@
     "itemStyle": {
       "borderWidth": 0
     },
-    "symbolSize": 8
+    "symbolSize": 8,
+    "emphasis": {
+      "focus": "series"
+    }
   },
   "boxplot": {
     "itemStyle": {
