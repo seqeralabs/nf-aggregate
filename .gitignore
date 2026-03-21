@@ -7,9 +7,6 @@ testing/
 testing*
 *.pyc
 null/
-<<<<<<< HEAD
 .nf-test*
 test.tap
 test.xml
-=======
->>>>>>> aca0dae (initial template build from nf-core/tools, version 3.2.0)
