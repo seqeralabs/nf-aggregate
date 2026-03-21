@@ -4,15 +4,6 @@ Nextflow pipeline to aggregate metrics across Seqera Platform pipeline runs. nf-
 
 ## Architecture
 
-Two parallel reporting paths:
-
-1. **v2 (active)** — `generate_benchmark_report`: nf-boost `request()` → SeqeraApi.groovy → DuckDB → eCharts HTML
-2. **v1 (legacy)** — `generate_benchmark_report_legacy`: tower-cli `tw runs dump` → R/Quarto/renv → HTML
-
-Both coexist. v2 is the primary path going forward.
-
-## Data Flow (v2)
-
 ```
 input CSV (id, workspace, group)
   → SeqeraApi.fetchRunData() in map{} (4 API calls/run: workflow, metrics, tasks, progress)
@@ -21,21 +12,14 @@ input CSV (id, workspace, group)
   → benchmark_report.html (~70KB self-contained)
 ```
 
-## Data Flow (legacy v1 + MultiQC)
-
-```
-input CSV → SEQERA_RUNS_DUMP (tower-cli) → run dump dirs
-  → BENCHMARK_REPORT (R/Quarto, ~2GB container)
-  → PLOT_RUN_GANTT (fusion-only runs, plotly)
-  → MULTIQC (aggregate all run metrics)
-```
+Additional paths (always active):
+- `SEQERA_RUNS_DUMP` (tower-cli) → run dump dirs → `MULTIQC` + `PLOT_RUN_GANTT`
 
 ## Key Params
 
 | Param | Default | Purpose |
 |---|---|---|
-| `generate_benchmark_report` | false | Enable v2 benchmark report |
-| `generate_benchmark_report_legacy` | false | Enable v1 R/Quarto report |
+| `generate_benchmark_report` | false | Enable benchmark report |
 | `benchmark_aws_cur_report` | null | AWS CUR parquet for cost analysis |
 | `seqera_api_endpoint` | `https://api.cloud.seqera.io` | Platform API URL |
 | `skip_run_gantt` | false | Skip Gantt chart generation |
@@ -49,10 +33,6 @@ input CSV → SEQERA_RUNS_DUMP (tower-cli) → run dump dirs
 ## Env Requirements
 
 - `TOWER_ACCESS_TOKEN` — Seqera Platform API token (forwarded via `env {}` block in nextflow.config)
-
-## Branch: `small-nf`
-
-Active development branch. Contains the v2 rewrite + brand enforcement work.
 
 ## Rebuild Command (local testing)
 

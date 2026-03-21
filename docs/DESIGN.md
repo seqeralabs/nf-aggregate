@@ -1,8 +1,8 @@
-# nf-agg v2: API-First Benchmark Reports
+# nf-agg: API-First Benchmark Reports
 
 ## Overview
 
-Replace `tw runs dump` + R/Quarto with nf-boost `request()` + `map` → DuckDB → eCharts. Zero containers for data fetch, one lightweight Python container for report generation.
+nf-boost `request()` + `map` → DuckDB → eCharts. Zero containers for data fetch, one lightweight Python container for report generation.
 
 ## Architecture
 
@@ -19,7 +19,7 @@ Replace `tw runs dump` + R/Quarto with nf-boost `request()` + `map` → DuckDB �
 │           ↓ channel: [meta, workflow_json, tasks_json,  │
 │                       metrics_json, progress_json]     │
 │                                                        │
-│  .collect() ──→ BENCHMARK_REPORT (Python + DuckDB)     │
+│  .collect() ──→ BENCHMARK_REPORT_V2 (Python + DuckDB)   │
 │                  + optional AWS CUR parquet             │
 │                  ↓                                      │
 │             benchmark_report.html (eCharts)             │
@@ -51,7 +51,7 @@ def fetchRun(meta, apiEndpoint) {
 
 ### Step 2: Write JSON → DuckDB in Python process
 
-The `BENCHMARK_REPORT` process receives all JSON data, loads into DuckDB, joins with optional AWS CUR parquet, and renders eCharts HTML.
+The `BENCHMARK_REPORT_V2` process receives all JSON data, loads into DuckDB, joins with optional AWS CUR parquet, and renders eCharts HTML.
 
 #### DuckDB Tables
 
@@ -109,9 +109,9 @@ nextflow run seqeralabs/nf-aggregate --input runs.csv --generate_benchmark_repor
 nf-agg/
 ├── workflows/nf_aggregate/main.nf     # orchestrator
 ├── modules/local/
-│   ├── seqera_runs_dump/               # KEEP for backwards compat
-│   ├── benchmark_report/               # REPLACE with v2
-│   └── plot_run_gantt/                 # KEEP (fusion-only gantt)
+│   ├── seqera_runs_dump/               # tower-cli runs dump + metadata
+│   ├── benchmark_report_v2/            # Python + DuckDB + eCharts
+│   └── plot_run_gantt/                 # fusion-only gantt
 ├── lib/
 │   └── SeqeraApi.groovy                # nf-boost request() wrappers
 ├── bin/
@@ -126,11 +126,6 @@ nf-agg/
 
 **Nextflow plugins**: nf-boost (for `request`, `fromJson`, `toJson`)
 **Python container**: duckdb, jinja2, pyarrow (for parquet)
-**Zero**: R, Quarto, renv, tower-cli
+**Not required**: R, Quarto, renv
 
-## Migration
 
-1. Add nf-boost plugin, implement API fetch in `map`
-2. New BENCHMARK_REPORT_V2 process (Python + DuckDB + eCharts)
-3. Wire into workflow alongside existing modules
-4. Deprecate old R-based BENCHMARK_REPORT

@@ -8,11 +8,10 @@ Main orchestrator workflow. Takes: ids channel, multiqc config/logo, API endpoin
 
 1. **Always:** `SEQERA_RUNS_DUMP` → collects run dumps for MultiQC + Gantt
 2. **Fusion runs + !skip_run_gantt:** `PLOT_RUN_GANTT` per fusion-enabled run
-3. **generate_benchmark_report (v2):** `SeqeraApi.fetchRunData()` in `map{}` → collect JSONs → `BENCHMARK_REPORT_V2`
-4. **generate_benchmark_report_legacy (v1):** `BENCHMARK_REPORT` from run dumps (R/Quarto)
-5. **!skip_multiqc:** `MULTIQC` aggregating all run dumps + version info
+3. **generate_benchmark_report:** `SeqeraApi.fetchRunData()` in `map{}` → collect JSONs → `BENCHMARK_REPORT_V2`
+4. **!skip_multiqc:** `MULTIQC` aggregating all run dumps + version info
 
-### v2 Data Collection Pattern
+### Data Collection Pattern
 
 ```nextflow
 ids.map { meta ->
