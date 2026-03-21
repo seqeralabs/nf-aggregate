@@ -8,7 +8,45 @@ from datetime import datetime
 
 import duckdb
 import typer
+import yaml
 from jinja2 import Environment, BaseLoader
+
+
+def load_brand(brand_path: Path | None = None) -> dict:
+    """Load brand.yml and return flat color map with defaults."""
+    defaults = {
+        "accent": "#087F68",
+        "accent_light": "#31C9AC",
+        "accent_surface": "#E2F7F3",
+        "heading": "#201637",
+        "border": "#CFD0D1",
+        "neutral": "#F7F7F7",
+        "white": "#ffffff",
+        "palette": [
+            "#31C9AC", "#087F68", "#3D95FD", "#F18046",
+            "#7B61FF", "#D0021B", "#50E3C2", "#E85D75",
+        ],
+    }
+    if brand_path and brand_path.exists():
+        with brand_path.open() as f:
+            raw = yaml.safe_load(f) or {}
+        colors = raw.get("colors", {})
+        gp = colors.get("green_palette", {})
+        ns = colors.get("neutrals", {})
+        bs = colors.get("brand_surface", {})
+        if h := gp.get("deep_green", {}).get("hex"):
+            defaults["accent"] = h
+        if h := gp.get("seqera_green", {}).get("hex"):
+            defaults["accent_light"] = h
+        if h := gp.get("soft_green", {}).get("hex"):
+            defaults["accent_surface"] = h
+        if h := ns.get("brand_dark", {}).get("hex"):
+            defaults["heading"] = h
+        if h := ns.get("border_layout", {}).get("hex"):
+            defaults["border"] = h
+        if h := ns.get("neutral", {}).get("hex"):
+            defaults["neutral"] = h
+    return defaults
 
 
 def fetch_dicts(db: duckdb.DuckDBPyConnection, sql: str) -> list[dict]:
@@ -381,12 +419,16 @@ def query_cost_overview(db: duckdb.DuckDBPyConnection) -> list[dict] | None:
     """)
 
 
-def render_report(data: dict, output_path: str) -> None:
+def render_report(data: dict, output_path: str, brand: dict | None = None) -> None:
+    brand = brand or load_brand()
     env = Environment(loader=BaseLoader())
     template = env.from_string(REPORT_TEMPLATE)
     html = template.render(
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         data_json=json.dumps(data, default=str),
+        brand_accent=brand["accent"],
+        brand_accent_surface=brand["accent_surface"],
+        brand_palette=brand["palette"],
         **data,
     )
     Path(output_path).write_text(html)
@@ -406,7 +448,7 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
          background: #fff; color: #333; line-height: 1.6; font-size: 14px; }
   .container { max-width: 1200px; margin: 0 auto; padding: 0 15px; }
 
-  .navbar { background: #fff; border-bottom: 3px solid #4256e7; padding: 10px 0; margin-bottom: 30px; }
+  .navbar { background: #fff; border-bottom: 3px solid {{ brand_accent }}; padding: 10px 0; margin-bottom: 30px; }
   .navbar .container { display: flex; align-items: center; justify-content: space-between; }
   .navbar-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #333; }
   .navbar-brand svg { height: 28px; }
@@ -428,7 +470,7 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
   .gs-table td { padding: 5px 10px; border-bottom: 1px solid #eee; text-align: center; white-space: nowrap; }
   .gs-table td:first-child { text-align: left; font-weight: 600; }
   .gs-table tr:hover td { background: #f9f9f9; }
-  .gs-table a { color: #4256e7; text-decoration: none; }
+  .gs-table a { color: {{ brand_accent }}; text-decoration: none; }
 
   .chart { width: 100%; height: 400px; margin-bottom: 20px; }
   .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
@@ -452,19 +494,19 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 
   footer { border-top: 1px solid #eee; padding: 15px 0; margin-top: 40px;
            font-size: 12px; color: #999; text-align: center; }
-  footer a { color: #4256e7; text-decoration: none; }
+  footer a { color: {{ brand_accent }}; text-decoration: none; }
 
   .side-nav { position: fixed; top: 50px; left: 0; width: 220px; padding: 15px 10px;
               background: #fafafa; border-right: 1px solid #eee; height: calc(100vh - 50px);
               overflow-y: auto; font-size: 12px; z-index: 100; }
   .side-nav a { display: block; padding: 4px 8px; color: #555; text-decoration: none;
                 border-left: 3px solid transparent; }
-  .side-nav a:hover, .side-nav a.active { color: #4256e7; border-left-color: #4256e7; }
+  .side-nav a:hover, .side-nav a.active { color: {{ brand_accent }}; border-left-color: {{ brand_accent }}; }
   .side-nav a.l2 { padding-left: 20px; color: #777; font-size: 11px; }
   .side-nav a.l3 { padding-left: 32px; color: #999; font-size: 11px; }
   .main-content { margin-left: 220px; }
 
-  .csv-btn { float: right; font-size: 11px; color: #4256e7; cursor: pointer; border: 1px solid #ddd;
+  .csv-btn { float: right; font-size: 11px; color: {{ brand_accent }}; cursor: pointer; border: 1px solid #ddd;
              background: #fff; padding: 2px 10px; border-radius: 3px; text-decoration: none; }
   .csv-btn:hover { background: #f5f5f5; }
 
@@ -629,7 +671,7 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 
 <script>
 const DATA = {{ data_json }};
-const COLORS = ['#0DC09D', '#3D95FD', '#F18046', '#D0021B', '#7B61FF', '#50E3C2', '#E85D75', '#4A90D9'];
+const COLORS = {{ brand_palette | tojson }};
 
 function fmtDuration(ms) {
   if (ms == null || ms === 0) return '—';
@@ -764,7 +806,7 @@ function hbarChart(elId, title, labels, values, opts) {
     yAxis: { type: 'category', data: labels.slice().reverse(),
              axisLabel: { color: '#333', fontSize: 11 }, axisLine: { show: false }, axisTick: { show: false } },
     series: opts.series || [{ type: 'bar', data: values.slice().reverse(), barMaxWidth: 24,
-      itemStyle: { color: opts.color || '#4256e7' } }],
+      itemStyle: { color: opts.color || '{{ brand_accent }}' } }],
     backgroundColor: 'transparent',
   });
 }
@@ -1065,7 +1107,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
       xAxis: { type: 'value', name: 'Cost ($)', axisLabel: { color: '#666' },
                nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
       series: [{ type: 'boxplot', data: boxData,
-                 itemStyle: { color: '#d9edf7', borderColor: '#4256e7' } }],
+                 itemStyle: { color: '{{ brand_accent_surface }}', borderColor: '{{ brand_accent }}' } }],
       backgroundColor: 'transparent',
     });
   }, 150);
@@ -1133,6 +1175,7 @@ def main(
     costs: Path | None = typer.Option(None, help="AWS CUR parquet file"),
     output: Path = typer.Option(Path("benchmark_report.html"), help="Output HTML file"),
     remove_failed: bool = typer.Option(True, help="Exclude failed tasks from analysis"),
+    brand: Path | None = typer.Option(None, help="Brand YAML file for report colors"),
 ) -> None:
     """Generate a benchmark report from Seqera Platform API data."""
     runs = load_run_data(data_dir)
@@ -1146,6 +1189,8 @@ def main(
     if remove_failed:
         db.execute("DELETE FROM tasks WHERE status != 'COMPLETED' AND status != 'CACHED'")
 
+    brand_colors = load_brand(brand)
+
     data = {
         "benchmark_overview": query_benchmark_overview(db),
         "run_summary": query_run_summary(db),
@@ -1158,7 +1203,7 @@ def main(
         "cost_overview": query_cost_overview(db),
     }
 
-    render_report(data, str(output))
+    render_report(data, str(output), brand_colors)
     typer.echo(f"Report written to {output}")
 
 

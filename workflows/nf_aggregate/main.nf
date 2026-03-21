@@ -88,6 +88,7 @@ workflow NF_AGGREGATE {
         BENCHMARK_REPORT_V2(
             ch_data_dir,
             aws_cur_report,
+            file("${projectDir}/assets/brand.yml", checkIfExists: true),
         )
         ch_versions = ch_versions.mix(BENCHMARK_REPORT_V2.out.versions)
     }
