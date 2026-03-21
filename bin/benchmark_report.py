@@ -824,19 +824,17 @@ function hbarChart(elId, title, labels, values, opts) {
   if (!el) return;
   const height = Math.max(250, labels.length * 40 + 80);
   el.style.height = height + 'px';
-  echarts.init(el).setOption({
-    title: { text: title, textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
+  echarts.init(el, 'seqera').setOption({
+    title: { text: title },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
       formatter: opts.formatter || (p => p[0].name + ': ' + (opts.prefix||'') +
         p[0].value.toLocaleString(undefined, {maximumFractionDigits:2}) + (opts.suffix||'')) },
     grid: { left: 250, right: 40, top: 40, bottom: 20 },
-    xAxis: { type: 'value', name: opts.xName || '', axisLabel: { color: '{{ brand_accent }}' },
-             nameTextStyle: { color: '{{ brand_border }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
+    xAxis: { type: 'value', name: opts.xName || '' },
     yAxis: { type: 'category', data: labels.slice().reverse(),
-             axisLabel: { color: '{{ brand_heading }}', fontSize: 11 }, axisLine: { show: false }, axisTick: { show: false } },
+             axisLabel: { fontSize: 11 } },
     series: opts.series || [{ type: 'bar', data: values.slice().reverse(), barMaxWidth: 24,
-      itemStyle: { color: opts.color || '{{ brand_accent }}' } }],
-    backgroundColor: 'transparent',
+      itemStyle: opts.color ? { color: opts.color } : undefined }],
   });
 }
 
@@ -845,19 +843,18 @@ function hbarStacked(elId, title, labels, seriesDefs) {
   if (!el) return;
   const height = Math.max(250, labels.length * 40 + 80);
   el.style.height = height + 'px';
-  echarts.init(el).setOption({
-    title: { text: title, textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
+  echarts.init(el, 'seqera').setOption({
+    title: { text: title },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { bottom: 0, textStyle: { color: '{{ brand_accent }}' } },
+    legend: { bottom: 0 },
     grid: { left: 250, right: 40, top: 40, bottom: 40 },
-    xAxis: { type: 'value', axisLabel: { color: '{{ brand_accent }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
+    xAxis: { type: 'value' },
     yAxis: { type: 'category', data: labels.slice().reverse(),
-             axisLabel: { color: '{{ brand_heading }}', fontSize: 11 }, axisLine: { show: false }, axisTick: { show: false } },
+             axisLabel: { fontSize: 11 } },
     series: seriesDefs.map(s => ({
       name: s.name, type: 'bar', stack: 'total', barMaxWidth: 24,
       data: s.data.slice().reverse(), itemStyle: { color: s.color },
     })),
-    backgroundColor: 'transparent',
   });
 }
 
@@ -870,36 +867,36 @@ function hbarStacked(elId, title, labels, seriesDefs) {
   // Wall time
   hbarChart('chart-wall-time', 'Wall time', labels,
     metrics.map(r => +(r.duration / 3600000).toFixed(2)),
-    { xName: 'Hours', suffix: ' h', color: '{{ brand_accent }}' });
+    { xName: 'Hours', suffix: ' h' });
 
   // CPU time
   hbarChart('chart-cpu-time', 'CPU time', labels,
     metrics.map(r => +(r.cpuTime || 0)),
-    { xName: 'CPU Hours', suffix: ' h', color: '{{ brand_accent_light }}' });
+    { xName: 'CPU Hours', suffix: ' h' });
 
   // Estimated cost
   hbarChart('chart-est-cost', 'Compute cost', labels,
     metrics.map(r => { const c = costs.find(x => x.run_id === r.run_id); return c ? +c.cost : 0; }),
-    { xName: '$', prefix: '$', color: '{{ brand_heading }}' });
+    { xName: '$', prefix: '$' });
 
-  // Workflow status
+  // Workflow status — explicit colors for semantic meaning
   const summaryRuns = DATA.run_summary || [];
   hbarStacked('chart-workflow-status', 'Workflow status', labels, [
-    { name: 'Succeeded', data: summaryRuns.map(r => r.succeedCount || 0), color: '{{ brand_accent_light }}' },
-    { name: 'Failed', data: summaryRuns.map(r => r.failedCount || 0), color: '{{ brand_heading }}' },
+    { name: 'Succeeded', data: summaryRuns.map(r => r.succeedCount || 0), color: COLORS[0] },
+    { name: 'Failed', data: summaryRuns.map(r => r.failedCount || 0), color: COLORS[2] },
   ]);
 
   // Efficiency
   hbarChart('chart-cpu-eff', 'CPU efficiency', labels,
-    metrics.map(r => +(r.cpuEfficiency || 0)), { xName: '%', suffix: '%', color: '{{ brand_accent }}' });
+    metrics.map(r => +(r.cpuEfficiency || 0)), { xName: '%', suffix: '%' });
   hbarChart('chart-mem-eff', 'Memory efficiency', labels,
-    metrics.map(r => +(r.memoryEfficiency || 0)), { xName: '%', suffix: '%', color: '{{ brand_accent_light }}' });
+    metrics.map(r => +(r.memoryEfficiency || 0)), { xName: '%', suffix: '%' });
 
   // I/O
   hbarChart('chart-read-io', 'Data read', labels,
-    metrics.map(r => +(r.readBytes || 0)), { xName: 'GB', suffix: ' GB', color: '{{ brand_accent }}' });
+    metrics.map(r => +(r.readBytes || 0)), { xName: 'GB', suffix: ' GB' });
   hbarChart('chart-write-io', 'Data written', labels,
-    metrics.map(r => +(r.writeBytes || 0)), { xName: 'GB', suffix: ' GB', color: '{{ brand_accent_light }}' });
+    metrics.map(r => +(r.writeBytes || 0)), { xName: 'GB', suffix: ' GB' });
 })();
 
 // ── 3. Process overview (dot + errorbar per group) ───
@@ -997,37 +994,33 @@ function hbarStacked(elId, title, labels, seriesDefs) {
     });
 
     setTimeout(() => {
-      echarts.init(rtEl).setOption({
-        title: { text: 'Run time per process', textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
+      echarts.init(rtEl, 'seqera').setOption({
+        title: { text: 'Run time per process' },
         tooltip: { trigger: 'item',
           formatter: p => {
             if (p.seriesType === 'custom') return '';
             return `<strong>${processes[p.data[1]]}</strong><br>${p.seriesName}: ${p.data[0].toFixed(1)} min`;
           }
         },
-        legend: { data: groups, bottom: 0, textStyle: { color: '{{ brand_accent }}' } },
+        legend: { data: groups, bottom: 0 },
         grid: { left: 350, right: 40, top: 40, bottom: 40 },
-        xAxis: { type: 'value', name: 'Run time (minutes)', axisLabel: { color: '{{ brand_accent }}' },
-                 nameTextStyle: { color: '{{ brand_border }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
+        xAxis: { type: 'value', name: 'Run time (minutes)' },
         yAxis: { type: 'category', data: processes,
-                 axisLabel: { color: '{{ brand_heading }}', fontSize: 9, width: 320, overflow: 'truncate' },
-                 axisLine: { show: false }, axisTick: { show: false }, inverse: true },
+                 axisLabel: { fontSize: 9, width: 320, overflow: 'truncate' },
+                 inverse: true },
         series: [...series, ...errorSeries],
-        backgroundColor: 'transparent',
       });
 
-      echarts.init(costEl).setOption({
-        title: { text: 'Total process cost ($)', textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
+      echarts.init(costEl, 'seqera').setOption({
+        title: { text: 'Total process cost ($)' },
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-        legend: { data: groups, bottom: 0, textStyle: { color: '{{ brand_accent }}' } },
+        legend: { data: groups, bottom: 0 },
         grid: { left: 350, right: 40, top: 40, bottom: 40 },
-        xAxis: { type: 'value', name: 'Cost ($)', axisLabel: { color: '{{ brand_accent }}' },
-                 nameTextStyle: { color: '{{ brand_border }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
+        xAxis: { type: 'value', name: 'Cost ($)' },
         yAxis: { type: 'category', data: processes,
-                 axisLabel: { color: '{{ brand_heading }}', fontSize: 9, width: 320, overflow: 'truncate' },
-                 axisLine: { show: false }, axisTick: { show: false }, inverse: true },
+                 axisLabel: { fontSize: 9, width: 320, overflow: 'truncate' },
+                 inverse: true },
         series: costSeries,
-        backgroundColor: 'transparent',
       });
     }, 50);
   });
@@ -1045,15 +1038,14 @@ function hbarStacked(elId, title, labels, seriesDefs) {
   const height = Math.max(300, groups.length * 60 + 100);
   el.style.height = height + 'px';
 
-  echarts.init(el).setOption({
-    title: { text: 'Instance type usage', textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
+  echarts.init(el, 'seqera').setOption({
+    title: { text: 'Instance type usage' },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { data: instanceTypes, bottom: 0, textStyle: { color: '{{ brand_accent }}', fontSize: 10 }, type: 'scroll' },
+    legend: { data: instanceTypes, bottom: 0, fontSize: 10, type: 'scroll' },
     grid: { left: 180, right: 40, top: 40, bottom: 60 },
-    xAxis: { type: 'value', name: 'Number of tasks', axisLabel: { color: '{{ brand_accent }}' },
-             splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
+    xAxis: { type: 'value', name: 'Number of tasks' },
     yAxis: { type: 'category', data: groups.slice().reverse(),
-             axisLabel: { color: '{{ brand_heading }}', fontSize: 12 }, axisLine: { show: false }, axisTick: { show: false } },
+             axisLabel: { fontSize: 12 } },
     series: instanceTypes.map(t => ({
       name: t, type: 'bar', stack: 'total', barMaxWidth: 30,
       data: groups.slice().reverse().map(g => {
@@ -1062,7 +1054,6 @@ function hbarStacked(elId, title, labels, seriesDefs) {
       }),
       itemStyle: { color: instanceColors[t] },
     })),
-    backgroundColor: 'transparent',
   });
 })();
 
@@ -1081,22 +1072,19 @@ function hbarStacked(elId, title, labels, seriesDefs) {
   container.appendChild(scatterEl);
 
   setTimeout(() => {
-    echarts.init(scatterEl).setOption({
-      title: { text: 'Task real time vs staging time', textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
+    echarts.init(scatterEl, 'seqera').setOption({
+      title: { text: 'Task real time vs staging time' },
       tooltip: { trigger: 'item',
         formatter: p => `<strong>${p.data[3]}</strong><br>Real time: ${p.data[0].toFixed(1)} min<br>Staging: ${p.data[1].toFixed(1)} min<br>Cost: $${p.data[2].toFixed(4)}` },
-      legend: { data: groups, textStyle: { color: '{{ brand_accent }}' }, bottom: 0 },
+      legend: { data: groups, bottom: 0 },
       grid: { left: 70, right: 40, top: 50, bottom: 60 },
-      xAxis: { type: 'value', name: 'Task real time (minutes)', axisLabel: { color: '{{ brand_accent }}' },
-               nameTextStyle: { color: '{{ brand_border }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
-      yAxis: { type: 'value', name: 'Task staging time (minutes)', axisLabel: { color: '{{ brand_accent }}' },
-               nameTextStyle: { color: '{{ brand_border }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
+      xAxis: { type: 'value', name: 'Task real time (minutes)' },
+      yAxis: { type: 'value', name: 'Task staging time (minutes)' },
       series: groups.map((g, i) => ({
         name: g, type: 'scatter', symbolSize: 6,
         data: tasks.filter(t => t.group === g).map(t => [t.realtime_min||0, t.staging_min||0, t.cost||0, t.process_short]),
         itemStyle: { color: groupColor[g] },
       })),
-      backgroundColor: 'transparent',
       dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 25, height: 20 }],
     });
   }, 100);
@@ -1126,18 +1114,15 @@ function hbarStacked(elId, title, labels, seriesDefs) {
       }
     });
 
-    echarts.init(costBoxEl).setOption({
-      title: { text: 'Task cost ($) per process', textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
+    echarts.init(costBoxEl, 'seqera').setOption({
+      title: { text: 'Task cost ($) per process' },
       tooltip: { trigger: 'item' },
       grid: { left: 250, right: 40, top: 40, bottom: 20 },
       yAxis: { type: 'category', data: processes,
-               axisLabel: { color: '{{ brand_heading }}', fontSize: 9, width: 220, overflow: 'truncate' },
-               axisLine: { show: false }, axisTick: { show: false }, inverse: true },
-      xAxis: { type: 'value', name: 'Cost ($)', axisLabel: { color: '{{ brand_accent }}' },
-               nameTextStyle: { color: '{{ brand_border }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
-      series: [{ type: 'boxplot', data: boxData,
-                 itemStyle: { color: '{{ brand_accent_surface }}', borderColor: '{{ brand_accent }}' } }],
-      backgroundColor: 'transparent',
+               axisLabel: { fontSize: 9, width: 220, overflow: 'truncate' },
+               inverse: true },
+      xAxis: { type: 'value', name: 'Cost ($)' },
+      series: [{ type: 'boxplot', data: boxData }],
     });
   }, 150);
 
