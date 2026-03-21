@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate benchmark report from Seqera Platform API JSON data using DuckDB + eCharts."""
+"""Generate benchmark report matching the Quarto/R reference, using Python + DuckDB + eCharts."""
 
 import json
 import sys
@@ -8,7 +8,7 @@ from datetime import datetime
 
 import click
 import duckdb
-from jinja2 import Environment, FileSystemLoader, BaseLoader
+from jinja2 import Environment, BaseLoader
 
 
 def fetch_dicts(db: duckdb.DuckDBPyConnection, sql: str) -> list[dict]:
@@ -19,13 +19,11 @@ def fetch_dicts(db: duckdb.DuckDBPyConnection, sql: str) -> list[dict]:
 
 
 def table_exists(db: duckdb.DuckDBPyConnection, name: str) -> bool:
-    """Check if a table exists in the database."""
     tables = [row[0] for row in db.execute("SHOW TABLES").fetchall()]
     return name in tables
 
 
 def load_run_data(data_dir: Path) -> list[dict]:
-    """Load all run JSON files from the data directory."""
     runs = []
     for run_file in sorted(data_dir.glob("*.json")):
         with run_file.open() as f:
@@ -33,16 +31,28 @@ def load_run_data(data_dir: Path) -> list[dict]:
     return runs
 
 
+def _write_tmp_json(rows: list[dict], name: str) -> str:
+    import tempfile, os
+    path = os.path.join(tempfile.gettempdir(), f"nfagg_{name}.json")
+    with open(path, "w") as f:
+        json.dump(rows, f)
+    return path
+
+
 def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.DuckDBPyConnection:
     """Build DuckDB in-memory database from run data."""
     db = duckdb.connect()
 
-    # -- runs table --
+    # ── runs table ──
     run_rows = []
     for r in runs:
         wf = r["workflow"]
         prog = r.get("progress", {}).get("workflowProgress", {})
         stats = wf.get("stats", {})
+        config = wf.get("configProfiles", "")
+        launch = r.get("launch", {}) or {}
+        ce = r.get("computeEnv", {}) or {}
+
         fusion_enabled = False
         if wf.get("fusion"):
             fusion_enabled = wf["fusion"].get("enabled", False)
@@ -52,6 +62,7 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
             "group": r["meta"]["group"],
             "pipeline": (wf.get("projectName") or wf.get("repository", "").split("/")[-1] or "unknown"),
             "run_name": wf.get("runName", ""),
+            "username": wf.get("userName", ""),
             "status": wf.get("status", ""),
             "start": wf.get("start"),
             "complete": wf.get("complete"),
@@ -65,19 +76,21 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
             "read_bytes": prog.get("readBytes", 0),
             "write_bytes": prog.get("writeBytes", 0),
             "fusion_enabled": fusion_enabled,
+            "wave_enabled": bool(wf.get("wave", {}).get("enabled", False)) if wf.get("wave") else False,
             "command_line": wf.get("commandLine", ""),
             "revision": wf.get("revision", ""),
             "container_engine": wf.get("containerEngine", ""),
+            "nextflow_version": wf.get("nextflow", {}).get("version", "") if wf.get("nextflow") else "",
+            "executor": ce.get("executor", wf.get("executor", "")),
+            "region": ce.get("region", ""),
+            "pipeline_version": wf.get("revision", ""),
+            "platform_version": launch.get("platformVersion", ""),
         })
 
-    import tempfile, os
-    # DuckDB read_json_auto needs a file path, not a string
-    runs_tmp = os.path.join(tempfile.gettempdir(), "nfagg_runs.json")
-    with open(runs_tmp, "w") as f:
-        json.dump(run_rows, f)
-    db.execute(f"CREATE TABLE runs AS SELECT * FROM read_json_auto('{runs_tmp}')")
+    path = _write_tmp_json(run_rows, "runs")
+    db.execute(f"CREATE TABLE runs AS SELECT * FROM read_json_auto('{path}')")
 
-    # -- tasks table --
+    # ── tasks table ──
     task_rows = []
     for r in runs:
         run_id = r["workflow"]["id"]
@@ -109,17 +122,24 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
                 "machine_type": t.get("machineType", ""),
                 "cloud_zone": t.get("cloudZone", ""),
                 "exit_status": t.get("exitStatus"),
+                "vol_ctxt": t.get("volCtxt", 0),
+                "inv_ctxt": t.get("invCtxt", 0),
             })
 
     if task_rows:
-        tasks_tmp = os.path.join(tempfile.gettempdir(), "nfagg_tasks.json")
-        with open(tasks_tmp, "w") as f:
-            json.dump(task_rows, f)
-        db.execute(f"CREATE TABLE tasks AS SELECT * FROM read_json_auto('{tasks_tmp}')")
-        # Add derived columns
+        path = _write_tmp_json(task_rows, "tasks")
+        db.execute(f"CREATE TABLE tasks AS SELECT * FROM read_json_auto('{path}')")
         db.execute("""
             ALTER TABLE tasks ADD COLUMN process_short VARCHAR;
             UPDATE tasks SET process_short = split_part(process, ':', -1);
+        """)
+        # Add wait_ms and staging_ms derived columns
+        db.execute("""
+            ALTER TABLE tasks ADD COLUMN wait_ms BIGINT DEFAULT 0;
+            ALTER TABLE tasks ADD COLUMN staging_ms BIGINT DEFAULT 0;
+            UPDATE tasks SET
+                wait_ms = GREATEST(0, COALESCE(duration_ms - realtime_ms, 0)),
+                staging_ms = GREATEST(0, COALESCE(duration_ms - realtime_ms - wait_ms, 0));
         """)
     else:
         db.execute("""
@@ -131,11 +151,12 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
                 cpus INTEGER, memory_bytes BIGINT, pcpu DOUBLE, pmem DOUBLE,
                 rss BIGINT, peak_rss BIGINT, read_bytes BIGINT, write_bytes BIGINT,
                 cost DOUBLE, executor VARCHAR, machine_type VARCHAR, cloud_zone VARCHAR,
-                exit_status INTEGER, process_short VARCHAR
+                exit_status INTEGER, vol_ctxt BIGINT, inv_ctxt BIGINT,
+                process_short VARCHAR, wait_ms BIGINT, staging_ms BIGINT
             )
         """)
 
-    # -- metrics table (per-process box plot stats from /metrics endpoint) --
+    # ── metrics table ──
     metrics_rows = []
     for r in runs:
         run_id = r["workflow"]["id"]
@@ -149,12 +170,10 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
             metrics_rows.append(row)
 
     if metrics_rows:
-        metrics_tmp = os.path.join(tempfile.gettempdir(), "nfagg_metrics.json")
-        with open(metrics_tmp, "w") as f:
-            json.dump(metrics_rows, f)
-        db.execute(f"CREATE TABLE metrics AS SELECT * FROM read_json_auto('{metrics_tmp}')")
+        path = _write_tmp_json(metrics_rows, "metrics")
+        db.execute(f"CREATE TABLE metrics AS SELECT * FROM read_json_auto('{path}')")
 
-    # -- costs table (optional AWS CUR parquet) --
+    # ── costs table (optional AWS CUR parquet) ──
     if cur_path and Path(cur_path).exists():
         db.execute(f"""
             CREATE TABLE costs AS
@@ -178,77 +197,168 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
     return db
 
 
-def query_benchmark_overview(db: duckdb.DuckDBPyConnection) -> dict:
-    """Grouped summary stats per group for overview charts."""
+# ── Query functions matching old report sections ──────────────────────────────
+
+def query_benchmark_overview(db: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Pipeline × group matrix for benchmark overview."""
+    return fetch_dicts(db, """
+        SELECT pipeline, "group", run_id
+        FROM runs ORDER BY pipeline, "group"
+    """)
+
+
+def query_run_summary(db: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Run summary table (infrastructure settings)."""
     return fetch_dicts(db, """
         SELECT
-            "group",
-            pipeline,
-            COUNT(*) AS n_runs,
-            AVG(duration_ms) / 1000.0 / 60.0 AS avg_duration_min,
-            AVG(cpu_efficiency) AS avg_cpu_efficiency,
-            AVG(memory_efficiency) AS avg_memory_efficiency,
-            SUM(cpu_time_ms) / 1000.0 / 3600.0 AS total_cpu_hours,
-            SUM(read_bytes) / 1e9 AS total_read_gb,
-            SUM(write_bytes) / 1e9 AS total_write_gb,
+            pipeline, "group", run_id, username,
+            pipeline_version AS "Version",
+            nextflow_version AS "Nextflow_version",
+            platform_version AS "platform_version",
+            succeeded AS "succeedCount",
+            failed AS "failedCount",
+            executor, region,
+            fusion_enabled, wave_enabled,
+            container_engine,
         FROM runs
-        GROUP BY "group", pipeline
         ORDER BY "group"
     """)
 
 
-def query_run_overview(db: duckdb.DuckDBPyConnection) -> list[dict]:
-    """Per-run summary table."""
+def query_run_metrics(db: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Run metrics table matching run_overview.csv schema."""
     return fetch_dicts(db, """
         SELECT
-            run_id,
-            "group",
-            pipeline,
-            run_name,
-            status,
-            start,
-            complete,
-            duration_ms / 1000.0 / 60.0 AS duration_min,
-            succeeded,
-            failed,
-            cached,
-            ROUND(cpu_efficiency, 1) AS cpu_efficiency,
-            ROUND(memory_efficiency, 1) AS memory_efficiency,
-            fusion_enabled,
+            pipeline, "group", run_id,
+            CAST(duration_ms AS BIGINT) AS duration,
+            ROUND(CAST(cpu_time_ms AS DOUBLE) / 1000.0 / 3600.0, 1) AS "cpuTime",
+            CAST(cpu_time_ms AS BIGINT) AS pipeline_runtime,
+            ROUND(CAST(cpu_efficiency AS DOUBLE), 0) AS "cpuEfficiency",
+            ROUND(CAST(memory_efficiency AS DOUBLE), 2) AS "memoryEfficiency",
+            ROUND(CAST(read_bytes AS DOUBLE) / 1e9, 0) AS "readBytes",
+            ROUND(CAST(write_bytes AS DOUBLE) / 1e9, 0) AS "writeBytes",
         FROM runs
-        ORDER BY "group", start
+        ORDER BY "group"
     """)
 
 
-def query_process_overview(db: duckdb.DuckDBPyConnection) -> list[dict]:
-    """Per-process metrics (box plot data from /metrics endpoint)."""
-    if not table_exists(db, "metrics"):
-        return []
+def query_run_costs(db: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Per-run cost from task-level sums + optional CUR costs."""
+    has_cur = table_exists(db, "costs")
+    if has_cur:
+        return fetch_dicts(db, """
+            SELECT
+                r.run_id,
+                r."group",
+                ROUND(SUM(COALESCE(c.cost, t.cost, 0)), 2) AS cost,
+                ROUND(SUM(COALESCE(c.used_cost, t.cost, 0)), 2) AS used_cost,
+                ROUND(SUM(COALESCE(c.unused_cost, 0)), 2) AS unused_cost,
+            FROM runs r
+            LEFT JOIN tasks t ON r.run_id = t.run_id
+            LEFT JOIN costs c ON t.run_id = c.run_id AND LEFT(t.hash, 8) = c.hash
+            GROUP BY r.run_id, r."group"
+            ORDER BY r."group"
+        """)
     return fetch_dicts(db, """
-        SELECT * FROM metrics
-        ORDER BY process
+        SELECT
+            r.run_id,
+            r."group",
+            ROUND(SUM(COALESCE(t.cost, 0)), 2) AS cost,
+            NULL AS used_cost,
+            NULL AS unused_cost,
+        FROM runs r
+        LEFT JOIN tasks t ON r.run_id = t.run_id
+        GROUP BY r.run_id, r."group"
+        ORDER BY r."group"
     """)
 
 
-def query_task_overview(db: duckdb.DuckDBPyConnection) -> list[dict]:
-    """Task-level data for scatter plots."""
+def query_process_stats(db: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Per-process mean ± SD of run time and cost, grouped by group + pipeline."""
+    return fetch_dicts(db, """
+        SELECT
+            "group",
+            process AS process_name,
+            process_short,
+            COUNT(*) AS n_tasks,
+            AVG((COALESCE(duration_ms, 0) - realtime_ms) / 60000.0) AS avg_staging_min,
+            STDDEV_SAMP((COALESCE(duration_ms, 0) - realtime_ms) / 60000.0) AS sd_staging_min,
+            AVG(realtime_ms / 60000.0) AS avg_realtime_min,
+            STDDEV_SAMP(realtime_ms / 60000.0) AS sd_realtime_min,
+            AVG((COALESCE(duration_ms, 0)) / 60000.0) AS avg_runtime_min,
+            STDDEV_SAMP((COALESCE(duration_ms, 0)) / 60000.0) AS sd_runtime_min,
+            AVG(COALESCE(cost, 0)) AS avg_cost,
+            STDDEV_SAMP(COALESCE(cost, 0)) AS sd_cost,
+            SUM(COALESCE(cost, 0)) AS total_cost,
+        FROM tasks
+        WHERE status = 'COMPLETED'
+        GROUP BY "group", process, process_short
+        ORDER BY avg_runtime_min DESC
+    """)
+
+
+def query_task_instance_usage(db: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Instance type counts per group for stacked bar chart."""
+    return fetch_dicts(db, """
+        SELECT
+            "group",
+            machine_type,
+            COUNT(*) AS count
+        FROM tasks
+        WHERE status = 'COMPLETED' AND machine_type IS NOT NULL AND machine_type != ''
+        GROUP BY "group", machine_type
+        ORDER BY "group", count DESC
+    """)
+
+
+def query_task_table(db: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Full task table matching task_table.csv schema."""
+    return fetch_dicts(db, """
+        SELECT
+            "group" AS "Group",
+            run_id AS "Run ID",
+            LEFT(hash, 9) AS "Taskhash",
+            process_short AS "Task name short",
+            executor AS "Executor",
+            cloud_zone AS "Cloudzone",
+            machine_type AS "Instance type",
+            realtime_ms / 60000.0 AS "Realtime_min",
+            realtime_ms AS "Realtime_ms",
+            duration_ms AS "Duration_ms",
+            COALESCE(cost, 0) AS "Cost",
+            cpus AS "CPUused",
+            ROUND(memory_bytes / 1e9, 0) AS "Memoryused_GB",
+            pcpu AS "Pcpu",
+            pmem AS "Pmem",
+            rss AS "Rss",
+            read_bytes AS "Readbytes",
+            write_bytes AS "Writebytes",
+            vol_ctxt AS "VolCtxt",
+            inv_ctxt AS "InvCtxt",
+            name AS "Task name",
+            status AS "Status",
+        FROM tasks
+        WHERE status = 'COMPLETED'
+        ORDER BY "group", process_short, name
+    """)
+
+
+def query_task_scatter(db: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Task scatter data: realtime vs staging time, colored by group."""
     return fetch_dicts(db, """
         SELECT
             run_id,
             "group",
             process_short,
             name,
-            status,
-            duration_ms / 1000.0 AS duration_s,
-            realtime_ms / 1000.0 AS realtime_s,
-            memory_bytes / 1e9 AS memory_gb,
-            peak_rss / 1e9 AS peak_rss_gb,
+            realtime_ms / 60000.0 AS realtime_min,
+            GREATEST(0, (duration_ms - realtime_ms)) / 60000.0 AS staging_min,
+            COALESCE(cost, 0) AS cost,
             cpus,
-            pcpu,
-            cost,
+            memory_bytes / 1e9 AS memory_gb,
         FROM tasks
         WHERE status = 'COMPLETED'
-        ORDER BY process_short, duration_ms DESC
+        ORDER BY process_short
     """)
 
 
@@ -272,10 +382,8 @@ def query_cost_overview(db: duckdb.DuckDBPyConnection) -> list[dict] | None:
 
 
 def render_report(data: dict, output_path: str) -> None:
-    """Render the eCharts HTML report."""
-    template_str = REPORT_TEMPLATE
     env = Environment(loader=BaseLoader())
-    template = env.from_string(template_str)
+    template = env.from_string(REPORT_TEMPLATE)
     html = template.render(
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         data_json=json.dumps(data, default=str),
@@ -290,302 +398,725 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Seqera Benchmark Report</title>
+<title>Pipeline benchmarking report</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
-  :root {
-    --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a;
-    --text: #e4e4e7; --muted: #71717a; --accent: #6366f1;
-    --green: #22c55e; --red: #ef4444; --blue: #3b82f6; --purple: #a855f7;
-  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-         background: var(--bg); color: var(--text); line-height: 1.6; }
-  .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
-  header { border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2rem; }
-  header h1 { font-size: 1.75rem; font-weight: 600; }
-  header p { color: var(--muted); font-size: 0.875rem; margin-top: 0.25rem; }
-  .section { margin-bottom: 3rem; }
-  .section h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;
-                 padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
-  .chart { width: 100%; height: 400px; background: var(--surface);
-           border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1.5rem; }
-  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-  table { width: 100%; border-collapse: collapse; background: var(--surface);
-          border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 0.8rem; }
-  th { background: var(--bg); padding: 0.75rem 1rem; text-align: left;
-       font-weight: 600; font-size: 0.75rem; text-transform: uppercase;
-       letter-spacing: 0.05em; color: var(--muted); position: sticky; top: 0; }
-  td { padding: 0.5rem 1rem; border-top: 1px solid var(--border); }
-  tr:hover td { background: rgba(99, 102, 241, 0.05); }
-  .badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 9999px;
-           font-size: 0.7rem; font-weight: 600; }
-  .badge-green { background: rgba(34, 197, 94, 0.15); color: var(--green); }
-  .badge-red { background: rgba(239, 68, 68, 0.15); color: var(--red); }
-  .badge-blue { background: rgba(59, 130, 246, 0.15); color: var(--blue); }
-  .table-wrap { max-height: 500px; overflow: auto; border-radius: 8px; }
-  @media (max-width: 900px) { .chart-row { grid-template-columns: 1fr; } }
+  body { font-family: 'Lucida Grande', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+         background: #fff; color: #333; line-height: 1.6; font-size: 14px; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 15px; }
+
+  .navbar { background: #fff; border-bottom: 3px solid #4256e7; padding: 10px 0; margin-bottom: 30px; }
+  .navbar .container { display: flex; align-items: center; justify-content: space-between; }
+  .navbar-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #333; }
+  .navbar-brand svg { height: 28px; }
+  .navbar-right { color: #999; font-size: 13px; }
+
+  .section { margin-bottom: 40px; }
+  .section h1 { font-size: 26px; font-weight: 300; color: #333; margin-bottom: 5px;
+                 padding-bottom: 8px; border-bottom: 2px solid #eee; }
+  .section h2 { font-size: 20px; font-weight: 300; color: #333; margin: 25px 0 8px;
+                 padding-bottom: 5px; border-bottom: 1px solid #eee; }
+  .section h3 { font-size: 17px; font-weight: 400; color: #333; margin: 20px 0 8px; }
+  .section-desc { color: #666; font-size: 13px; margin-bottom: 15px; line-height: 1.5; }
+  .section-desc strong { color: #333; }
+
+  .gs-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 20px; }
+  .gs-table th { background: #f5f5f5; padding: 6px 10px; text-align: center; font-weight: 600;
+                  border-bottom: 2px solid #ddd; white-space: nowrap; }
+  .gs-table th:first-child { text-align: left; }
+  .gs-table td { padding: 5px 10px; border-bottom: 1px solid #eee; text-align: center; white-space: nowrap; }
+  .gs-table td:first-child { text-align: left; font-weight: 600; }
+  .gs-table tr:hover td { background: #f9f9f9; }
+  .gs-table a { color: #4256e7; text-decoration: none; }
+
+  .chart { width: 100%; height: 400px; margin-bottom: 20px; }
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+
+  .info-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .info-table th { background: #f5f5f5; padding: 6px 10px; text-align: left; font-weight: 600;
+                    border-bottom: 2px solid #ddd; }
+  .info-table td { padding: 5px 10px; border-bottom: 1px solid #eee; }
+  .info-table tr:hover td { background: #f9f9f9; }
+
+  .callout { border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px; }
+  .callout-header { background: #f5f5f5; padding: 8px 12px; cursor: pointer; font-size: 13px;
+                     font-weight: 600; color: #555; border-bottom: 1px solid #ddd; }
+  .callout-header:hover { background: #eee; }
+  .callout-body { padding: 12px; display: none; }
+  .callout-body.show { display: block; }
+
+  .dl-row { display: flex; gap: 20px; font-size: 13px; margin-bottom: 8px; flex-wrap: wrap; }
+  .dl-row dt { font-weight: 600; color: #555; }
+  .dl-row dd { color: #333; margin-right: 15px; }
+
+  footer { border-top: 1px solid #eee; padding: 15px 0; margin-top: 40px;
+           font-size: 12px; color: #999; text-align: center; }
+  footer a { color: #4256e7; text-decoration: none; }
+
+  .side-nav { position: fixed; top: 50px; left: 0; width: 220px; padding: 15px 10px;
+              background: #fafafa; border-right: 1px solid #eee; height: calc(100vh - 50px);
+              overflow-y: auto; font-size: 12px; z-index: 100; }
+  .side-nav a { display: block; padding: 4px 8px; color: #555; text-decoration: none;
+                border-left: 3px solid transparent; }
+  .side-nav a:hover, .side-nav a.active { color: #4256e7; border-left-color: #4256e7; }
+  .side-nav a.l2 { padding-left: 20px; color: #777; font-size: 11px; }
+  .side-nav a.l3 { padding-left: 32px; color: #999; font-size: 11px; }
+  .main-content { margin-left: 220px; }
+
+  .csv-btn { float: right; font-size: 11px; color: #4256e7; cursor: pointer; border: 1px solid #ddd;
+             background: #fff; padding: 2px 10px; border-radius: 3px; text-decoration: none; }
+  .csv-btn:hover { background: #f5f5f5; }
+
+  @media (max-width: 900px) {
+    .side-nav { display: none; }
+    .main-content { margin-left: 0; }
+    .chart-row { grid-template-columns: 1fr; }
+  }
+
+  .text-muted { color: #999; }
+  .group-colors span { display: inline-block; width: 12px; height: 12px; border-radius: 2px;
+                        margin-right: 4px; vertical-align: middle; }
 </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <h1>🧬 Seqera Benchmark Report</h1>
-    <p>Generated {{ generated_at }}</p>
-  </header>
 
-  <!-- Benchmark Overview -->
-  <div class="section">
-    <h2>Benchmark Overview</h2>
-    <div class="chart-row">
-      <div class="chart" id="chart-duration"></div>
-      <div class="chart" id="chart-cpu-hours"></div>
-    </div>
-    <div class="chart-row">
-      <div class="chart" id="chart-efficiency"></div>
-      <div class="chart" id="chart-io"></div>
-    </div>
+<nav class="navbar">
+  <div class="container">
+    <a class="navbar-brand" href="https://seqera.io">
+      <svg viewBox="0 0 120 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18.8 5.6c-1.5-.9-3.4-.9-4.9 0L3.6 12c-1.5.9-2.4 2.5-2.4 4.2v3.1c0 1.7.9 3.3 2.4 4.2l2.5 1.4c1.5.9 3.4.9 4.9 0l10.3-5.9c1.5-.9 2.4-2.5 2.4-4.2v-3.1c0-1.7-.9-3.3-2.4-4.2L18.8 5.6z" fill="#4256E7"/>
+        <text x="30" y="21" font-family="Helvetica Neue, sans-serif" font-size="20" fill="#333" font-weight="300">seqera</text>
+      </svg>
+    </a>
+    <div class="navbar-right">Pipeline benchmarking report</div>
   </div>
+</nav>
 
-  <!-- Run Overview -->
-  <div class="section">
-    <h2>Run Overview</h2>
-    <div class="table-wrap">
-      <table id="run-table">
-        <thead><tr>
-          <th>Group</th><th>Run</th><th>Pipeline</th><th>Status</th>
-          <th>Duration (min)</th><th>Tasks</th><th>CPU Eff%</th><th>Mem Eff%</th><th>Fusion</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Process Overview -->
-  <div class="section">
-    <h2>Process Overview</h2>
-    <div class="chart-row">
-      <div class="chart" id="chart-process-time"></div>
-      <div class="chart" id="chart-process-cpu"></div>
-    </div>
-    <div class="chart-row">
-      <div class="chart" id="chart-process-mem"></div>
-      <div class="chart" id="chart-process-reads"></div>
-    </div>
-  </div>
-
-  <!-- Task Overview -->
-  <div class="section">
-    <h2>Task Overview</h2>
-    <div class="chart" id="chart-task-scatter" style="height: 500px;"></div>
-  </div>
-
-  <!-- Cost Overview -->
-  <div class="section" id="cost-section" style="display: none;">
-    <h2>Cost Overview</h2>
-    <div class="chart-row">
-      <div class="chart" id="chart-cost-process"></div>
-      <div class="chart" id="chart-cost-waste"></div>
-    </div>
-  </div>
+<div class="side-nav" id="side-nav">
+  <a href="#benchmark-overview"><strong>1</strong> Benchmark overview</a>
+  <a href="#run-overview"><strong>2</strong> Run overview</a>
+  <a href="#run-summary" class="l2">2.1 Run summary</a>
+  <a href="#run-metrics" class="l2">2.2 Run metrics</a>
+  <a href="#process-overview"><strong>3</strong> Process overview</a>
+  <a href="#task-overview"><strong>4</strong> Task overview</a>
+  <a href="#task-instance-usage" class="l2">4.1 Task instance usage</a>
+  <a href="#task-metrics" class="l2">4.2 Task metrics</a>
 </div>
+
+<div class="main-content">
+<div class="container">
+
+  <p class="text-muted" style="margin-bottom: 25px;">
+    Published <strong>{{ generated_at }}</strong>
+  </p>
+
+  <!-- ═══ 1. Benchmark overview ═══════════════════════════ -->
+  <div class="section" id="benchmark-overview">
+    <h1>1 &nbsp; Benchmark overview</h1>
+    <div class="dl-row">
+      <dt>Failed task excluded</dt><dd>: Yes</dd>
+    </div>
+    <p class="section-desc">
+      <strong>Summary</strong><br>
+      This report summarizes the run, process, task, and, if applicable, cost metrics
+      for pipeline executions, which have been split into groups:
+      <span id="group-list" class="group-colors"></span>
+    </p>
+    <div style="overflow-x: auto;">
+      <table class="gs-table" id="overview-matrix"></table>
+    </div>
+  </div>
+
+  <!-- ═══ 2. Run overview ═════════════════════════════════ -->
+  <div class="section" id="run-overview">
+    <h1>2 &nbsp; Run overview</h1>
+    <p class="section-desc">
+      <strong>Summary</strong><br>
+      This section provides a high-level overview of the pipeline run metrics.
+    </p>
+
+    <h2 id="run-summary">2.1 &nbsp; Run summary</h2>
+    <p class="section-desc">Summary of pipeline execution and infrastructure settings.</p>
+    <div class="callout">
+      <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+        ▶ Click to display table
+      </div>
+      <div class="callout-body show" style="overflow-x:auto">
+        <table class="gs-table" id="run-summary-table"></table>
+      </div>
+    </div>
+
+    <h2 id="run-metrics">2.2 &nbsp; Run metrics</h2>
+    <p class="section-desc">This section provides a visual overview of the pipeline run metrics.</p>
+    <div class="callout">
+      <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+        ▶ Click to display table
+      </div>
+      <div class="callout-body" style="overflow-x:auto">
+        <button class="csv-btn" onclick="downloadCSV('run-metrics-table','run_overview.csv')">Download as CSV</button>
+        <table class="gs-table" id="run-metrics-table"></table>
+      </div>
+    </div>
+
+    <!-- Run metrics charts -->
+    <div class="chart-row">
+      <div class="chart" id="chart-wall-time"></div>
+      <div class="chart" id="chart-cpu-time"></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart" id="chart-est-cost"></div>
+      <div class="chart" id="chart-workflow-status"></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart" id="chart-cpu-eff"></div>
+      <div class="chart" id="chart-mem-eff"></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart" id="chart-read-io"></div>
+      <div class="chart" id="chart-write-io"></div>
+    </div>
+  </div>
+
+  <!-- ═══ 3. Process overview ═════════════════════════════ -->
+  <div class="section" id="process-overview">
+    <h1>3 &nbsp; Process overview</h1>
+    <p class="section-desc">
+      <strong>Summary</strong><br>
+      This section provides a comparison of the process-level metrics for each pipeline
+      across the groups. The plots show the run time distribution per process.
+      Dots represent mean values per process across all tasks.
+      Error bars indicate mean ± 1 standard deviation.
+      A single point indicates that a single task was executed for the process.
+    </p>
+    <p class="section-desc">
+      <strong>Run time</strong> = Staging time + real time
+    </p>
+    <div id="process-sections"></div>
+  </div>
+
+  <!-- ═══ 4. Task overview ════════════════════════════════ -->
+  <div class="section" id="task-overview">
+    <h1>4 &nbsp; Task overview</h1>
+    <p class="section-desc">
+      <strong>Summary</strong><br>
+      This section provides an overview of task-level metrics for instance usage and runtime metrics.
+    </p>
+
+    <h2 id="task-instance-usage">4.1 &nbsp; Task instance usage</h2>
+    <p class="section-desc">Number of tasks per instance type, grouped by pipeline run group.</p>
+    <div class="chart" id="chart-instance-usage" style="height:500px"></div>
+
+    <h2 id="task-metrics">4.2 &nbsp; Task metrics</h2>
+    <p class="section-desc">
+      This section provides a comparison between staging and run times for tasks.<br>
+      <strong>Wait time</strong>: time from submission to task start.<br>
+      <strong>Staging time</strong>: time to stage/unstage before and after execution.<br>
+      <strong>Real time</strong>: time to execute the task.
+    </p>
+    <div id="task-sections"></div>
+  </div>
+
+</div>
+</div>
+
+<footer>
+  <div class="container">
+    Generated by <a href="https://github.com/seqeralabs/nf-aggregate">seqeralabs/nf-aggregate</a> &mdash;
+    Powered by <a href="https://seqera.io">Seqera</a>
+  </div>
+</footer>
 
 <script>
 const DATA = {{ data_json }};
-const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6'];
+const COLORS = ['#0DC09D', '#3D95FD', '#F18046', '#D0021B', '#7B61FF', '#50E3C2', '#E85D75', '#4A90D9'];
 
-// ── Benchmark Overview ────────────────────────────────
+function fmtDuration(ms) {
+  if (ms == null || ms === 0) return '—';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  if (h > 0) return h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  return m + ':' + String(s).padStart(2,'0');
+}
+function fmtCost(v) { return v != null ? '$' + Number(v).toFixed(2) : '—'; }
+function fmtPct(v) { return v != null ? Number(v).toFixed(1) + '%' : '—'; }
+function fmtGB(v) { return v != null ? Number(v).toLocaleString() : '—'; }
+function fmtHours(v) { return v != null ? Number(v).toFixed(1) : '—'; }
+
+// CSV download helper
+function downloadCSV(tableId, filename) {
+  const table = document.getElementById(tableId);
+  const rows = [...table.querySelectorAll('tr')];
+  const csv = rows.map(r => [...r.querySelectorAll('th,td')].map(c => '"'+c.textContent.trim()+'"').join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = filename; a.click();
+}
+
+// Group colors
+const groups = [...new Set((DATA.run_summary||[]).map(r => r.group))];
+const groupColor = {};
+groups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
+
+// Group list with colored badges
+document.getElementById('group-list').innerHTML = groups.map(g =>
+  `<span style="background:${groupColor[g]}"></span>${g}`
+).join(' &nbsp; ');
+
+// ── 1. Benchmark overview matrix ─────────────────────
 (function() {
-  const ov = DATA.benchmark_overview || [];
-  const groups = [...new Set(ov.map(d => d.group))];
-  const pipelines = [...new Set(ov.map(d => d.pipeline))];
+  const runs = DATA.benchmark_overview || [];
+  const pipelines = [...new Set(runs.map(r => r.pipeline))];
+  const table = document.getElementById('overview-matrix');
+  let html = '<thead><tr><th style="text-align:left">Pipeline</th>';
+  groups.forEach(g => { html += `<th>${g}</th>`; });
+  html += '</tr></thead><tbody>';
+  pipelines.forEach(p => {
+    html += '<tr><td>' + p + '</td>';
+    groups.forEach(g => {
+      const match = runs.find(r => r.pipeline === p && r.group === g);
+      html += '<td>' + (match ? match.run_id : '—') + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+})();
 
-  // Duration bar chart
-  echarts.init(document.getElementById('chart-duration')).setOption({
-    title: { text: 'Avg Wall Time (min)', textStyle: { color: '#e4e4e7', fontSize: 14 } },
-    tooltip: { trigger: 'axis' },
-    legend: { data: groups, textStyle: { color: '#71717a' }, bottom: 0 },
-    xAxis: { type: 'category', data: pipelines, axisLabel: { color: '#71717a' } },
-    yAxis: { type: 'value', name: 'Minutes', axisLabel: { color: '#71717a' }, nameTextStyle: { color: '#71717a' } },
-    series: groups.map((g, i) => ({
-      name: g, type: 'bar',
-      data: pipelines.map(p => { const d = ov.find(x => x.group === g && x.pipeline === p); return d ? +d.avg_duration_min.toFixed(1) : 0; }),
-      itemStyle: { color: COLORS[i % COLORS.length] },
+// ── 2.1 Run summary table ───────────────────────────
+(function() {
+  const runs = DATA.run_summary || [];
+  if (!runs.length) return;
+  const cols = [
+    ['Pipeline name','pipeline'], ['Group','group'], ['Run ID','run_id'],
+    ['User name','username'], ['Pipeline version','Version'],
+    ['Nextflow version','Nextflow_version'], ['Platform version','platform_version'],
+    ['Tasks succeeded','succeedCount'], ['Tasks failed','failedCount'],
+    ['Executor','executor'], ['Region','region'],
+    ['Fusion enabled','fusion_enabled'], ['Wave enabled','wave_enabled'],
+  ];
+  const table = document.getElementById('run-summary-table');
+  let html = '<thead><tr>' + cols.map(c => '<th>'+c[0]+'</th>').join('') + '</tr></thead><tbody>';
+  runs.forEach((r,i) => {
+    const bg = groupColor[r.group] || '#ddd';
+    html += `<tr style="background:${bg}22">`;
+    cols.forEach(c => { html += '<td>' + (r[c[1]] != null ? r[c[1]] : '—') + '</td>'; });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+})();
+
+// ── 2.2 Run metrics table ───────────────────────────
+(function() {
+  const metrics = DATA.run_metrics || [];
+  const costs = DATA.run_costs || [];
+  if (!metrics.length) return;
+  const table = document.getElementById('run-metrics-table');
+  const cols = ['Pipeline name','Group','Run ID','Duration','CPU time (hours)',
+                'Compute cost ($)','Read (GB)','Write (GB)',
+                'CPU efficiency (%)','Memory efficiency (%)',
+                'Used cost ($)','Unused cost ($)','Total run time'];
+  let html = '<thead><tr>' + cols.map(c => '<th>'+c+'</th>').join('') + '</tr></thead><tbody>';
+  metrics.forEach(r => {
+    const c = costs.find(x => x.run_id === r.run_id) || {};
+    const pipelineRuntimeMs = r.pipeline_runtime || 0;
+    const prtH = Math.floor(pipelineRuntimeMs / 3600000);
+    const prtM = Math.floor((pipelineRuntimeMs % 3600000) / 60000);
+    const prtS = Math.floor((pipelineRuntimeMs % 60000) / 1000);
+    const prtFmt = prtH + ':' + String(prtM).padStart(2,'0') + ':' + String(prtS).padStart(2,'0');
+    html += '<tr>';
+    html += '<td>' + r.pipeline + '</td>';
+    html += '<td>' + r.group + '</td>';
+    html += '<td>' + r.run_id + '</td>';
+    html += '<td>' + fmtDuration(r.duration) + '</td>';
+    html += '<td>' + fmtHours(r.cpuTime) + '</td>';
+    html += '<td>' + fmtCost(c.cost) + '</td>';
+    html += '<td>' + fmtGB(r.readBytes) + '</td>';
+    html += '<td>' + fmtGB(r.writeBytes) + '</td>';
+    html += '<td>' + fmtPct(r.cpuEfficiency) + '</td>';
+    html += '<td>' + fmtPct(r.memoryEfficiency) + '</td>';
+    html += '<td>' + fmtCost(c.used_cost) + '</td>';
+    html += '<td>' + fmtCost(c.unused_cost) + '</td>';
+    html += '<td>' + prtFmt + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+})();
+
+// ── Chart helpers ────────────────────────────────────
+function hbarChart(elId, title, labels, values, opts) {
+  opts = opts || {};
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const height = Math.max(250, labels.length * 40 + 80);
+  el.style.height = height + 'px';
+  echarts.init(el).setOption({
+    title: { text: title, textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: opts.formatter || (p => p[0].name + ': ' + (opts.prefix||'') +
+        p[0].value.toLocaleString(undefined, {maximumFractionDigits:2}) + (opts.suffix||'')) },
+    grid: { left: 250, right: 40, top: 40, bottom: 20 },
+    xAxis: { type: 'value', name: opts.xName || '', axisLabel: { color: '#666' },
+             nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
+    yAxis: { type: 'category', data: labels.slice().reverse(),
+             axisLabel: { color: '#333', fontSize: 11 }, axisLine: { show: false }, axisTick: { show: false } },
+    series: opts.series || [{ type: 'bar', data: values.slice().reverse(), barMaxWidth: 24,
+      itemStyle: { color: opts.color || '#4256e7' } }],
+    backgroundColor: 'transparent',
+  });
+}
+
+function hbarStacked(elId, title, labels, seriesDefs) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const height = Math.max(250, labels.length * 40 + 80);
+  el.style.height = height + 'px';
+  echarts.init(el).setOption({
+    title: { text: title, textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: { bottom: 0, textStyle: { color: '#666' } },
+    grid: { left: 250, right: 40, top: 40, bottom: 40 },
+    xAxis: { type: 'value', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#eee' } } },
+    yAxis: { type: 'category', data: labels.slice().reverse(),
+             axisLabel: { color: '#333', fontSize: 11 }, axisLine: { show: false }, axisTick: { show: false } },
+    series: seriesDefs.map(s => ({
+      name: s.name, type: 'bar', stack: 'total', barMaxWidth: 24,
+      data: s.data.slice().reverse(), itemStyle: { color: s.color },
     })),
     backgroundColor: 'transparent',
   });
+}
 
-  // CPU hours
-  echarts.init(document.getElementById('chart-cpu-hours')).setOption({
-    title: { text: 'Total CPU Hours', textStyle: { color: '#e4e4e7', fontSize: 14 } },
-    tooltip: { trigger: 'axis' },
-    legend: { data: groups, textStyle: { color: '#71717a' }, bottom: 0 },
-    xAxis: { type: 'category', data: pipelines, axisLabel: { color: '#71717a' } },
-    yAxis: { type: 'value', name: 'CPU-hours', axisLabel: { color: '#71717a' }, nameTextStyle: { color: '#71717a' } },
-    series: groups.map((g, i) => ({
-      name: g, type: 'bar',
-      data: pipelines.map(p => { const d = ov.find(x => x.group === g && x.pipeline === p); return d ? +d.total_cpu_hours.toFixed(1) : 0; }),
-      itemStyle: { color: COLORS[i % COLORS.length] },
-    })),
-    backgroundColor: 'transparent',
-  });
+// ── 2.2 Run metrics charts ──────────────────────────
+(function() {
+  const metrics = DATA.run_metrics || [];
+  const costs = DATA.run_costs || [];
+  const labels = metrics.map(r => r.group);
+
+  // Wall time
+  hbarChart('chart-wall-time', 'Wall time', labels,
+    metrics.map(r => +(r.duration / 3600000).toFixed(2)),
+    { xName: 'Hours', suffix: ' h', color: '#4a90d9' });
+
+  // CPU time
+  hbarChart('chart-cpu-time', 'CPU time', labels,
+    metrics.map(r => +(r.cpuTime || 0)),
+    { xName: 'CPU Hours', suffix: ' h', color: '#7b61ff' });
+
+  // Estimated cost
+  hbarChart('chart-est-cost', 'Compute cost', labels,
+    metrics.map(r => { const c = costs.find(x => x.run_id === r.run_id); return c ? +c.cost : 0; }),
+    { xName: '$', prefix: '$', color: '#f5a623' });
+
+  // Workflow status
+  const summaryRuns = DATA.run_summary || [];
+  hbarStacked('chart-workflow-status', 'Workflow status', labels, [
+    { name: 'Succeeded', data: summaryRuns.map(r => r.succeedCount || 0), color: '#22b573' },
+    { name: 'Failed', data: summaryRuns.map(r => r.failedCount || 0), color: '#d0021b' },
+  ]);
 
   // Efficiency
-  echarts.init(document.getElementById('chart-efficiency')).setOption({
-    title: { text: 'Resource Efficiency (%)', textStyle: { color: '#e4e4e7', fontSize: 14 } },
-    tooltip: { trigger: 'axis' },
-    legend: { data: groups, textStyle: { color: '#71717a' }, bottom: 0 },
-    xAxis: { type: 'category', data: ['CPU Efficiency', 'Memory Efficiency'], axisLabel: { color: '#71717a' } },
-    yAxis: { type: 'value', max: 100, axisLabel: { color: '#71717a' } },
-    series: groups.map((g, i) => ({
-      name: g, type: 'bar',
-      data: [
-        ov.filter(x => x.group === g).reduce((s, x) => s + (x.avg_cpu_efficiency || 0), 0) / Math.max(ov.filter(x => x.group === g).length, 1),
-        ov.filter(x => x.group === g).reduce((s, x) => s + (x.avg_memory_efficiency || 0), 0) / Math.max(ov.filter(x => x.group === g).length, 1),
-      ].map(v => +v.toFixed(1)),
-      itemStyle: { color: COLORS[i % COLORS.length] },
-    })),
-    backgroundColor: 'transparent',
-  });
+  hbarChart('chart-cpu-eff', 'CPU efficiency', labels,
+    metrics.map(r => +(r.cpuEfficiency || 0)), { xName: '%', suffix: '%', color: '#22b573' });
+  hbarChart('chart-mem-eff', 'Memory efficiency', labels,
+    metrics.map(r => +(r.memoryEfficiency || 0)), { xName: '%', suffix: '%', color: '#50e3c2' });
 
   // I/O
-  echarts.init(document.getElementById('chart-io')).setOption({
-    title: { text: 'Total I/O (GB)', textStyle: { color: '#e4e4e7', fontSize: 14 } },
-    tooltip: { trigger: 'axis' },
-    legend: { data: groups, textStyle: { color: '#71717a' }, bottom: 0 },
-    xAxis: { type: 'category', data: ['Read', 'Write'], axisLabel: { color: '#71717a' } },
-    yAxis: { type: 'value', name: 'GB', axisLabel: { color: '#71717a' }, nameTextStyle: { color: '#71717a' } },
-    series: groups.map((g, i) => ({
-      name: g, type: 'bar',
-      data: [
-        ov.filter(x => x.group === g).reduce((s, x) => s + (x.total_read_gb || 0), 0),
-        ov.filter(x => x.group === g).reduce((s, x) => s + (x.total_write_gb || 0), 0),
-      ].map(v => +v.toFixed(1)),
-      itemStyle: { color: COLORS[i % COLORS.length] },
+  hbarChart('chart-read-io', 'Data read', labels,
+    metrics.map(r => +(r.readBytes || 0)), { xName: 'GB', suffix: ' GB', color: '#4a90d9' });
+  hbarChart('chart-write-io', 'Data written', labels,
+    metrics.map(r => +(r.writeBytes || 0)), { xName: 'GB', suffix: ' GB', color: '#e85d75' });
+})();
+
+// ── 3. Process overview (dot + errorbar per group) ───
+(function() {
+  const stats = DATA.process_stats || [];
+  if (!stats.length) return;
+
+  // Group by pipeline (use process_name to extract pipeline prefix)
+  const pipelines = [...new Set(stats.map(s => {
+    const parts = s.process_name.split(':');
+    return parts.length > 1 ? parts[0].replace('NFCORE_','').toLowerCase() : 'default';
+  }))];
+
+  const container = document.getElementById('process-sections');
+
+  pipelines.forEach(pipeline => {
+    const pipelineStats = stats.filter(s => {
+      const parts = s.process_name.split(':');
+      const p = parts.length > 1 ? parts[0].replace('NFCORE_','').toLowerCase() : 'default';
+      return p === pipeline;
+    });
+
+    // Get unique processes sorted by avg runtime desc
+    const processes = [...new Set(pipelineStats.map(s => s.process_name))];
+
+    const section = document.createElement('div');
+    section.innerHTML = `<h3>${pipeline}</h3>`;
+
+    // Run time dot chart
+    const rtEl = document.createElement('div');
+    rtEl.className = 'chart';
+    rtEl.style.height = Math.max(400, processes.length * 25 + 120) + 'px';
+    section.appendChild(rtEl);
+    container.appendChild(section);
+
+    const series = groups.map((g, gi) => {
+      const gStats = pipelineStats.filter(s => s.group === g);
+      return {
+        name: g, type: 'scatter', symbolSize: 8,
+        itemStyle: { color: groupColor[g] },
+        data: processes.map((p, pi) => {
+          const s = gStats.find(x => x.process_name === p);
+          return s ? [s.avg_runtime_min, pi] : null;
+        }).filter(Boolean),
+        // error bars via custom rendering
+      };
+    });
+
+    // Also add error bar series
+    const errorSeries = groups.map((g, gi) => {
+      const gStats = pipelineStats.filter(s => s.group === g);
+      return {
+        name: g + ' (±SD)', type: 'custom', silent: true,
+        renderItem: function(params, api) {
+          const yVal = api.value(1);
+          const xVal = api.value(0);
+          const sd = api.value(2);
+          const point = api.coord([xVal, yVal]);
+          const lo = api.coord([Math.max(0, xVal - sd), yVal]);
+          const hi = api.coord([xVal + sd, yVal]);
+          return { type: 'group', children: [
+            { type: 'line', shape: { x1: lo[0], y1: point[1], x2: hi[0], y2: point[1] },
+              style: { stroke: groupColor[g], lineWidth: 1.5 } },
+            { type: 'line', shape: { x1: lo[0], y1: point[1]-4, x2: lo[0], y2: point[1]+4 },
+              style: { stroke: groupColor[g], lineWidth: 1.5 } },
+            { type: 'line', shape: { x1: hi[0], y1: point[1]-4, x2: hi[0], y2: point[1]+4 },
+              style: { stroke: groupColor[g], lineWidth: 1.5 } },
+          ]};
+        },
+        data: processes.map((p, pi) => {
+          const s = gStats.find(x => x.process_name === p);
+          return s ? [s.avg_runtime_min, pi, s.sd_runtime_min || 0] : null;
+        }).filter(Boolean),
+        encode: { x: 0, y: 1 },
+        z: -1,
+      };
+    });
+
+    // Cost chart
+    const costEl = document.createElement('div');
+    costEl.className = 'chart';
+    costEl.style.height = Math.max(400, processes.length * 25 + 120) + 'px';
+    section.appendChild(costEl);
+
+    const costSeries = groups.map((g, gi) => {
+      const gStats = pipelineStats.filter(s => s.group === g);
+      return {
+        name: g, type: 'bar', barMaxWidth: 16, stack: g,
+        itemStyle: { color: groupColor[g] },
+        data: processes.map(p => {
+          const s = gStats.find(x => x.process_name === p);
+          return s ? +s.total_cost.toFixed(4) : 0;
+        }),
+      };
+    });
+
+    setTimeout(() => {
+      echarts.init(rtEl).setOption({
+        title: { text: 'Run time per process', textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+        tooltip: { trigger: 'item',
+          formatter: p => {
+            if (p.seriesType === 'custom') return '';
+            return `<strong>${processes[p.data[1]]}</strong><br>${p.seriesName}: ${p.data[0].toFixed(1)} min`;
+          }
+        },
+        legend: { data: groups, bottom: 0, textStyle: { color: '#666' } },
+        grid: { left: 350, right: 40, top: 40, bottom: 40 },
+        xAxis: { type: 'value', name: 'Run time (minutes)', axisLabel: { color: '#666' },
+                 nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
+        yAxis: { type: 'category', data: processes,
+                 axisLabel: { color: '#333', fontSize: 9, width: 320, overflow: 'truncate' },
+                 axisLine: { show: false }, axisTick: { show: false }, inverse: true },
+        series: [...series, ...errorSeries],
+        backgroundColor: 'transparent',
+      });
+
+      echarts.init(costEl).setOption({
+        title: { text: 'Total process cost ($)', textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        legend: { data: groups, bottom: 0, textStyle: { color: '#666' } },
+        grid: { left: 350, right: 40, top: 40, bottom: 40 },
+        xAxis: { type: 'value', name: 'Cost ($)', axisLabel: { color: '#666' },
+                 nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
+        yAxis: { type: 'category', data: processes,
+                 axisLabel: { color: '#333', fontSize: 9, width: 320, overflow: 'truncate' },
+                 axisLine: { show: false }, axisTick: { show: false }, inverse: true },
+        series: costSeries,
+        backgroundColor: 'transparent',
+      });
+    }, 50);
+  });
+})();
+
+// ── 4.1 Task instance usage (stacked bar) ────────────
+(function() {
+  const usage = DATA.task_instance_usage || [];
+  if (!usage.length) return;
+  const instanceTypes = [...new Set(usage.map(u => u.machine_type))];
+  const instanceColors = {};
+  instanceTypes.forEach((t,i) => { instanceColors[t] = COLORS[i % COLORS.length]; });
+
+  const el = document.getElementById('chart-instance-usage');
+  const height = Math.max(300, groups.length * 60 + 100);
+  el.style.height = height + 'px';
+
+  echarts.init(el).setOption({
+    title: { text: 'Instance type usage', textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: { data: instanceTypes, bottom: 0, textStyle: { color: '#666', fontSize: 10 }, type: 'scroll' },
+    grid: { left: 180, right: 40, top: 40, bottom: 60 },
+    xAxis: { type: 'value', name: 'Number of tasks', axisLabel: { color: '#666' },
+             splitLine: { lineStyle: { color: '#eee' } } },
+    yAxis: { type: 'category', data: groups.slice().reverse(),
+             axisLabel: { color: '#333', fontSize: 12 }, axisLine: { show: false }, axisTick: { show: false } },
+    series: instanceTypes.map(t => ({
+      name: t, type: 'bar', stack: 'total', barMaxWidth: 30,
+      data: groups.slice().reverse().map(g => {
+        const match = usage.find(u => u.group === g && u.machine_type === t);
+        return match ? match.count : 0;
+      }),
+      itemStyle: { color: instanceColors[t] },
     })),
     backgroundColor: 'transparent',
   });
 })();
 
-// ── Run Overview Table ────────────────────────────────
+// ── 4.2 Task metrics (per-pipeline scatter + box + table) ─
 (function() {
-  const tbody = document.querySelector('#run-table tbody');
-  (DATA.run_overview || []).forEach(r => {
-    const statusClass = r.status === 'SUCCEEDED' ? 'badge-green' : r.status === 'FAILED' ? 'badge-red' : 'badge-blue';
-    const tasks = `${r.succeeded || 0}✓ ${r.failed || 0}✗ ${r.cached || 0}⟳`;
-    const fusion = r.fusion_enabled ? '✅' : '—';
-    tbody.innerHTML += `<tr>
-      <td>${r.group}</td><td>${r.run_name}</td><td>${r.pipeline}</td>
-      <td><span class="badge ${statusClass}">${r.status}</span></td>
-      <td>${(r.duration_min || 0).toFixed(1)}</td><td>${tasks}</td>
-      <td>${r.cpu_efficiency ?? '—'}%</td><td>${r.memory_efficiency ?? '—'}%</td>
-      <td>${fusion}</td>
-    </tr>`;
-  });
-})();
-
-// ── Process Overview Box Plots ────────────────────────
-(function() {
-  const metrics = DATA.process_overview || [];
-  if (!metrics.length) return;
-  const processes = [...new Set(metrics.map(m => m.process))];
-
-  function boxChart(elId, title, field) {
-    const data = processes.map(p => {
-      const rows = metrics.filter(m => m.process === p);
-      if (!rows.length) return [0, 0, 0, 0, 0];
-      const r = rows[0];
-      return [r[field+'_min']||0, r[field+'_q1']||0, r[field+'_q2']||0, r[field+'_q3']||0, r[field+'_max']||0];
-    });
-    echarts.init(document.getElementById(elId)).setOption({
-      title: { text: title, textStyle: { color: '#e4e4e7', fontSize: 14 } },
-      tooltip: { trigger: 'item' },
-      xAxis: { type: 'category', data: processes, axisLabel: { color: '#71717a', rotate: 45, fontSize: 10 } },
-      yAxis: { type: 'value', axisLabel: { color: '#71717a' } },
-      series: [{ type: 'boxplot', data: data, itemStyle: { color: '#6366f1', borderColor: '#818cf8' } }],
-      backgroundColor: 'transparent',
-      grid: { bottom: 80 },
-    });
-  }
-
-  boxChart('chart-process-time', 'Duration per Process', 'time');
-  boxChart('chart-process-cpu', 'CPU Usage per Process (%)', 'cpuUsage');
-  boxChart('chart-process-mem', 'Memory Usage per Process (%)', 'memUsage');
-  boxChart('chart-process-reads', 'Read Bytes per Process', 'reads');
-})();
-
-// ── Task Scatter ──────────────────────────────────────
-(function() {
-  const tasks = DATA.task_overview || [];
+  const tasks = DATA.task_scatter || [];
+  const taskTable = DATA.task_table || [];
   if (!tasks.length) return;
-  const groups = [...new Set(tasks.map(t => t.group))];
-  echarts.init(document.getElementById('chart-task-scatter')).setOption({
-    title: { text: 'Task Duration vs Peak Memory', textStyle: { color: '#e4e4e7', fontSize: 14 } },
-    tooltip: { trigger: 'item', formatter: p => `${p.data[3]}<br>Duration: ${p.data[0].toFixed(0)}s<br>Memory: ${p.data[1].toFixed(2)} GB<br>CPUs: ${p.data[2]}` },
-    legend: { data: groups, textStyle: { color: '#71717a' }, bottom: 0 },
-    xAxis: { type: 'value', name: 'Duration (s)', axisLabel: { color: '#71717a' }, nameTextStyle: { color: '#71717a' } },
-    yAxis: { type: 'value', name: 'Peak RSS (GB)', axisLabel: { color: '#71717a' }, nameTextStyle: { color: '#71717a' } },
-    series: groups.map((g, i) => ({
-      name: g, type: 'scatter', symbolSize: 6,
-      data: tasks.filter(t => t.group === g).map(t => [t.realtime_s || 0, t.peak_rss_gb || 0, t.cpus || 1, t.process_short]),
-      itemStyle: { color: COLORS[i % COLORS.length] },
-    })),
-    backgroundColor: 'transparent',
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 30 }],
-  });
+
+  const container = document.getElementById('task-sections');
+
+  // Realtime vs staging scatter
+  const scatterEl = document.createElement('div');
+  scatterEl.className = 'chart';
+  scatterEl.style.height = '500px';
+  container.appendChild(scatterEl);
+
+  setTimeout(() => {
+    echarts.init(scatterEl).setOption({
+      title: { text: 'Task real time vs staging time', textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+      tooltip: { trigger: 'item',
+        formatter: p => `<strong>${p.data[3]}</strong><br>Real time: ${p.data[0].toFixed(1)} min<br>Staging: ${p.data[1].toFixed(1)} min<br>Cost: $${p.data[2].toFixed(4)}` },
+      legend: { data: groups, textStyle: { color: '#666' }, bottom: 0 },
+      grid: { left: 70, right: 40, top: 50, bottom: 60 },
+      xAxis: { type: 'value', name: 'Task real time (minutes)', axisLabel: { color: '#666' },
+               nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
+      yAxis: { type: 'value', name: 'Task staging time (minutes)', axisLabel: { color: '#666' },
+               nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
+      series: groups.map((g, i) => ({
+        name: g, type: 'scatter', symbolSize: 6,
+        data: tasks.filter(t => t.group === g).map(t => [t.realtime_min||0, t.staging_min||0, t.cost||0, t.process_short]),
+        itemStyle: { color: groupColor[g] },
+      })),
+      backgroundColor: 'transparent',
+      dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 25, height: 20 }],
+    });
+  }, 100);
+
+  // Task cost box plot
+  const costBoxEl = document.createElement('div');
+  costBoxEl.className = 'chart';
+  costBoxEl.style.height = '500px';
+  container.appendChild(costBoxEl);
+
+  setTimeout(() => {
+    const processes = [...new Set(tasks.map(t => t.process_short))];
+    const boxData = [];
+    processes.forEach(p => {
+      const costs = groups.map(g => {
+        return tasks.filter(t => t.group === g && t.process_short === p).map(t => t.cost || 0);
+      });
+      // Flatten and compute box stats per process
+      const all = costs.flat().sort((a,b) => a-b);
+      if (all.length) {
+        const q1i = Math.floor(all.length * 0.25);
+        const q2i = Math.floor(all.length * 0.5);
+        const q3i = Math.floor(all.length * 0.75);
+        boxData.push([all[0], all[q1i], all[q2i], all[q3i], all[all.length-1]]);
+      } else {
+        boxData.push([0,0,0,0,0]);
+      }
+    });
+
+    echarts.init(costBoxEl).setOption({
+      title: { text: 'Task cost ($) per process', textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+      tooltip: { trigger: 'item' },
+      grid: { left: 250, right: 40, top: 40, bottom: 20 },
+      yAxis: { type: 'category', data: processes,
+               axisLabel: { color: '#333', fontSize: 9, width: 220, overflow: 'truncate' },
+               axisLine: { show: false }, axisTick: { show: false }, inverse: true },
+      xAxis: { type: 'value', name: 'Cost ($)', axisLabel: { color: '#666' },
+               nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
+      series: [{ type: 'boxplot', data: boxData,
+                 itemStyle: { color: '#d9edf7', borderColor: '#4256e7' } }],
+      backgroundColor: 'transparent',
+    });
+  }, 150);
+
+  // Task data table
+  if (taskTable.length) {
+    const tableDiv = document.createElement('div');
+    tableDiv.innerHTML = `
+      <div class="callout" style="margin-top:20px">
+        <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+          ▶ Click to display task table (${taskTable.length} tasks)
+        </div>
+        <div class="callout-body" style="overflow-x:auto;max-height:600px;overflow-y:auto">
+          <button class="csv-btn" onclick="downloadCSV('task-data-table','task_table.csv')">Download as CSV</button>
+          <table class="gs-table" id="task-data-table"></table>
+        </div>
+      </div>`;
+    container.appendChild(tableDiv);
+
+    setTimeout(() => {
+      const cols = ['Group','Run ID','Taskhash','Task name short','Executor','Cloudzone',
+                    'Instance type','Realtime (min)','Cost','CPUs','Memory (GB)',
+                    'Pcpu','Pmem','Read bytes','Write bytes','Task name','Status'];
+      const keys = ['Group','Run ID','Taskhash','Task name short','Executor','Cloudzone',
+                    'Instance type','Realtime_min','Cost','CPUused','Memoryused_GB',
+                    'Pcpu','Pmem','Readbytes','Writebytes','Task name','Status'];
+      const table = document.getElementById('task-data-table');
+      let html = '<thead><tr>' + cols.map(c => '<th>'+c+'</th>').join('') + '</tr></thead><tbody>';
+      taskTable.slice(0, 500).forEach(r => {
+        html += '<tr>';
+        keys.forEach(k => {
+          let v = r[k];
+          if (k === 'Realtime_min') v = v != null ? Number(v).toFixed(1) : '—';
+          else if (k === 'Cost') v = v != null ? '$' + Number(v).toFixed(6) : '—';
+          else if (v == null) v = '—';
+          html += '<td>' + v + '</td>';
+        });
+        html += '</tr>';
+      });
+      if (taskTable.length > 500) html += '<tr><td colspan="'+cols.length+'" style="text-align:center;color:#999">... and '+(taskTable.length-500)+' more rows</td></tr>';
+      html += '</tbody>';
+      table.innerHTML = html;
+    }, 200);
+  }
 })();
 
-// ── Cost Overview ─────────────────────────────────────
-(function() {
-  const costs = DATA.cost_overview;
-  if (!costs) return;
-  document.getElementById('cost-section').style.display = '';
-  const groups = [...new Set(costs.map(c => c.group))];
-  const processes = [...new Set(costs.map(c => c.process_short))].sort((a, b) => {
-    const ca = costs.filter(c => c.process_short === a).reduce((s, c) => s + (c.total_cost || 0), 0);
-    const cb = costs.filter(c => c.process_short === b).reduce((s, c) => s + (c.total_cost || 0), 0);
-    return cb - ca;
-  });
-
-  echarts.init(document.getElementById('chart-cost-process')).setOption({
-    title: { text: 'Cost by Process ($)', textStyle: { color: '#e4e4e7', fontSize: 14 } },
-    tooltip: { trigger: 'axis' },
-    legend: { data: groups, textStyle: { color: '#71717a' }, bottom: 0 },
-    xAxis: { type: 'category', data: processes, axisLabel: { color: '#71717a', rotate: 45, fontSize: 10 } },
-    yAxis: { type: 'value', name: '$', axisLabel: { color: '#71717a' }, nameTextStyle: { color: '#71717a' } },
-    series: groups.map((g, i) => ({
-      name: g, type: 'bar', stack: 'cost',
-      data: processes.map(p => { const d = costs.find(c => c.group === g && c.process_short === p); return d ? +(d.total_cost || 0).toFixed(3) : 0; }),
-      itemStyle: { color: COLORS[i % COLORS.length] },
-    })),
-    backgroundColor: 'transparent',
-    grid: { bottom: 80 },
-  });
-
-  echarts.init(document.getElementById('chart-cost-waste')).setOption({
-    title: { text: 'Used vs Unused Cost ($)', textStyle: { color: '#e4e4e7', fontSize: 14 } },
-    tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: processes, axisLabel: { color: '#71717a', rotate: 45, fontSize: 10 } },
-    yAxis: { type: 'value', name: '$', axisLabel: { color: '#71717a' }, nameTextStyle: { color: '#71717a' } },
-    series: [
-      { name: 'Used', type: 'bar', stack: 'waste',
-        data: processes.map(p => costs.filter(c => c.process_short === p).reduce((s, c) => s + (c.used_cost || 0), 0).toFixed(3)),
-        itemStyle: { color: '#22c55e' } },
-      { name: 'Unused', type: 'bar', stack: 'waste',
-        data: processes.map(p => costs.filter(c => c.process_short === p).reduce((s, c) => s + (c.unused_cost || 0), 0).toFixed(3)),
-        itemStyle: { color: '#ef4444' } },
-    ],
-    legend: { data: ['Used', 'Unused'], textStyle: { color: '#71717a' }, bottom: 0 },
-    backgroundColor: 'transparent',
-    grid: { bottom: 80 },
-  });
-})();
-
-// Resize all charts on window resize
+// Resize
 window.addEventListener('resize', () => {
   document.querySelectorAll('.chart').forEach(el => {
-    const chart = echarts.getInstanceByDom(el);
-    if (chart) chart.resize();
+    const inst = echarts.getInstanceByDom(el);
+    if (inst) inst.resize();
   });
 });
 </script>
@@ -613,9 +1144,13 @@ def main(data_dir: str, costs: str | None, output: str, remove_failed: bool):
 
     data = {
         "benchmark_overview": query_benchmark_overview(db),
-        "run_overview": query_run_overview(db),
-        "process_overview": query_process_overview(db),
-        "task_overview": query_task_overview(db),
+        "run_summary": query_run_summary(db),
+        "run_metrics": query_run_metrics(db),
+        "run_costs": query_run_costs(db),
+        "process_stats": query_process_stats(db),
+        "task_instance_usage": query_task_instance_usage(db),
+        "task_table": query_task_table(db),
+        "task_scatter": query_task_scatter(db),
         "cost_overview": query_cost_overview(db),
     }
 
