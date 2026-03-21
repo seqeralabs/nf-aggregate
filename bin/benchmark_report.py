@@ -23,8 +23,8 @@ def load_brand(brand_path: Path | None = None) -> dict:
         "neutral": "#F7F7F7",
         "white": "#ffffff",
         "palette": [
-            "#31C9AC", "#087F68", "#3D95FD", "#F18046",
-            "#7B61FF", "#D0021B", "#50E3C2", "#E85D75",
+            "#31C9AC", "#087F68", "#201637", "#0BB392",
+            "#055C4B", "#50E3C2", "#CFD0D1", "#8A8B8C",
         ],
     }
     if brand_path and brand_path.exists():
