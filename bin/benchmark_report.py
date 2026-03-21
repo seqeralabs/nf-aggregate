@@ -886,8 +886,9 @@ function hbarChart(elId, title, labels, values, opts) {
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
       formatter: opts.formatter || (p => p[0].name + ': ' + (opts.prefix||'') +
         p[0].value.toLocaleString(undefined, {maximumFractionDigits:2}) + (opts.suffix||'')) },
-    grid: { left: 250, right: 40, top: 40, bottom: 20 },
-    xAxis: { type: 'value', name: opts.xName || '' },
+    grid: { left: 10, right: 30, top: 40, bottom: 30, containLabel: true },
+    xAxis: { type: 'value', name: opts.xName || '', nameLocation: 'end',
+      nameGap: 5, axisLabel: { hideOverlap: true } },
     yAxis: { type: 'category', data: labels.slice().reverse(),
              axisLabel: { fontSize: 11 } },
     series: opts.series || [{ type: 'bar', data: values.slice().reverse(), barMaxWidth: 24,
@@ -904,8 +905,8 @@ function hbarStacked(elId, title, labels, seriesDefs) {
     title: { text: title },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     legend: { bottom: 0 },
-    grid: { left: 250, right: 40, top: 40, bottom: 40 },
-    xAxis: { type: 'value' },
+    grid: { left: 10, right: 30, top: 40, bottom: 40, containLabel: true },
+    xAxis: { type: 'value', axisLabel: { hideOverlap: true } },
     yAxis: { type: 'category', data: labels.slice().reverse(),
              axisLabel: { fontSize: 11 } },
     series: seriesDefs.map(s => ({
