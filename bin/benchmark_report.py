@@ -432,7 +432,12 @@ def render_report(
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         data_json=json.dumps(data, default=str),
         brand_accent=brand["accent"],
+        brand_accent_light=brand["accent_light"],
         brand_accent_surface=brand["accent_surface"],
+        brand_heading=brand["heading"],
+        brand_border=brand["border"],
+        brand_neutral=brand["neutral"],
+        brand_white=brand["white"],
         brand_palette=brand["palette"],
         logo_svg=logo_svg or "",
         **data,
@@ -451,70 +456,70 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Lucida Grande', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-         background: #fff; color: #333; line-height: 1.6; font-size: 14px; }
+         background: {{ brand_white }}; color: {{ brand_heading }}; line-height: 1.6; font-size: 14px; }
   .container { max-width: 1200px; margin: 0 auto; padding: 0 15px; }
 
-  .navbar { background: #fff; border-bottom: 3px solid {{ brand_accent }}; padding: 10px 0; margin-bottom: 30px; }
+  .navbar { background: {{ brand_white }}; border-bottom: 3px solid {{ brand_accent }}; padding: 10px 0; margin-bottom: 30px; }
   .navbar .container { display: flex; align-items: center; justify-content: space-between; }
-  .navbar-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #333; }
+  .navbar-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: {{ brand_heading }}; }
   .navbar-brand svg { height: 28px; }
-  .navbar-right { color: #999; font-size: 13px; }
+  .navbar-right { color: {{ brand_border }}; font-size: 13px; }
 
   .section { margin-bottom: 40px; }
-  .section h1 { font-size: 26px; font-weight: 300; color: #333; margin-bottom: 5px;
-                 padding-bottom: 8px; border-bottom: 2px solid #eee; }
-  .section h2 { font-size: 20px; font-weight: 300; color: #333; margin: 25px 0 8px;
-                 padding-bottom: 5px; border-bottom: 1px solid #eee; }
-  .section h3 { font-size: 17px; font-weight: 400; color: #333; margin: 20px 0 8px; }
-  .section-desc { color: #666; font-size: 13px; margin-bottom: 15px; line-height: 1.5; }
-  .section-desc strong { color: #333; }
+  .section h1 { font-size: 26px; font-weight: 300; color: {{ brand_heading }}; margin-bottom: 5px;
+                 padding-bottom: 8px; border-bottom: 2px solid {{ brand_border }}; }
+  .section h2 { font-size: 20px; font-weight: 300; color: {{ brand_heading }}; margin: 25px 0 8px;
+                 padding-bottom: 5px; border-bottom: 1px solid {{ brand_border }}; }
+  .section h3 { font-size: 17px; font-weight: 400; color: {{ brand_heading }}; margin: 20px 0 8px; }
+  .section-desc { color: {{ brand_accent }}; font-size: 13px; margin-bottom: 15px; line-height: 1.5; }
+  .section-desc strong { color: {{ brand_heading }}; }
 
   .gs-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 20px; }
-  .gs-table th { background: #f5f5f5; padding: 6px 10px; text-align: center; font-weight: 600;
-                  border-bottom: 2px solid #ddd; white-space: nowrap; }
+  .gs-table th { background: {{ brand_neutral }}; padding: 6px 10px; text-align: center; font-weight: 600;
+                  border-bottom: 2px solid {{ brand_border }}; white-space: nowrap; }
   .gs-table th:first-child { text-align: left; }
-  .gs-table td { padding: 5px 10px; border-bottom: 1px solid #eee; text-align: center; white-space: nowrap; }
+  .gs-table td { padding: 5px 10px; border-bottom: 1px solid {{ brand_border }}; text-align: center; white-space: nowrap; }
   .gs-table td:first-child { text-align: left; font-weight: 600; }
-  .gs-table tr:hover td { background: #f9f9f9; }
+  .gs-table tr:hover td { background: {{ brand_accent_surface }}; }
   .gs-table a { color: {{ brand_accent }}; text-decoration: none; }
 
   .chart { width: 100%; height: 400px; margin-bottom: 20px; }
   .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
 
   .info-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .info-table th { background: #f5f5f5; padding: 6px 10px; text-align: left; font-weight: 600;
-                    border-bottom: 2px solid #ddd; }
-  .info-table td { padding: 5px 10px; border-bottom: 1px solid #eee; }
-  .info-table tr:hover td { background: #f9f9f9; }
+  .info-table th { background: {{ brand_neutral }}; padding: 6px 10px; text-align: left; font-weight: 600;
+                    border-bottom: 2px solid {{ brand_border }}; }
+  .info-table td { padding: 5px 10px; border-bottom: 1px solid {{ brand_border }}; }
+  .info-table tr:hover td { background: {{ brand_accent_surface }}; }
 
-  .callout { border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px; }
-  .callout-header { background: #f5f5f5; padding: 8px 12px; cursor: pointer; font-size: 13px;
-                     font-weight: 600; color: #555; border-bottom: 1px solid #ddd; }
-  .callout-header:hover { background: #eee; }
+  .callout { border: 1px solid {{ brand_border }}; border-radius: 4px; margin-bottom: 15px; }
+  .callout-header { background: {{ brand_neutral }}; padding: 8px 12px; cursor: pointer; font-size: 13px;
+                     font-weight: 600; color: {{ brand_heading }}; border-bottom: 1px solid {{ brand_border }}; }
+  .callout-header:hover { background: {{ brand_accent_surface }}; }
   .callout-body { padding: 12px; display: none; }
   .callout-body.show { display: block; }
 
   .dl-row { display: flex; gap: 20px; font-size: 13px; margin-bottom: 8px; flex-wrap: wrap; }
-  .dl-row dt { font-weight: 600; color: #555; }
-  .dl-row dd { color: #333; margin-right: 15px; }
+  .dl-row dt { font-weight: 600; color: {{ brand_heading }}; }
+  .dl-row dd { color: {{ brand_heading }}; margin-right: 15px; }
 
-  footer { border-top: 1px solid #eee; padding: 15px 0; margin-top: 40px;
-           font-size: 12px; color: #999; text-align: center; }
+  footer { border-top: 1px solid {{ brand_border }}; padding: 15px 0; margin-top: 40px;
+           font-size: 12px; color: {{ brand_border }}; text-align: center; }
   footer a { color: {{ brand_accent }}; text-decoration: none; }
 
   .side-nav { position: fixed; top: 50px; left: 0; width: 220px; padding: 15px 10px;
-              background: #fafafa; border-right: 1px solid #eee; height: calc(100vh - 50px);
+              background: {{ brand_neutral }}; border-right: 1px solid {{ brand_border }}; height: calc(100vh - 50px);
               overflow-y: auto; font-size: 12px; z-index: 100; }
-  .side-nav a { display: block; padding: 4px 8px; color: #555; text-decoration: none;
+  .side-nav a { display: block; padding: 4px 8px; color: {{ brand_heading }}; text-decoration: none;
                 border-left: 3px solid transparent; }
   .side-nav a:hover, .side-nav a.active { color: {{ brand_accent }}; border-left-color: {{ brand_accent }}; }
-  .side-nav a.l2 { padding-left: 20px; color: #777; font-size: 11px; }
-  .side-nav a.l3 { padding-left: 32px; color: #999; font-size: 11px; }
+  .side-nav a.l2 { padding-left: 20px; color: {{ brand_accent }}; font-size: 11px; }
+  .side-nav a.l3 { padding-left: 32px; color: {{ brand_border }}; font-size: 11px; }
   .main-content { margin-left: 220px; }
 
-  .csv-btn { float: right; font-size: 11px; color: {{ brand_accent }}; cursor: pointer; border: 1px solid #ddd;
-             background: #fff; padding: 2px 10px; border-radius: 3px; text-decoration: none; }
-  .csv-btn:hover { background: #f5f5f5; }
+  .csv-btn { float: right; font-size: 11px; color: {{ brand_accent }}; cursor: pointer; border: 1px solid {{ brand_border }};
+             background: {{ brand_white }}; padding: 2px 10px; border-radius: 3px; text-decoration: none; }
+  .csv-btn:hover { background: {{ brand_neutral }}; }
 
   @media (max-width: 900px) {
     .side-nav { display: none; }
@@ -522,7 +527,7 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
     .chart-row { grid-template-columns: 1fr; }
   }
 
-  .text-muted { color: #999; }
+  .text-muted { color: {{ brand_border }}; }
   .group-colors span { display: inline-block; width: 12px; height: 12px; border-radius: 2px;
                         margin-right: 4px; vertical-align: middle; }
 </style>
@@ -744,7 +749,7 @@ document.getElementById('group-list').innerHTML = groups.map(g =>
   const table = document.getElementById('run-summary-table');
   let html = '<thead><tr>' + cols.map(c => '<th>'+c[0]+'</th>').join('') + '</tr></thead><tbody>';
   runs.forEach((r,i) => {
-    const bg = groupColor[r.group] || '#ddd';
+    const bg = groupColor[r.group] || '{{ brand_border }}';
     html += `<tr style="background:${bg}22">`;
     cols.forEach(c => { html += '<td>' + (r[c[1]] != null ? r[c[1]] : '—') + '</td>'; });
     html += '</tr>';
@@ -799,15 +804,15 @@ function hbarChart(elId, title, labels, values, opts) {
   const height = Math.max(250, labels.length * 40 + 80);
   el.style.height = height + 'px';
   echarts.init(el).setOption({
-    title: { text: title, textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+    title: { text: title, textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
       formatter: opts.formatter || (p => p[0].name + ': ' + (opts.prefix||'') +
         p[0].value.toLocaleString(undefined, {maximumFractionDigits:2}) + (opts.suffix||'')) },
     grid: { left: 250, right: 40, top: 40, bottom: 20 },
-    xAxis: { type: 'value', name: opts.xName || '', axisLabel: { color: '#666' },
-             nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
+    xAxis: { type: 'value', name: opts.xName || '', axisLabel: { color: '{{ brand_accent }}' },
+             nameTextStyle: { color: '{{ brand_border }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
     yAxis: { type: 'category', data: labels.slice().reverse(),
-             axisLabel: { color: '#333', fontSize: 11 }, axisLine: { show: false }, axisTick: { show: false } },
+             axisLabel: { color: '{{ brand_heading }}', fontSize: 11 }, axisLine: { show: false }, axisTick: { show: false } },
     series: opts.series || [{ type: 'bar', data: values.slice().reverse(), barMaxWidth: 24,
       itemStyle: { color: opts.color || '{{ brand_accent }}' } }],
     backgroundColor: 'transparent',
@@ -820,13 +825,13 @@ function hbarStacked(elId, title, labels, seriesDefs) {
   const height = Math.max(250, labels.length * 40 + 80);
   el.style.height = height + 'px';
   echarts.init(el).setOption({
-    title: { text: title, textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+    title: { text: title, textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { bottom: 0, textStyle: { color: '#666' } },
+    legend: { bottom: 0, textStyle: { color: '{{ brand_accent }}' } },
     grid: { left: 250, right: 40, top: 40, bottom: 40 },
-    xAxis: { type: 'value', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#eee' } } },
+    xAxis: { type: 'value', axisLabel: { color: '{{ brand_accent }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
     yAxis: { type: 'category', data: labels.slice().reverse(),
-             axisLabel: { color: '#333', fontSize: 11 }, axisLine: { show: false }, axisTick: { show: false } },
+             axisLabel: { color: '{{ brand_heading }}', fontSize: 11 }, axisLine: { show: false }, axisTick: { show: false } },
     series: seriesDefs.map(s => ({
       name: s.name, type: 'bar', stack: 'total', barMaxWidth: 24,
       data: s.data.slice().reverse(), itemStyle: { color: s.color },
@@ -844,36 +849,36 @@ function hbarStacked(elId, title, labels, seriesDefs) {
   // Wall time
   hbarChart('chart-wall-time', 'Wall time', labels,
     metrics.map(r => +(r.duration / 3600000).toFixed(2)),
-    { xName: 'Hours', suffix: ' h', color: '#4a90d9' });
+    { xName: 'Hours', suffix: ' h', color: '{{ brand_accent }}' });
 
   // CPU time
   hbarChart('chart-cpu-time', 'CPU time', labels,
     metrics.map(r => +(r.cpuTime || 0)),
-    { xName: 'CPU Hours', suffix: ' h', color: '#7b61ff' });
+    { xName: 'CPU Hours', suffix: ' h', color: '{{ brand_accent_light }}' });
 
   // Estimated cost
   hbarChart('chart-est-cost', 'Compute cost', labels,
     metrics.map(r => { const c = costs.find(x => x.run_id === r.run_id); return c ? +c.cost : 0; }),
-    { xName: '$', prefix: '$', color: '#f5a623' });
+    { xName: '$', prefix: '$', color: '{{ brand_heading }}' });
 
   // Workflow status
   const summaryRuns = DATA.run_summary || [];
   hbarStacked('chart-workflow-status', 'Workflow status', labels, [
-    { name: 'Succeeded', data: summaryRuns.map(r => r.succeedCount || 0), color: '#22b573' },
-    { name: 'Failed', data: summaryRuns.map(r => r.failedCount || 0), color: '#d0021b' },
+    { name: 'Succeeded', data: summaryRuns.map(r => r.succeedCount || 0), color: '{{ brand_accent_light }}' },
+    { name: 'Failed', data: summaryRuns.map(r => r.failedCount || 0), color: '{{ brand_heading }}' },
   ]);
 
   // Efficiency
   hbarChart('chart-cpu-eff', 'CPU efficiency', labels,
-    metrics.map(r => +(r.cpuEfficiency || 0)), { xName: '%', suffix: '%', color: '#22b573' });
+    metrics.map(r => +(r.cpuEfficiency || 0)), { xName: '%', suffix: '%', color: '{{ brand_accent }}' });
   hbarChart('chart-mem-eff', 'Memory efficiency', labels,
-    metrics.map(r => +(r.memoryEfficiency || 0)), { xName: '%', suffix: '%', color: '#50e3c2' });
+    metrics.map(r => +(r.memoryEfficiency || 0)), { xName: '%', suffix: '%', color: '{{ brand_accent_light }}' });
 
   // I/O
   hbarChart('chart-read-io', 'Data read', labels,
-    metrics.map(r => +(r.readBytes || 0)), { xName: 'GB', suffix: ' GB', color: '#4a90d9' });
+    metrics.map(r => +(r.readBytes || 0)), { xName: 'GB', suffix: ' GB', color: '{{ brand_accent }}' });
   hbarChart('chart-write-io', 'Data written', labels,
-    metrics.map(r => +(r.writeBytes || 0)), { xName: 'GB', suffix: ' GB', color: '#e85d75' });
+    metrics.map(r => +(r.writeBytes || 0)), { xName: 'GB', suffix: ' GB', color: '{{ brand_accent_light }}' });
 })();
 
 // ── 3. Process overview (dot + errorbar per group) ───
@@ -972,33 +977,33 @@ function hbarStacked(elId, title, labels, seriesDefs) {
 
     setTimeout(() => {
       echarts.init(rtEl).setOption({
-        title: { text: 'Run time per process', textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+        title: { text: 'Run time per process', textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
         tooltip: { trigger: 'item',
           formatter: p => {
             if (p.seriesType === 'custom') return '';
             return `<strong>${processes[p.data[1]]}</strong><br>${p.seriesName}: ${p.data[0].toFixed(1)} min`;
           }
         },
-        legend: { data: groups, bottom: 0, textStyle: { color: '#666' } },
+        legend: { data: groups, bottom: 0, textStyle: { color: '{{ brand_accent }}' } },
         grid: { left: 350, right: 40, top: 40, bottom: 40 },
-        xAxis: { type: 'value', name: 'Run time (minutes)', axisLabel: { color: '#666' },
-                 nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
+        xAxis: { type: 'value', name: 'Run time (minutes)', axisLabel: { color: '{{ brand_accent }}' },
+                 nameTextStyle: { color: '{{ brand_border }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
         yAxis: { type: 'category', data: processes,
-                 axisLabel: { color: '#333', fontSize: 9, width: 320, overflow: 'truncate' },
+                 axisLabel: { color: '{{ brand_heading }}', fontSize: 9, width: 320, overflow: 'truncate' },
                  axisLine: { show: false }, axisTick: { show: false }, inverse: true },
         series: [...series, ...errorSeries],
         backgroundColor: 'transparent',
       });
 
       echarts.init(costEl).setOption({
-        title: { text: 'Total process cost ($)', textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+        title: { text: 'Total process cost ($)', textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-        legend: { data: groups, bottom: 0, textStyle: { color: '#666' } },
+        legend: { data: groups, bottom: 0, textStyle: { color: '{{ brand_accent }}' } },
         grid: { left: 350, right: 40, top: 40, bottom: 40 },
-        xAxis: { type: 'value', name: 'Cost ($)', axisLabel: { color: '#666' },
-                 nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
+        xAxis: { type: 'value', name: 'Cost ($)', axisLabel: { color: '{{ brand_accent }}' },
+                 nameTextStyle: { color: '{{ brand_border }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
         yAxis: { type: 'category', data: processes,
-                 axisLabel: { color: '#333', fontSize: 9, width: 320, overflow: 'truncate' },
+                 axisLabel: { color: '{{ brand_heading }}', fontSize: 9, width: 320, overflow: 'truncate' },
                  axisLine: { show: false }, axisTick: { show: false }, inverse: true },
         series: costSeries,
         backgroundColor: 'transparent',
@@ -1020,14 +1025,14 @@ function hbarStacked(elId, title, labels, seriesDefs) {
   el.style.height = height + 'px';
 
   echarts.init(el).setOption({
-    title: { text: 'Instance type usage', textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+    title: { text: 'Instance type usage', textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { data: instanceTypes, bottom: 0, textStyle: { color: '#666', fontSize: 10 }, type: 'scroll' },
+    legend: { data: instanceTypes, bottom: 0, textStyle: { color: '{{ brand_accent }}', fontSize: 10 }, type: 'scroll' },
     grid: { left: 180, right: 40, top: 40, bottom: 60 },
-    xAxis: { type: 'value', name: 'Number of tasks', axisLabel: { color: '#666' },
-             splitLine: { lineStyle: { color: '#eee' } } },
+    xAxis: { type: 'value', name: 'Number of tasks', axisLabel: { color: '{{ brand_accent }}' },
+             splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
     yAxis: { type: 'category', data: groups.slice().reverse(),
-             axisLabel: { color: '#333', fontSize: 12 }, axisLine: { show: false }, axisTick: { show: false } },
+             axisLabel: { color: '{{ brand_heading }}', fontSize: 12 }, axisLine: { show: false }, axisTick: { show: false } },
     series: instanceTypes.map(t => ({
       name: t, type: 'bar', stack: 'total', barMaxWidth: 30,
       data: groups.slice().reverse().map(g => {
@@ -1056,15 +1061,15 @@ function hbarStacked(elId, title, labels, seriesDefs) {
 
   setTimeout(() => {
     echarts.init(scatterEl).setOption({
-      title: { text: 'Task real time vs staging time', textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+      title: { text: 'Task real time vs staging time', textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
       tooltip: { trigger: 'item',
         formatter: p => `<strong>${p.data[3]}</strong><br>Real time: ${p.data[0].toFixed(1)} min<br>Staging: ${p.data[1].toFixed(1)} min<br>Cost: $${p.data[2].toFixed(4)}` },
-      legend: { data: groups, textStyle: { color: '#666' }, bottom: 0 },
+      legend: { data: groups, textStyle: { color: '{{ brand_accent }}' }, bottom: 0 },
       grid: { left: 70, right: 40, top: 50, bottom: 60 },
-      xAxis: { type: 'value', name: 'Task real time (minutes)', axisLabel: { color: '#666' },
-               nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
-      yAxis: { type: 'value', name: 'Task staging time (minutes)', axisLabel: { color: '#666' },
-               nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
+      xAxis: { type: 'value', name: 'Task real time (minutes)', axisLabel: { color: '{{ brand_accent }}' },
+               nameTextStyle: { color: '{{ brand_border }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
+      yAxis: { type: 'value', name: 'Task staging time (minutes)', axisLabel: { color: '{{ brand_accent }}' },
+               nameTextStyle: { color: '{{ brand_border }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
       series: groups.map((g, i) => ({
         name: g, type: 'scatter', symbolSize: 6,
         data: tasks.filter(t => t.group === g).map(t => [t.realtime_min||0, t.staging_min||0, t.cost||0, t.process_short]),
@@ -1101,14 +1106,14 @@ function hbarStacked(elId, title, labels, seriesDefs) {
     });
 
     echarts.init(costBoxEl).setOption({
-      title: { text: 'Task cost ($) per process', textStyle: { color: '#333', fontSize: 15, fontWeight: 400 }, left: 'center' },
+      title: { text: 'Task cost ($) per process', textStyle: { color: '{{ brand_heading }}', fontSize: 15, fontWeight: 400 }, left: 'center' },
       tooltip: { trigger: 'item' },
       grid: { left: 250, right: 40, top: 40, bottom: 20 },
       yAxis: { type: 'category', data: processes,
-               axisLabel: { color: '#333', fontSize: 9, width: 220, overflow: 'truncate' },
+               axisLabel: { color: '{{ brand_heading }}', fontSize: 9, width: 220, overflow: 'truncate' },
                axisLine: { show: false }, axisTick: { show: false }, inverse: true },
-      xAxis: { type: 'value', name: 'Cost ($)', axisLabel: { color: '#666' },
-               nameTextStyle: { color: '#999' }, splitLine: { lineStyle: { color: '#eee' } } },
+      xAxis: { type: 'value', name: 'Cost ($)', axisLabel: { color: '{{ brand_accent }}' },
+               nameTextStyle: { color: '{{ brand_border }}' }, splitLine: { lineStyle: { color: '{{ brand_border }}' } } },
       series: [{ type: 'boxplot', data: boxData,
                  itemStyle: { color: '{{ brand_accent_surface }}', borderColor: '{{ brand_accent }}' } }],
       backgroundColor: 'transparent',
@@ -1150,7 +1155,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
         });
         html += '</tr>';
       });
-      if (taskTable.length > 500) html += '<tr><td colspan="'+cols.length+'" style="text-align:center;color:#999">... and '+(taskTable.length-500)+' more rows</td></tr>';
+      if (taskTable.length > 500) html += '<tr><td colspan="'+cols.length+'" style="text-align:center;color:{{ brand_border }}">... and '+(taskTable.length-500)+' more rows</td></tr>';
       html += '</tbody>';
       table.innerHTML = html;
     }, 200);
