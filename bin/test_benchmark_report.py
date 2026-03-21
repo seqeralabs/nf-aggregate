@@ -77,14 +77,12 @@ class TestNestedTaskUnwrap:
     task_table had 0 useful rows.
     """
 
-    @pytest.mark.xfail(strict=True, reason="build_database doesn't unwrap nested {task: {...}} dicts yet")
     def test_nested_tasks_produce_cost_data(self):
         run = _make_run(tasks=[_nested_task(cost=2.50), _nested_task(cost=3.00)])
         db = build_database([run])
         costs = db.execute("SELECT SUM(cost) FROM tasks").fetchone()[0]
         assert costs == pytest.approx(5.50)
 
-    @pytest.mark.xfail(strict=True, reason="build_database doesn't unwrap nested {task: {...}} dicts yet")
     def test_nested_tasks_produce_hash_data(self):
         run = _make_run(tasks=[_nested_task(hash_val="59/4f3195")])
         db = build_database([run])

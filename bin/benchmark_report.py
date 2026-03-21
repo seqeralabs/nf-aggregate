@@ -133,7 +133,8 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
     for r in runs:
         run_id = r["workflow"]["id"]
         group = r["meta"]["group"]
-        for t in r.get("tasks", []):
+        for t_raw in r.get("tasks", []):
+            t = t_raw.get("task", t_raw) if isinstance(t_raw, dict) and "task" in t_raw else t_raw
             task_rows.append({
                 "run_id": run_id,
                 "group": group,
