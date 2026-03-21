@@ -23,8 +23,9 @@ def load_brand(brand_path: Path | None = None) -> dict:
         "neutral": "#F7F7F7",
         "white": "#ffffff",
         "palette": [
-            "#31C9AC", "#087F68", "#201637", "#0BB392",
-            "#055C4B", "#50E3C2", "#CFD0D1", "#8A8B8C",
+            "#087F68", "#45a1bf", "#201637", "#f4b548",
+            "#31C9AC", "#8f3d56", "#85c7c6", "#a5cdee",
+            "#d2c6ac", "#46a485",
         ],
     }
     if brand_path and brand_path.exists():
@@ -536,8 +537,8 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
   .gs-table tr:hover td { background: {{ brand_accent_surface }}; }
   .gs-table a { color: {{ brand_accent }}; text-decoration: none; }
 
-  .chart { width: 100%; height: 400px; margin-bottom: 20px; }
-  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  .chart { width: 100%; height: 400px; margin-bottom: 24px; }
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 24px; }
 
   .info-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .info-table th { background: {{ brand_neutral }}; padding: 6px 10px; text-align: left; font-weight: 600;
@@ -879,39 +880,41 @@ function hbarChart(elId, title, labels, values, opts) {
   opts = opts || {};
   const el = document.getElementById(elId);
   if (!el) return;
-  const height = Math.max(250, labels.length * 40 + 80);
+  const height = Math.max(250, labels.length * 45 + 80);
   el.style.height = height + 'px';
   echarts.init(el, 'seqera').setOption({
     title: { text: title },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
       formatter: opts.formatter || (p => p[0].name + ': ' + (opts.prefix||'') +
         p[0].value.toLocaleString(undefined, {maximumFractionDigits:2}) + (opts.suffix||'')) },
-    grid: { left: 10, right: 30, top: 40, bottom: 30, containLabel: true },
+    grid: { top: 40, bottom: 30, containLabel: true },
     xAxis: { type: 'value', name: opts.xName || '', nameLocation: 'end',
-      nameGap: 5, axisLabel: { hideOverlap: true } },
-    yAxis: { type: 'category', data: labels.slice().reverse(),
-             axisLabel: { fontSize: 11 } },
-    series: opts.series || [{ type: 'bar', data: values.slice().reverse(), barMaxWidth: 24,
-      itemStyle: opts.color ? { color: opts.color } : undefined }],
+      nameGap: 8, axisLabel: { hideOverlap: true } },
+    yAxis: { type: 'category', data: labels.slice().reverse() },
+    series: opts.series || [{ type: 'bar', data: values.slice().reverse(),
+      itemStyle: opts.color ? { color: opts.color, borderRadius: [0, 2, 2, 0] }
+                            : { borderRadius: [0, 2, 2, 0] },
+      emphasis: { focus: 'series' } }],
   });
 }
 
 function hbarStacked(elId, title, labels, seriesDefs) {
   const el = document.getElementById(elId);
   if (!el) return;
-  const height = Math.max(250, labels.length * 40 + 80);
+  const height = Math.max(250, labels.length * 45 + 80);
   el.style.height = height + 'px';
   echarts.init(el, 'seqera').setOption({
     title: { text: title },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     legend: { bottom: 0 },
-    grid: { left: 10, right: 30, top: 40, bottom: 40, containLabel: true },
+    grid: { top: 40, bottom: 40, containLabel: true },
     xAxis: { type: 'value', axisLabel: { hideOverlap: true } },
-    yAxis: { type: 'category', data: labels.slice().reverse(),
-             axisLabel: { fontSize: 11 } },
-    series: seriesDefs.map(s => ({
-      name: s.name, type: 'bar', stack: 'total', barMaxWidth: 24,
-      data: s.data.slice().reverse(), itemStyle: { color: s.color },
+    yAxis: { type: 'category', data: labels.slice().reverse() },
+    series: seriesDefs.map((s, i, arr) => ({
+      name: s.name, type: 'bar', stack: 'total',
+      data: s.data.slice().reverse(), itemStyle: { color: s.color,
+        borderRadius: i === arr.length - 1 ? [0, 2, 2, 0] : 0 },
+      emphasis: { focus: 'series' },
     })),
   });
 }
@@ -937,11 +940,11 @@ function hbarStacked(elId, title, labels, seriesDefs) {
     metrics.map(r => { const c = costs.find(x => x.run_id === r.run_id); return c ? +c.cost : 0; }),
     { xName: '$', prefix: '$' });
 
-  // Workflow status — explicit colors for semantic meaning
+  // Workflow status — semantic green/red
   const summaryRuns = DATA.run_summary || [];
   hbarStacked('chart-workflow-status', 'Workflow status', labels, [
-    { name: 'Succeeded', data: summaryRuns.map(r => r.succeedCount || 0), color: COLORS[0] },
-    { name: 'Failed', data: summaryRuns.map(r => r.failedCount || 0), color: COLORS[2] },
+    { name: 'Succeeded', data: summaryRuns.map(r => r.succeedCount || 0), color: '#16a34a' },
+    { name: 'Failed', data: summaryRuns.map(r => r.failedCount || 0), color: '#dc2626' },
   ]);
 
   // Efficiency
@@ -1061,10 +1064,10 @@ function hbarStacked(elId, title, labels, seriesDefs) {
           }
         },
         legend: { data: groups, bottom: 0 },
-        grid: { left: 350, right: 40, top: 40, bottom: 40 },
+        grid: { top: 40, bottom: 40, containLabel: true },
         xAxis: { type: 'value', name: 'Run time (minutes)' },
         yAxis: { type: 'category', data: processes,
-                 axisLabel: { fontSize: 9, width: 320, overflow: 'truncate' },
+                 axisLabel: { fontSize: 9, width: 280, overflow: 'truncate' },
                  inverse: true },
         series: [...series, ...errorSeries],
       });
@@ -1073,10 +1076,10 @@ function hbarStacked(elId, title, labels, seriesDefs) {
         title: { text: 'Total process cost ($)' },
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         legend: { data: groups, bottom: 0 },
-        grid: { left: 350, right: 40, top: 40, bottom: 40 },
+        grid: { top: 40, bottom: 40, containLabel: true },
         xAxis: { type: 'value', name: 'Cost ($)' },
         yAxis: { type: 'category', data: processes,
-                 axisLabel: { fontSize: 9, width: 320, overflow: 'truncate' },
+                 axisLabel: { fontSize: 9, width: 280, overflow: 'truncate' },
                  inverse: true },
         series: costSeries,
       });
@@ -1100,12 +1103,12 @@ function hbarStacked(elId, title, labels, seriesDefs) {
     title: { text: 'Instance type usage' },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     legend: { data: instanceTypes, bottom: 0, fontSize: 10, type: 'scroll' },
-    grid: { left: 180, right: 40, top: 40, bottom: 60 },
+    grid: { top: 40, bottom: 60, containLabel: true },
     xAxis: { type: 'value', name: 'Number of tasks' },
-    yAxis: { type: 'category', data: groups.slice().reverse(),
-             axisLabel: { fontSize: 12 } },
+    yAxis: { type: 'category', data: groups.slice().reverse() },
     series: instanceTypes.map(t => ({
-      name: t, type: 'bar', stack: 'total', barMaxWidth: 30,
+      name: t, type: 'bar', stack: 'total',
+      emphasis: { focus: 'series' },
       data: groups.slice().reverse().map(g => {
         const match = usage.find(u => u.group === g && u.machine_type === t);
         return match ? match.count : 0;
@@ -1135,7 +1138,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
       tooltip: { trigger: 'item',
         formatter: p => `<strong>${p.data[3]}</strong><br>Real time: ${p.data[0].toFixed(1)} min<br>Staging: ${p.data[1].toFixed(1)} min<br>Cost: $${p.data[2].toFixed(4)}` },
       legend: { data: groups, bottom: 0 },
-      grid: { left: 70, right: 40, top: 50, bottom: 60 },
+      grid: { top: 50, bottom: 60, containLabel: true },
       xAxis: { type: 'value', name: 'Task real time (minutes)' },
       yAxis: { type: 'value', name: 'Task staging time (minutes)' },
       series: groups.map((g, i) => ({
@@ -1175,7 +1178,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
     echarts.init(costBoxEl, 'seqera').setOption({
       title: { text: 'Task cost ($) per process' },
       tooltip: { trigger: 'item' },
-      grid: { left: 250, right: 40, top: 40, bottom: 20 },
+      grid: { top: 40, bottom: 20, containLabel: true },
       yAxis: { type: 'category', data: processes,
                axisLabel: { fontSize: 9, width: 220, overflow: 'truncate' },
                inverse: true },
