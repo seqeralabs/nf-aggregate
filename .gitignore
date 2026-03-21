@@ -16,3 +16,4 @@ comparison/
 test_data/
 test_report_v2.html
 modules/local/benchmark_report_v2/tests/data/
+.beads/
