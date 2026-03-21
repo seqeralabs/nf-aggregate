@@ -2,7 +2,6 @@
 // WORKFLOW: Run main seqeralabs/nf-aggregate workflow
 //
 
-include { BENCHMARK_REPORT       } from '../../modules/local/benchmark_report'
 include { BENCHMARK_REPORT_V2    } from '../../modules/local/benchmark_report_v2'
 include { PLOT_RUN_GANTT         } from '../../modules/local/plot_run_gantt'
 include { SEQERA_RUNS_DUMP       } from '../../modules/local/seqera_runs_dump'
@@ -92,21 +91,6 @@ workflow NF_AGGREGATE {
             file("${projectDir}/assets/seqera_logo_color.svg", checkIfExists: true),
         )
         ch_versions = ch_versions.mix(BENCHMARK_REPORT_V2.out.versions)
-    }
-
-    //
-    // MODULE: Generate benchmark report (v1 — R/Quarto, legacy)
-    //
-    if (params.generate_benchmark_report_legacy) {
-        aws_cur_report_legacy = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
-
-        BENCHMARK_REPORT(
-            SEQERA_RUNS_DUMP.out.run_dump.collect { it[1] },
-            SEQERA_RUNS_DUMP.out.run_dump.collect { it[0].group },
-            aws_cur_report_legacy,
-            params.remove_failed_tasks,
-        )
-        ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions)
     }
 
     //
