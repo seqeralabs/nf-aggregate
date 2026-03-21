@@ -149,3 +149,59 @@ class TestCurOldFormatColumnDetection:
         db = build_database([run], cur)
         tables = {r[0] for r in db.execute("SHOW TABLES").fetchall()}
         assert "costs" in tables
+
+
+# ── Feature+Bug: new CUR MAP format with erroneous [1] index ────────────────
+
+class TestCurNewMapFormat:
+    """New AWS CUR exports use a single MAP(VARCHAR,VARCHAR) resource_tags
+    column instead of flattened resource_tags_user_* columns.
+
+    The initial MAP implementation used resource_tags['key'][1] which is wrong —
+    DuckDB MAP lookup returns a scalar, not a list. The [1] index causes NULL.
+    """
+
+    def _write_new_cur_parquet(self, tmp_path, run_id="run1"):
+        """Write a minimal new-format CUR parquet with MAP column."""
+        db = duckdb.connect()
+        path = os.path.join(tmp_path, "cur_new.parquet")
+        db.execute(f"""
+            COPY (
+                SELECT
+                    MAP {{
+                        'user_unique_run_id': '{run_id}',
+                        'user_pipeline_process': 'PROC_A',
+                        'user_task_hash': 'abcdef1234567890'
+                    }} AS resource_tags,
+                    10.0 AS line_item_unblended_cost,
+                    8.0 AS split_line_item_split_cost,
+                    2.0 AS split_line_item_unused_cost
+            ) TO '{path}' (FORMAT PARQUET)
+        """)
+        db.close()
+        return path
+
+    @pytest.mark.xfail(strict=True, reason="build_database doesn't support MAP(VARCHAR,VARCHAR) resource_tags yet")
+    def test_map_format_creates_costs_table(self, tmp_path):
+        cur = self._write_new_cur_parquet(tmp_path, run_id="run1")
+        run = _make_run(tasks=[_flat_task()])
+        db = build_database([run], cur)
+        tables = {r[0] for r in db.execute("SHOW TABLES").fetchall()}
+        assert "costs" in tables
+
+    @pytest.mark.xfail(strict=True, reason="build_database doesn't support MAP(VARCHAR,VARCHAR) resource_tags yet")
+    def test_map_format_extracts_run_id(self, tmp_path):
+        cur = self._write_new_cur_parquet(tmp_path, run_id="run1")
+        run = _make_run(tasks=[_flat_task()])
+        db = build_database([run], cur)
+        rid = db.execute("SELECT run_id FROM costs").fetchone()[0]
+        assert rid == "run1"
+
+    @pytest.mark.xfail(strict=True, reason="build_database doesn't support MAP(VARCHAR,VARCHAR) resource_tags yet")
+    def test_map_format_extracts_costs(self, tmp_path):
+        cur = self._write_new_cur_parquet(tmp_path, run_id="run1")
+        run = _make_run(tasks=[_flat_task()])
+        db = build_database([run], cur)
+        row = db.execute("SELECT used_cost, unused_cost FROM costs").fetchone()
+        assert row[0] == pytest.approx(8.0)
+        assert row[1] == pytest.approx(2.0)
