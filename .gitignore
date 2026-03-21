@@ -10,3 +10,8 @@ null/
 .nf-test*
 test.tap
 test.xml
+
+# Local test artifacts
+comparison/
+test_data/
+test_report_v2.html
