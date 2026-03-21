@@ -135,7 +135,6 @@ class TestCurOldFormatColumnDetection:
         db.close()
         return path
 
-    @pytest.mark.xfail(strict=True, reason="build_database CUR query hardcodes both tag columns, crashes on old format")
     def test_old_format_without_nf_column(self, tmp_path):
         cur = self._write_old_cur_parquet(tmp_path, run_id="run1")
         run = _make_run(tasks=[_flat_task()])
