@@ -202,3 +202,59 @@ class TestCurNewMapFormat:
         row = db.execute("SELECT used_cost, unused_cost FROM costs").fetchone()
         assert row[0] == pytest.approx(8.0)
         assert row[1] == pytest.approx(2.0)
+
+
+# ── Bug: CUR hash-join mismatch (task hash contains '/') ────────────────────
+
+class TestCurHashJoinMismatch:
+    """Task hash 'ab/cdef12' (with '/') never matched CUR hash 'abcdef12'
+    in query_run_costs JOIN: LEFT(t.hash, 8) = c.hash.
+
+    The '/' in Nextflow workdir hashes (e.g. 45/d87388) means LEFT(t.hash, 8)
+    gives 'ab/cdef1' (7 hex chars + slash) while CUR stores 'abcdef12' (8 hex).
+    Fix: normalize task hash by stripping '/' before comparing.
+    """
+
+    def _write_cur_parquet(self, tmp_path, run_id="run1", task_hash_md5="abcdef1234567890"):
+        """Write CUR parquet with a known full MD5 task hash."""
+        db = duckdb.connect()
+        path = os.path.join(tmp_path, "cur.parquet")
+        db.execute(f"""
+            COPY (
+                SELECT
+                    '{run_id}' AS resource_tags_user_unique_run_id,
+                    'PROC_A' AS resource_tags_user_pipeline_process,
+                    '{task_hash_md5}' AS resource_tags_user_task_hash,
+                    10.0 AS line_item_unblended_cost,
+                    8.0 AS split_line_item_split_cost,
+                    2.0 AS split_line_item_unused_cost
+            ) TO '{path}' (FORMAT PARQUET)
+        """)
+        db.close()
+        return path
+
+    @pytest.mark.xfail(strict=True, reason="LEFT(t.hash, 8) includes '/' so never matches CUR hash")
+    def test_cur_costs_override_task_costs(self, tmp_path):
+        """When CUR data is present, query_run_costs should use CUR cost (10.0)
+        not the task-level cost (1.50)."""
+        task = _flat_task(hash_val="ab/cdef1234567890", cost=1.50)
+        run = _make_run(run_id="run1", tasks=[task])
+        cur = self._write_cur_parquet(tmp_path, run_id="run1", task_hash_md5="abcdef1234567890")
+
+        db = build_database([run], cur)
+        costs = query_run_costs(db)
+        assert len(costs) == 1
+        # Should use CUR cost, not task-level
+        assert costs[0]["cost"] == pytest.approx(10.0)
+
+    @pytest.mark.xfail(strict=True, reason="LEFT(t.hash, 8) includes '/' so never matches CUR hash")
+    def test_cur_used_and_unused_cost_split(self, tmp_path):
+        """CUR provides used_cost and unused_cost breakdown."""
+        task = _flat_task(hash_val="ab/cdef1234567890", cost=1.50)
+        run = _make_run(run_id="run1", tasks=[task])
+        cur = self._write_cur_parquet(tmp_path, run_id="run1", task_hash_md5="abcdef1234567890")
+
+        db = build_database([run], cur)
+        costs = query_run_costs(db)
+        assert costs[0]["used_cost"] == pytest.approx(8.0)
+        assert costs[0]["unused_cost"] == pytest.approx(2.0)
