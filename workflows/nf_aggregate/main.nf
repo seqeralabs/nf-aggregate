@@ -2,14 +2,16 @@
 // WORKFLOW: Run main seqeralabs/nf-aggregate workflow
 //
 
-include { BENCHMARK_REPORT     } from '../../modules/local/benchmark_report'
-include { PLOT_RUN_GANTT       } from '../../modules/local/plot_run_gantt'
-include { SEQERA_RUNS_DUMP     } from '../../modules/local/seqera_runs_dump'
-include { MULTIQC              } from '../../modules/nf-core/multiqc'
-include { getProcessVersions   } from '../../subworkflows/local/utils_nf_aggregate'
-include { getWorkflowVersions  } from '../../subworkflows/local/utils_nf_aggregate'
-include { paramsSummaryMultiqc } from '../../subworkflows/local/utils_nf_aggregate'
-include { paramsSummaryMap     } from 'plugin/nf-schema'
+include { BENCHMARK_REPORT       } from '../../modules/local/benchmark_report'
+include { BENCHMARK_REPORT_V2    } from '../../modules/local/benchmark_report_v2'
+include { PLOT_RUN_GANTT         } from '../../modules/local/plot_run_gantt'
+include { SEQERA_RUNS_DUMP       } from '../../modules/local/seqera_runs_dump'
+include { MULTIQC                } from '../../modules/nf-core/multiqc'
+include { getProcessVersions     } from '../../subworkflows/local/utils_nf_aggregate'
+include { getWorkflowVersions    } from '../../subworkflows/local/utils_nf_aggregate'
+include { paramsSummaryMultiqc   } from '../../subworkflows/local/utils_nf_aggregate'
+include { paramsSummaryMap       } from 'plugin/nf-schema'
+include { request; fromJson; toJson } from 'plugin/nf-boost'
 
 workflow NF_AGGREGATE {
     take:
@@ -54,15 +56,52 @@ workflow NF_AGGREGATE {
     ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
 
     //
-    // MODULE: Generate benchmark report
+    // MODULE: Generate benchmark report (v2 — API + DuckDB + eCharts)
     //
     if (params.generate_benchmark_report) {
         aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
 
+        // Fetch run data directly from Seqera API using nf-boost
+        ch_run_data = ids.map { meta ->
+            def data = SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
+            data.meta = [id: meta.id, workspace: meta.workspace, group: meta.group ?: 'default']
+            return data
+        }
+
+        // Write each run's data to a JSON file, collect into one directory
+        ch_run_jsons = ch_run_data.map { data ->
+            def json_file = file("${workDir}/run_data/${data.meta.id}.json")
+            json_file.parent.mkdirs()
+            json_file.text = toJson(data)
+            return json_file
+        }
+
+        ch_data_dir = ch_run_jsons
+            .collect()
+            .map { files ->
+                def dir = file("${workDir}/benchmark_data")
+                dir.mkdirs()
+                files.each { f -> f.copyTo(dir.resolve(f.name)) }
+                return dir
+            }
+
+        BENCHMARK_REPORT_V2(
+            ch_data_dir,
+            aws_cur_report,
+        )
+        ch_versions = ch_versions.mix(BENCHMARK_REPORT_V2.out.versions)
+    }
+
+    //
+    // MODULE: Generate benchmark report (v1 — R/Quarto, legacy)
+    //
+    if (params.generate_benchmark_report_legacy) {
+        aws_cur_report_legacy = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
+
         BENCHMARK_REPORT(
             SEQERA_RUNS_DUMP.out.run_dump.collect { it[1] },
             SEQERA_RUNS_DUMP.out.run_dump.collect { it[0].group },
-            aws_cur_report,
+            aws_cur_report_legacy,
             params.remove_failed_tasks,
         )
         ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions)
