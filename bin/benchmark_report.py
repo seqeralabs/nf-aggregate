@@ -1045,8 +1045,9 @@ function hbarStacked(elId, title, labels, seriesDefs) {
     const costSeries = groups.map((g, gi) => {
       const gStats = pipelineStats.filter(s => s.group === g);
       return {
-        name: g, type: 'bar', barMaxWidth: 16, stack: g,
-        itemStyle: { color: groupColor[g] },
+        name: g, type: 'bar', stack: g,
+        itemStyle: { color: groupColor[g], borderRadius: [0, 2, 2, 0] },
+        emphasis: { focus: 'series' },
         data: processes.map(p => {
           const s = gStats.find(x => x.process_name === p);
           return s ? +s.total_cost.toFixed(4) : 0;
@@ -1067,7 +1068,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
         grid: { top: 40, bottom: 40, containLabel: true },
         xAxis: { type: 'value', name: 'Run time (minutes)' },
         yAxis: { type: 'category', data: processes,
-                 axisLabel: { fontSize: 9, width: 280, overflow: 'truncate' },
+                 axisLabel: { width: 280, overflow: 'truncate' },
                  inverse: true },
         series: [...series, ...errorSeries],
       });
@@ -1079,7 +1080,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
         grid: { top: 40, bottom: 40, containLabel: true },
         xAxis: { type: 'value', name: 'Cost ($)' },
         yAxis: { type: 'category', data: processes,
-                 axisLabel: { fontSize: 9, width: 280, overflow: 'truncate' },
+                 axisLabel: { width: 280, overflow: 'truncate' },
                  inverse: true },
         series: costSeries,
       });
@@ -1102,7 +1103,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
   echarts.init(el, 'seqera').setOption({
     title: { text: 'Instance type usage' },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { data: instanceTypes, bottom: 0, fontSize: 10, type: 'scroll' },
+    legend: { data: instanceTypes, bottom: 0, type: 'scroll' },
     grid: { top: 40, bottom: 60, containLabel: true },
     xAxis: { type: 'value', name: 'Number of tasks' },
     yAxis: { type: 'category', data: groups.slice().reverse() },
@@ -1180,7 +1181,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
       tooltip: { trigger: 'item' },
       grid: { top: 40, bottom: 20, containLabel: true },
       yAxis: { type: 'category', data: processes,
-               axisLabel: { fontSize: 9, width: 220, overflow: 'truncate' },
+               axisLabel: { width: 220, overflow: 'truncate' },
                inverse: true },
       xAxis: { type: 'value', name: 'Cost ($)' },
       series: [{ type: 'boxplot', data: boxData }],
