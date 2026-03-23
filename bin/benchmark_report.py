@@ -773,6 +773,25 @@ function fmtPct(v) { return v != null ? Number(v).toFixed(1) + '%' : '—'; }
 function fmtGB(v) { return v != null ? Number(v).toLocaleString() : '—'; }
 function fmtHours(v) { return v != null ? Number(v).toFixed(1) : '—'; }
 
+// Takeaway helper: generate insight subtitle from data
+function takeaway(labels, values, opts) {
+  opts = opts || {};
+  if (values.length < 2) return '';
+  const pairs = labels.map((l, i) => ({ label: l, value: values[i] })).filter(p => p.value != null);
+  if (pairs.length < 2) return '';
+  pairs.sort((a, b) => a.value - b.value);
+  const lo = pairs[0], hi = pairs[pairs.length - 1];
+  if (hi.value === 0) return '';
+  const ratio = (hi.value / lo.value).toFixed(1);
+  const delta = hi.value - lo.value;
+  const prefix = opts.prefix || '';
+  const suffix = opts.suffix || '';
+  if (opts.lowerBetter) {
+    return lo.label + ' was ' + ratio + '× ' + (opts.adjective || 'lower') + ' (' + prefix + lo.value.toLocaleString(undefined, {maximumFractionDigits: 1}) + suffix + ' vs ' + prefix + hi.value.toLocaleString(undefined, {maximumFractionDigits: 1}) + suffix + ')';
+  }
+  return hi.label + ' was ' + ratio + '× ' + (opts.adjective || 'higher') + ' (' + prefix + hi.value.toLocaleString(undefined, {maximumFractionDigits: 1}) + suffix + ' vs ' + prefix + lo.value.toLocaleString(undefined, {maximumFractionDigits: 1}) + suffix + ')';
+}
+
 // CSV download helper
 function downloadCSV(tableId, filename) {
   const table = document.getElementById(tableId);
@@ -893,11 +912,11 @@ function hbarChart(elId, title, labels, values, opts) {
     });
   }
   echarts.init(el, 'seqera').setOption({
-    title: { text: title },
+    title: { text: title, subtext: opts.subtitle || '' },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
       formatter: opts.formatter || (p => p[0].name + ': ' + (opts.prefix||'') +
         p[0].value.toLocaleString(undefined, {maximumFractionDigits:2}) + (opts.suffix||'')) },
-    grid: { top: 40, bottom: 30, containLabel: true },
+    grid: { top: opts.subtitle ? 60 : 40, bottom: 30, containLabel: true },
     xAxis: { type: 'value', name: opts.xName || '', nameLocation: 'center',
       nameGap: 25, axisLabel: { hideOverlap: true } },
     yAxis: { type: 'category', data: labels.slice().reverse() },
@@ -912,10 +931,10 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
   const height = Math.max(250, labels.length * 45 + 80);
   el.style.height = height + 'px';
   echarts.init(el, 'seqera').setOption({
-    title: { text: title },
+    title: { text: title, subtext: opts.subtitle || '' },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     legend: { show: seriesDefs.length > 3, bottom: 0 },
-    grid: { top: 40, bottom: 40, containLabel: true },
+    grid: { top: opts.subtitle ? 60 : 40, bottom: 40, containLabel: true },
     xAxis: { type: 'value', name: opts.xName || '', nameLocation: 'center', nameGap: 25, axisLabel: { hideOverlap: true } },
     yAxis: { type: 'category', data: labels.slice().reverse() },
     series: seriesDefs.map((s, i, arr) => ({
@@ -935,38 +954,45 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
   const labels = metrics.map(r => r.group);
 
   // Wall time
-  hbarChart('chart-wall-time', 'Wall time', labels,
-    metrics.map(r => +(r.duration / 3600000).toFixed(2)),
-    { xName: 'Hours', suffix: ' h' });
+  const wallValues = metrics.map(r => +(r.duration / 3600000).toFixed(2));
+  hbarChart('chart-wall-time', 'Wall time', labels, wallValues,
+    { xName: 'Hours', suffix: ' h', subtitle: takeaway(labels, wallValues, { lowerBetter: true, adjective: 'faster', suffix: ' h' }) });
 
   // CPU time
-  hbarChart('chart-cpu-time', 'CPU time', labels,
-    metrics.map(r => +(r.cpuTime || 0)),
-    { xName: 'CPU Hours', suffix: ' h' });
+  const cpuValues = metrics.map(r => +(r.cpuTime || 0));
+  hbarChart('chart-cpu-time', 'CPU time', labels, cpuValues,
+    { xName: 'CPU Hours', suffix: ' h', subtitle: takeaway(labels, cpuValues, { lowerBetter: true, adjective: 'lower', suffix: ' h' }) });
 
   // Estimated cost
-  hbarChart('chart-est-cost', 'Compute cost', labels,
-    metrics.map(r => { const c = costs.find(x => x.run_id === r.run_id); return c ? +c.cost : 0; }),
-    { xName: '$', prefix: '$' });
+  const costValues = metrics.map(r => { const c = costs.find(x => x.run_id === r.run_id); return c ? +c.cost : 0; });
+  hbarChart('chart-est-cost', 'Compute cost', labels, costValues,
+    { xName: '$', prefix: '$', subtitle: takeaway(labels, costValues, { lowerBetter: true, adjective: 'cheaper', prefix: '$' }) });
 
   // Workflow status — semantic green/red
   const summaryRuns = DATA.run_summary || [];
+  const totalSucc = summaryRuns.reduce((s,r) => s + (r.succeedCount||0), 0);
+  const totalFail = summaryRuns.reduce((s,r) => s + (r.failedCount||0), 0);
+  const statusSubtitle = totalFail === 0 ? 'All tasks succeeded' : totalFail + ' task' + (totalFail > 1 ? 's' : '') + ' failed across all runs';
   hbarStacked('chart-workflow-status', 'Workflow status', labels, [
     { name: 'Succeeded', data: summaryRuns.map(r => r.succeedCount || 0), color: '#16a34a' },
     { name: 'Failed', data: summaryRuns.map(r => r.failedCount || 0), color: '#dc2626' },
-  ], { xName: 'Tasks' });
+  ], { xName: 'Tasks', subtitle: statusSubtitle });
 
   // Efficiency
-  hbarChart('chart-cpu-eff', 'CPU efficiency', labels,
-    metrics.map(r => +(r.cpuEfficiency || 0)), { xName: '%', suffix: '%' });
-  hbarChart('chart-mem-eff', 'Memory efficiency', labels,
-    metrics.map(r => +(r.memoryEfficiency || 0)), { xName: '%', suffix: '%' });
+  const cpuEffValues = metrics.map(r => +(r.cpuEfficiency || 0));
+  hbarChart('chart-cpu-eff', 'CPU efficiency', labels, cpuEffValues,
+    { xName: '%', suffix: '%', subtitle: takeaway(labels, cpuEffValues, { adjective: 'more efficient', suffix: '%' }) });
+  const memEffValues = metrics.map(r => +(r.memoryEfficiency || 0));
+  hbarChart('chart-mem-eff', 'Memory efficiency', labels, memEffValues,
+    { xName: '%', suffix: '%', subtitle: takeaway(labels, memEffValues, { adjective: 'more efficient', suffix: '%' }) });
 
   // I/O
-  hbarChart('chart-read-io', 'Data read', labels,
-    metrics.map(r => +(r.readBytes || 0)), { xName: 'GB', suffix: ' GB' });
-  hbarChart('chart-write-io', 'Data written', labels,
-    metrics.map(r => +(r.writeBytes || 0)), { xName: 'GB', suffix: ' GB' });
+  const readValues = metrics.map(r => +(r.readBytes || 0));
+  hbarChart('chart-read-io', 'Data read', labels, readValues,
+    { xName: 'GB', suffix: ' GB', subtitle: takeaway(labels, readValues, { lowerBetter: true, adjective: 'less I/O', suffix: ' GB' }) });
+  const writeValues = metrics.map(r => +(r.writeBytes || 0));
+  hbarChart('chart-write-io', 'Data written', labels, writeValues,
+    { xName: 'GB', suffix: ' GB', subtitle: takeaway(labels, writeValues, { lowerBetter: true, adjective: 'less I/O', suffix: ' GB' }) });
 })();
 
 // ── 3. Process overview (dot + errorbar per group) ───
@@ -1012,6 +1038,11 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
           return s ? [s.avg_runtime_min, pi] : null;
         }).filter(Boolean),
         // error bars via custom rendering
+        markPoint: groups.length <= 3 ? {
+          data: [{ type: 'max', valueDim: 'x' }],
+          label: { formatter: g, fontSize: 10, position: 'right', color: groupColor[g] },
+          symbolSize: 0
+        } : undefined,
       };
     });
 
@@ -1057,10 +1088,17 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
         name: g, type: 'bar', stack: g,
         itemStyle: { color: groupColor[g], borderRadius: [0, 2, 2, 0] },
         emphasis: { focus: 'series' },
+        label: { show: groups.length <= 3, position: 'right', formatter: '{a}', fontSize: 10 },
         data: processes.map(p => {
           const s = gStats.find(x => x.process_name === p);
           return s ? +s.total_cost.toFixed(4) : 0;
         }),
+        markLine: gi === 0 ? {
+          silent: true,
+          data: [{ type: 'max', name: 'Most expensive' }],
+          label: { formatter: 'Most expensive', position: 'middle', fontSize: 10 },
+          lineStyle: { type: 'dashed', color: '#999' }
+        } : undefined
       };
     });
 
