@@ -882,6 +882,16 @@ function hbarChart(elId, title, labels, values, opts) {
   if (!el) return;
   const height = Math.max(250, labels.length * 45 + 80);
   el.style.height = height + 'px';
+  const seriesArray = opts.series || [{ type: 'bar', data: values.slice().reverse(),
+    itemStyle: opts.color ? { color: opts.color, borderRadius: [0, 2, 2, 0] }
+                          : { borderRadius: [0, 2, 2, 0] },
+    emphasis: { focus: 'series' } }];
+  // Add direct labels when 2–3 named series (skip single-series — y-axis already labels groups)
+  if (seriesArray.length > 1 && seriesArray.length <= 3) {
+    seriesArray.forEach(s => {
+      s.label = { show: true, position: 'right', formatter: '{a}' };
+    });
+  }
   echarts.init(el, 'seqera').setOption({
     title: { text: title },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
@@ -891,10 +901,7 @@ function hbarChart(elId, title, labels, values, opts) {
     xAxis: { type: 'value', name: opts.xName || '', nameLocation: 'center',
       nameGap: 25, axisLabel: { hideOverlap: true } },
     yAxis: { type: 'category', data: labels.slice().reverse() },
-    series: opts.series || [{ type: 'bar', data: values.slice().reverse(),
-      itemStyle: opts.color ? { color: opts.color, borderRadius: [0, 2, 2, 0] }
-                            : { borderRadius: [0, 2, 2, 0] },
-      emphasis: { focus: 'series' } }],
+    series: seriesArray,
   });
 }
 
@@ -907,7 +914,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
   echarts.init(el, 'seqera').setOption({
     title: { text: title },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { bottom: 0 },
+    legend: { show: seriesDefs.length > 3, bottom: 0 },
     grid: { top: 40, bottom: 40, containLabel: true },
     xAxis: { type: 'value', name: opts.xName || '', nameLocation: 'center', nameGap: 25, axisLabel: { hideOverlap: true } },
     yAxis: { type: 'category', data: labels.slice().reverse() },
@@ -916,6 +923,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       data: s.data.slice().reverse(), itemStyle: { color: s.color,
         borderRadius: i === arr.length - 1 ? [0, 2, 2, 0] : 0 },
       emphasis: { focus: 'series' },
+      label: { show: true, position: 'inside', overflow: 'truncate', formatter: function(p) { return p.value > 5 ? p.seriesName : ''; }, fontSize: 11, color: '#fff' },
     })),
   });
 }
@@ -1065,7 +1073,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
             return `<strong>${processes[p.data[1]]}</strong><br>${p.seriesName}: ${p.data[0].toFixed(1)} min`;
           }
         },
-        legend: { data: groups, bottom: 0 },
+        legend: { show: groups.length > 3, data: groups, bottom: 0 },
         grid: { top: 40, bottom: 40, containLabel: true },
         xAxis: { type: 'value', name: 'Run time (minutes)', nameLocation: 'center', nameGap: 25 },
         yAxis: { type: 'category', data: processes,
@@ -1077,7 +1085,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       echarts.init(costEl, 'seqera').setOption({
         title: { text: 'Total process cost ($)' },
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-        legend: { data: groups, bottom: 0 },
+        legend: { show: groups.length > 3, data: groups, bottom: 0 },
         grid: { top: 40, bottom: 40, containLabel: true },
         xAxis: { type: 'value', name: 'Cost ($)', nameLocation: 'center', nameGap: 25 },
         yAxis: { type: 'category', data: processes,
@@ -1139,7 +1147,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       title: { text: 'Task real time vs staging time' },
       tooltip: { trigger: 'item',
         formatter: p => `<strong>${p.data[3]}</strong><br>Real time: ${p.data[0].toFixed(1)} min<br>Staging: ${p.data[1].toFixed(1)} min<br>Cost: $${p.data[2].toFixed(4)}` },
-      legend: { data: groups, bottom: 0 },
+      legend: { show: groups.length > 3, data: groups, bottom: 0 },
       grid: { top: 50, bottom: 60, containLabel: true },
       xAxis: { type: 'value', name: 'Task real time (minutes)', nameLocation: 'center', nameGap: 25 },
       yAxis: { type: 'value', name: 'Task staging time (minutes)', nameLocation: 'center', nameGap: 40 },
@@ -1147,6 +1155,11 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
         name: g, type: 'scatter', symbolSize: 6,
         data: tasks.filter(t => t.group === g).map(t => [t.realtime_min||0, t.staging_min||0, t.cost||0, t.process_short]),
         itemStyle: { color: groupColor[g] },
+        markPoint: groups.length <= 3 ? {
+          data: [{ type: 'max', valueDim: 'x' }],
+          label: { formatter: g, fontSize: 10, position: 'top', color: groupColor[g] },
+          symbolSize: 0
+        } : undefined,
       })),
       dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 25, height: 20 }],
     });
