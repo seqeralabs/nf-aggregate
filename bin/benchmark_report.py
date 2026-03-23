@@ -888,8 +888,8 @@ function hbarChart(elId, title, labels, values, opts) {
       formatter: opts.formatter || (p => p[0].name + ': ' + (opts.prefix||'') +
         p[0].value.toLocaleString(undefined, {maximumFractionDigits:2}) + (opts.suffix||'')) },
     grid: { top: 40, bottom: 30, containLabel: true },
-    xAxis: { type: 'value', name: opts.xName || '', nameLocation: 'end',
-      nameGap: 8, axisLabel: { hideOverlap: true } },
+    xAxis: { type: 'value', name: opts.xName || '', nameLocation: 'center',
+      nameGap: 25, axisLabel: { hideOverlap: true } },
     yAxis: { type: 'category', data: labels.slice().reverse() },
     series: opts.series || [{ type: 'bar', data: values.slice().reverse(),
       itemStyle: opts.color ? { color: opts.color, borderRadius: [0, 2, 2, 0] }
@@ -898,7 +898,8 @@ function hbarChart(elId, title, labels, values, opts) {
   });
 }
 
-function hbarStacked(elId, title, labels, seriesDefs) {
+function hbarStacked(elId, title, labels, seriesDefs, opts) {
+  opts = opts || {};
   const el = document.getElementById(elId);
   if (!el) return;
   const height = Math.max(250, labels.length * 45 + 80);
@@ -908,7 +909,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     legend: { bottom: 0 },
     grid: { top: 40, bottom: 40, containLabel: true },
-    xAxis: { type: 'value', axisLabel: { hideOverlap: true } },
+    xAxis: { type: 'value', name: opts.xName || '', nameLocation: 'center', nameGap: 25, axisLabel: { hideOverlap: true } },
     yAxis: { type: 'category', data: labels.slice().reverse() },
     series: seriesDefs.map((s, i, arr) => ({
       name: s.name, type: 'bar', stack: 'total',
@@ -945,7 +946,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
   hbarStacked('chart-workflow-status', 'Workflow status', labels, [
     { name: 'Succeeded', data: summaryRuns.map(r => r.succeedCount || 0), color: '#16a34a' },
     { name: 'Failed', data: summaryRuns.map(r => r.failedCount || 0), color: '#dc2626' },
-  ]);
+  ], { xName: 'Tasks' });
 
   // Efficiency
   hbarChart('chart-cpu-eff', 'CPU efficiency', labels,
@@ -1066,7 +1067,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
         },
         legend: { data: groups, bottom: 0 },
         grid: { top: 40, bottom: 40, containLabel: true },
-        xAxis: { type: 'value', name: 'Run time (minutes)' },
+        xAxis: { type: 'value', name: 'Run time (minutes)', nameLocation: 'center', nameGap: 25 },
         yAxis: { type: 'category', data: processes,
                  axisLabel: { width: 280, overflow: 'truncate' },
                  inverse: true },
@@ -1078,7 +1079,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         legend: { data: groups, bottom: 0 },
         grid: { top: 40, bottom: 40, containLabel: true },
-        xAxis: { type: 'value', name: 'Cost ($)' },
+        xAxis: { type: 'value', name: 'Cost ($)', nameLocation: 'center', nameGap: 25 },
         yAxis: { type: 'category', data: processes,
                  axisLabel: { width: 280, overflow: 'truncate' },
                  inverse: true },
@@ -1105,7 +1106,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     legend: { data: instanceTypes, bottom: 0, type: 'scroll' },
     grid: { top: 40, bottom: 60, containLabel: true },
-    xAxis: { type: 'value', name: 'Number of tasks' },
+    xAxis: { type: 'value', name: 'Number of tasks', nameLocation: 'center', nameGap: 25 },
     yAxis: { type: 'category', data: groups.slice().reverse() },
     series: instanceTypes.map(t => ({
       name: t, type: 'bar', stack: 'total',
@@ -1140,8 +1141,8 @@ function hbarStacked(elId, title, labels, seriesDefs) {
         formatter: p => `<strong>${p.data[3]}</strong><br>Real time: ${p.data[0].toFixed(1)} min<br>Staging: ${p.data[1].toFixed(1)} min<br>Cost: $${p.data[2].toFixed(4)}` },
       legend: { data: groups, bottom: 0 },
       grid: { top: 50, bottom: 60, containLabel: true },
-      xAxis: { type: 'value', name: 'Task real time (minutes)' },
-      yAxis: { type: 'value', name: 'Task staging time (minutes)' },
+      xAxis: { type: 'value', name: 'Task real time (minutes)', nameLocation: 'center', nameGap: 25 },
+      yAxis: { type: 'value', name: 'Task staging time (minutes)', nameLocation: 'center', nameGap: 40 },
       series: groups.map((g, i) => ({
         name: g, type: 'scatter', symbolSize: 6,
         data: tasks.filter(t => t.group === g).map(t => [t.realtime_min||0, t.staging_min||0, t.cost||0, t.process_short]),
@@ -1183,7 +1184,7 @@ function hbarStacked(elId, title, labels, seriesDefs) {
       yAxis: { type: 'category', data: processes,
                axisLabel: { width: 220, overflow: 'truncate' },
                inverse: true },
-      xAxis: { type: 'value', name: 'Cost ($)' },
+      xAxis: { type: 'value', name: 'Cost ($)', nameLocation: 'center', nameGap: 25 },
       series: [{ type: 'boxplot', data: boxData }],
     });
   }, 150);
