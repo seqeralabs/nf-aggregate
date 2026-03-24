@@ -13,7 +13,8 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { NF_AGGREGATE } from './workflows/nf_aggregate'
+include { NF_AGGREGATE            } from './workflows/nf_aggregate'
+include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nf_aggregate'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
