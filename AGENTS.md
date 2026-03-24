@@ -37,6 +37,16 @@ Additional paths (always active):
 ## Rebuild Command (local testing)
 
 ```bash
+# New decomposed pipeline:
+uv run --with duckdb --with typer --with pyyaml python bin/clean_json.py \
+  --data-dir modules/local/benchmark_report/tests/data --output-dir /tmp/cleaned
+uv run --with duckdb --with typer python bin/build_tables.py \
+  --runs-csv /tmp/cleaned/runs.csv --tasks-csv /tmp/cleaned/tasks.csv \
+  --metrics-csv /tmp/cleaned/metrics.csv --output-dir /tmp/tables
+uv run --with jinja2 --with typer --with pyyaml python bin/render_report.py \
+  --tables-dir /tmp/tables --brand assets/brand.yml --output /tmp/benchmark_report.html
+
+# Legacy monolithic (still works):
 uv run --with duckdb --with jinja2 --with typer --with pyyaml --with pyarrow \
   python bin/benchmark_report.py \
   --data-dir modules/local/benchmark_report/tests/data \

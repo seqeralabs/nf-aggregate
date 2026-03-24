@@ -2,7 +2,10 @@
 // WORKFLOW: Run main seqeralabs/nf-aggregate workflow
 //
 
-include { BENCHMARK_REPORT       } from '../../modules/local/benchmark_report'
+include { CLEAN_JSON              } from '../../modules/local/clean_json'
+include { CLEAN_CUR              } from '../../modules/local/clean_cur'
+include { BUILD_TABLES           } from '../../modules/local/build_tables'
+include { RENDER_REPORT          } from '../../modules/local/render_report'
 include { PLOT_RUN_GANTT         } from '../../modules/local/plot_run_gantt'
 include { SEQERA_RUNS_DUMP       } from '../../modules/local/seqera_runs_dump'
 include { MULTIQC                } from '../../modules/nf-core/multiqc'
@@ -55,19 +58,17 @@ workflow NF_AGGREGATE {
     ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
 
     //
-    // MODULE: Generate benchmark report (v2 — API + DuckDB + eCharts)
+    // BENCHMARK REPORT PIPELINE: API → Clean JSON → Build Tables → Render HTML
     //
     if (params.generate_benchmark_report) {
-        aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
 
-        // Fetch run data directly from Seqera API using nf-boost
+        // Step 0: Fetch run data on the head job (no process, just streaming)
         ch_run_data = ids.map { meta ->
             def data = SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
             data.meta = [id: meta.id, workspace: meta.workspace, group: meta.group ?: 'default']
             return data
         }
 
-        // Write each run's data to a JSON file, collect into one directory
         ch_run_jsons = ch_run_data.map { data ->
             def json_file = file("${workDir}/run_data/${data.meta.id}.json")
             json_file.parent.mkdirs()
@@ -84,13 +85,36 @@ workflow NF_AGGREGATE {
                 return dir
             }
 
-        BENCHMARK_REPORT(
-            ch_data_dir,
-            aws_cur_report,
+        // Step 1: Clean raw JSON → normalized CSVs (runs, tasks, metrics)
+        CLEAN_JSON(ch_data_dir)
+        ch_versions = ch_versions.mix(CLEAN_JSON.out.versions)
+
+        // Step 2: Clean AWS CUR parquet → costs CSV (optional)
+        if (params.benchmark_aws_cur_report) {
+            ch_cur = Channel.fromPath(params.benchmark_aws_cur_report)
+            CLEAN_CUR(ch_cur)
+            ch_costs_csv = CLEAN_CUR.out.costs_csv
+            ch_versions = ch_versions.mix(CLEAN_CUR.out.versions)
+        } else {
+            ch_costs_csv = Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty([])
+        }
+
+        // Step 3: Build query result tables from CSVs
+        BUILD_TABLES(
+            CLEAN_JSON.out.runs_csv,
+            CLEAN_JSON.out.tasks_csv,
+            CLEAN_JSON.out.metrics_csv.ifEmpty(file("${projectDir}/assets/NO_FILE")),
+            ch_costs_csv.ifEmpty(file("${projectDir}/assets/NO_FILE")),
+        )
+        ch_versions = ch_versions.mix(BUILD_TABLES.out.versions)
+
+        // Step 4: Render HTML report from pre-computed tables
+        RENDER_REPORT(
+            BUILD_TABLES.out.tables_dir,
             file("${projectDir}/assets/brand.yml", checkIfExists: true),
             file("${projectDir}/assets/seqera_logo_color.svg", checkIfExists: true),
         )
-        ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions)
+        ch_versions = ch_versions.mix(RENDER_REPORT.out.versions)
     }
 
     //
