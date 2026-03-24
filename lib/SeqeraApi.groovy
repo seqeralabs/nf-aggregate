@@ -1,11 +1,11 @@
-// Seqera Platform API client using nf-boost request()
-
-import nextflow.boost.BoostFunctions
+// Seqera Platform API client using plain java.net HTTP
 
 class SeqeraApi {
 
     static Map apiGet(String url, Map headers) {
-        def conn = BoostFunctions.request(url, method: 'GET', headers: headers)
+        def conn = new URL(url).openConnection()
+        conn.setRequestMethod('GET')
+        headers.each { k, v -> conn.setRequestProperty(k, v) }
         def code = conn.getResponseCode()
         if (code != 200) {
             throw new RuntimeException("API request failed: ${url} → HTTP ${code}")
