@@ -36,12 +36,12 @@ workflow SEQERALABS_NF_AGGREGATE {
     //
     // SUBWORKFLOW: Run initialisation tasks
     //
-    // PIPELINE_INITIALISATION(
-    //     params.version,
-    //     params.validate_params,
-    //     params.outdir,
-    //     params.input,
-    // )
+    PIPELINE_INITIALISATION(
+        params.version,
+        params.validate_params,
+        params.outdir,
+        params.input,
+    )
 
     //
     // WORKFLOW: Run pipeline
