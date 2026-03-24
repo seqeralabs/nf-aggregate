@@ -2,7 +2,6 @@
 process BENCHMARK_REPORT {
 
     conda 'python=3.12 duckdb=1.3 jinja2=3.1 typer=0.15 pyarrow=18 pyyaml=6'
-    container 'ghcr.io/seqeralabs/nf-agg:python-duckdb'
 
     input:
     path data_dir
