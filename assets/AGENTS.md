@@ -6,15 +6,15 @@
 
 Seqera brand color definitions. Single source of truth for all report colors.
 
-| Token | Hex | Usage |
-|---|---|---|
-| Deep Green (accent) | `#087F68` | Hover, links, text on light bg, stat numbers |
+| Token                       | Hex       | Usage                                             |
+| --------------------------- | --------- | ------------------------------------------------- |
+| Deep Green (accent)         | `#087F68` | Hover, links, text on light bg, stat numbers      |
 | Seqera Green (accent_light) | `#31C9AC` | CTA buttons, icons, decorative. **NEVER as text** |
-| Soft Green (accent_surface) | `#E2F7F3` | Tag bg, card bg, section bg |
-| Dark Brand (heading) | `#201637` | Headings, footer, primary text |
-| Border | `#CFD0D1` | Border color |
-| Neutral | `#F7F7F7` | Section backgrounds |
-| White | `#ffffff` | Page bg, text on dark surfaces |
+| Soft Green (accent_surface) | `#E2F7F3` | Tag bg, card bg, section bg                       |
+| Dark Brand (heading)        | `#201637` | Headings, footer, primary text                    |
+| Border                      | `#CFD0D1` | Border color                                      |
+| Neutral                     | `#F7F7F7` | Section backgrounds                               |
+| White                       | `#ffffff` | Page bg, text on dark surfaces                    |
 
 **Critical rule:** Never use white text on Seqera Green bg — use Dark Brand instead.
 

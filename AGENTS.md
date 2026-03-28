@@ -13,17 +13,18 @@ input CSV (id, workspace, group)
 ```
 
 Additional paths (always active):
+
 - `SEQERA_RUNS_DUMP` (tower-cli) → run dump dirs → `MULTIQC` + `PLOT_RUN_GANTT`
 
 ## Key Params
 
-| Param | Default | Purpose |
-|---|---|---|
-| `generate_benchmark_report` | false | Enable benchmark report |
-| `benchmark_aws_cur_report` | null | AWS CUR parquet for cost analysis |
-| `seqera_api_endpoint` | `https://api.cloud.seqera.io` | Platform API URL |
-| `skip_run_gantt` | false | Skip Gantt chart generation |
-| `skip_multiqc` | false | Skip MultiQC aggregation |
+| Param                       | Default                       | Purpose                           |
+| --------------------------- | ----------------------------- | --------------------------------- |
+| `generate_benchmark_report` | false                         | Enable benchmark report           |
+| `benchmark_aws_cur_report`  | null                          | AWS CUR parquet for cost analysis |
+| `seqera_api_endpoint`       | `https://api.cloud.seqera.io` | Platform API URL                  |
+| `skip_run_gantt`            | false                         | Skip Gantt chart generation       |
+| `skip_multiqc`              | false                         | Skip MultiQC aggregation          |
 
 ## Plugins
 
