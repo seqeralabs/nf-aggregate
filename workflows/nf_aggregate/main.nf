@@ -68,8 +68,10 @@ workflow NF_AGGREGATE {
     //
     // MODULE: Extract external tarballs containing run JSON data
     //
+    def samplesheet_dir = file(params.input).parent
     ch_tarballs = ch_split.external.map { meta ->
-        [meta, file(meta.logs, checkIfExists: true)]
+        def logs_path = meta.logs.startsWith('/') ? file(meta.logs) : samplesheet_dir.resolve(meta.logs)
+        [meta, file(logs_path, checkIfExists: true)]
     }
     EXTRACT_TARBALL(ch_tarballs)
     ch_versions = ch_versions.mix(EXTRACT_TARBALL.out.versions)

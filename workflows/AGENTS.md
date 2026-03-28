@@ -7,6 +7,7 @@ Main orchestrator workflow. Takes: ids channel, multiqc config/logo, API endpoin
 ### Input Routing
 
 Runs are split into two paths using `branch{}` on the `ids` channel:
+
 - **API runs** (`workspace != 'external'`): fetched via Seqera Platform API
 - **External runs** (`workspace == 'external'` + `logs` path): data provided as tarballs
 

@@ -9,12 +9,12 @@ Fetch run data via Seqera CLI (`tw runs dump`). Used by the legacy v1 path, Mult
 
 ### Inputs
 
-| Input | Type | Description |
-|---|---|---|
-| `meta` | val | Run metadata: `{id, workspace, group, ...}` |
-| `api_endpoint` | val | Seqera Platform API URL |
-| `java_truststore_path` | val | Optional path for private certs |
-| `java_truststore_password` | val | Optional truststore password |
+| Input                      | Type | Description                                 |
+| -------------------------- | ---- | ------------------------------------------- |
+| `meta`                     | val  | Run metadata: `{id, workspace, group, ...}` |
+| `api_endpoint`             | val  | Seqera Platform API URL                     |
+| `java_truststore_path`     | val  | Optional path for private certs             |
+| `java_truststore_password` | val  | Optional truststore password                |
 
 ### Outputs
 
@@ -32,10 +32,10 @@ This enriched meta is emitted as `metaOut` so downstream processes (PLOT_RUN_GAN
 
 ## functions.nf
 
-| Function | Purpose |
-|---|---|
+| Function           | Purpose                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------ |
 | `getWorkspaceId()` | org/workspace string → numeric workspace ID (same logic as `SeqeraApi.resolveWorkspaceId`) |
-| `getRunMetadata()` | Fetch workflow details, detect fusion, return enriched meta map |
+| `getRunMetadata()` | Fetch workflow details, detect fusion, return enriched meta map                            |
 
 ### Duplication Note
 
