@@ -8,12 +8,12 @@ nf-boost `request()` wrappers for Seqera Platform API. Used in the v2 benchmark 
 
 ### Methods
 
-| Method | Purpose |
-|---|---|
-| `apiGet(url, headers)` | Single GET request, returns parsed JSON map |
-| `apiGetAllTasks(baseUrl, headers)` | Paginated GET for `/tasks` endpoint (100/page) |
-| `resolveWorkspaceId(workspace, apiEndpoint, headers)` | "org/workspace" string → numeric workspace ID |
-| `fetchRunData(meta, apiEndpoint)` | Orchestrator: calls 4 endpoints per run → `{workflow, metrics, tasks, progress}` |
+| Method                                                | Purpose                                                                          |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `apiGet(url, headers)`                                | Single GET request, returns parsed JSON map                                      |
+| `apiGetAllTasks(baseUrl, headers)`                    | Paginated GET for `/tasks` endpoint (100/page)                                   |
+| `resolveWorkspaceId(workspace, apiEndpoint, headers)` | "org/workspace" string → numeric workspace ID                                    |
+| `fetchRunData(meta, apiEndpoint)`                     | Orchestrator: calls 4 endpoints per run → `{workflow, metrics, tasks, progress}` |
 
 ### API Endpoints Called (per run)
 
