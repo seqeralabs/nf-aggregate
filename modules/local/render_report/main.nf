@@ -2,6 +2,7 @@
 process RENDER_REPORT {
 
     conda 'python=3.12 jinja2=3.1 typer=0.15 pyyaml=6'
+    container 'community.wave.seqera.io/library/python_jinja2_typer_pyyaml:f17b76f008a1593b'
 
     input:
     path tables_dir

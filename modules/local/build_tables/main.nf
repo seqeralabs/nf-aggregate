@@ -2,6 +2,7 @@
 process BUILD_TABLES {
 
     conda 'python=3.12 duckdb=1.3 typer=0.15'
+    container 'community.wave.seqera.io/library/python_duckdb_typer:4e41feb6944c5694'
 
     input:
     path runs_csv

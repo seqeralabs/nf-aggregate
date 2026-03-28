@@ -2,6 +2,7 @@
 process BENCHMARK_REPORT {
 
     conda 'python=3.12 duckdb=1.3 jinja2=3.1 typer=0.15 pyarrow=18 pyyaml=6'
+    container 'community.wave.seqera.io/library/python_duckdb_jinja2_typer_pruned:2d95e1e826bbe38f'
 
     input:
     path data_dir

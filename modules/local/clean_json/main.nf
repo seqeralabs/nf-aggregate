@@ -2,6 +2,7 @@
 process CLEAN_JSON {
 
     conda 'python=3.12 duckdb=1.3 typer=0.15 pyyaml=6'
+    container 'community.wave.seqera.io/library/python_duckdb_typer_pyyaml:8ad5d7c0efa1d073'
 
     input:
     path data_dir

@@ -3,6 +3,7 @@
 process CLEAN_CUR {
 
     conda 'python=3.12 duckdb=1.3 typer=0.15 pyarrow=18'
+    container 'community.wave.seqera.io/library/python_duckdb_typer_pyarrow:19ccd807ea5ffdd2'
 
     input:
     path cur_parquet
