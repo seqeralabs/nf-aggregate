@@ -23,7 +23,7 @@ The pipeline requires `TOWER_ACCESS_TOKEN` (Seqera Platform API token) exported 
 
 ```bash
 export TOWER_ACCESS_TOKEN=<your-token>
-nextflow run . -profile test,docker --outdir ./results
+NXF_DOCKER_LEGACY=true nextflow run . -profile test,docker --outdir ./results -c /tmp/nf-no-limits.config
 ```
 
 ### Linting
@@ -35,10 +35,10 @@ nf-core pipelines lint --dir .
 
 ### Testing
 
-See `.github/CONTRIBUTING.md` for the canonical test command:
+See `.github/CONTRIBUTING.md` for the canonical test command. In the Cloud VM, you must use the custom nf-test config to disable Docker resource limits:
 
 ```bash
-nf-test test --profile debug,test,docker --verbose
+NXF_DOCKER_LEGACY=true nf-test test tests/default.nf.test --profile debug,test,docker --verbose --config /tmp/nf-test-cloud.config
 ```
 
 All pipeline and module tests require `TOWER_ACCESS_TOKEN` because they call the Seqera Platform API. The only tests that can run without a token are the utility subworkflow tests:
@@ -54,6 +54,30 @@ The Cloud VM requires special Docker configuration:
 - `fuse-overlayfs` storage driver (kernel doesn't support all overlay2 features)
 - `iptables-legacy` (kernel doesn't support all nftables features)
 - Docker daemon must be started manually: `sudo dockerd &>/tmp/dockerd.log &`
+- After starting Docker: `sudo chmod 666 /var/run/docker.sock`
+
+### Cgroup v2 workaround (critical for Cloud VM)
+
+The Cloud VM's cgroup v2 is in "threaded" mode, which prevents Docker from applying resource limits (`--memory`, `--cpu-shares`). Nextflow by default passes these flags to `docker run`, causing all containerized processes to fail with `cannot enter cgroupv2 ... with domain controllers -- it is in threaded mode`.
+
+**Workaround:** You must disable Docker resource limits in two ways:
+
+1. Set `NXF_DOCKER_LEGACY=true` (avoids `--cpu-shares`)
+2. Pass a Nextflow config that nullifies process resource settings:
+
+```bash
+cat > /tmp/nf-no-limits.config << 'EOF'
+process {
+    memory = null
+    cpus = null
+    time = null
+}
+EOF
+```
+
+For nf-test, create `/tmp/nf-test-cloud.config` that references a combined Nextflow test config (including resource nullification) and use `--config /tmp/nf-test-cloud.config`.
+
+The snapshot test for the default profile (`-profile test`) has a **pre-existing mismatch** caused by upstream data drift (Seqera Platform runs now include additional files like fusion logs and task directories not in the original snapshot). The benchmark test passes.
 
 ### Key files
 
