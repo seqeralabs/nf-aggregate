@@ -9,10 +9,10 @@ Gantt chart for fusion-enabled pipeline runs. Visualizes task execution timeline
 
 ### Inputs
 
-| Input | Type | Description |
-|---|---|---|
-| `meta` | val | Run metadata (must have `meta.fusion == true`) |
-| `run_dump` | path | Run dump directory from SEQERA_RUNS_DUMP |
+| Input      | Type | Description                                    |
+| ---------- | ---- | ---------------------------------------------- |
+| `meta`     | val  | Run metadata (must have `meta.fusion == true`) |
+| `run_dump` | path | Run dump directory from SEQERA_RUNS_DUMP       |
 
 ### Outputs
 
@@ -22,6 +22,7 @@ Gantt chart for fusion-enabled pipeline runs. Visualizes task execution timeline
 ### Filter
 
 Only runs for fusion-enabled workflows:
+
 ```nextflow
 .filter { meta, _run_dir -> meta.fusion && !skip_run_gantt }
 ```

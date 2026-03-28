@@ -9,12 +9,12 @@ Python + DuckDB + eCharts benchmark report.
 
 ### Inputs
 
-| Input | Type | Description |
-|---|---|---|
-| `data_dir` | path | Directory of per-run JSON files (collected from SeqeraApi.fetchRunData) |
-| `benchmark_aws_cur_report` | path | Optional AWS CUR parquet for cost analysis |
-| `brand_yml` | path | `assets/brand.yml` — brand color definitions |
-| `logo_svg` | path | `assets/seqera_logo_color.svg` — Seqera logo |
+| Input                      | Type | Description                                                             |
+| -------------------------- | ---- | ----------------------------------------------------------------------- |
+| `data_dir`                 | path | Directory of per-run JSON files (collected from SeqeraApi.fetchRunData) |
+| `benchmark_aws_cur_report` | path | Optional AWS CUR parquet for cost analysis                              |
+| `brand_yml`                | path | `assets/brand.yml` — brand color definitions                            |
+| `logo_svg`                 | path | `assets/seqera_logo_color.svg` — Seqera logo                            |
 
 ### Outputs
 
