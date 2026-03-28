@@ -6,6 +6,7 @@ include { CLEAN_JSON              } from '../../modules/local/clean_json'
 include { CLEAN_CUR              } from '../../modules/local/clean_cur'
 include { BUILD_TABLES           } from '../../modules/local/build_tables'
 include { RENDER_REPORT          } from '../../modules/local/render_report'
+include { EXTRACT_TARBALL        } from '../../modules/local/extract_tarball'
 include { PLOT_RUN_GANTT         } from '../../modules/local/plot_run_gantt'
 include { SEQERA_RUNS_DUMP       } from '../../modules/local/seqera_runs_dump'
 include { MULTIQC                } from '../../modules/nf-core/multiqc'
@@ -32,11 +33,18 @@ workflow NF_AGGREGATE {
     ch_multiqc_files = Channel.empty()
 
     //
-    // MODULE: Fetch run information via the Seqera CLI
+    // Split runs into API-fetched vs externally-provided tarballs
     //
+    ids.branch {
+        api:      it.workspace != 'external'
+        external: it.workspace == 'external' && it.logs
+    }.set { ch_split }
 
+    //
+    // MODULE: Fetch run information via the Seqera CLI (API runs only)
+    //
     SEQERA_RUNS_DUMP(
-        ids,
+        ch_split.api,
         seqera_api_endpoint,
         java_truststore_path ?: '',
         java_truststore_password ?: '',
@@ -44,7 +52,7 @@ workflow NF_AGGREGATE {
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions)
 
     //
-    // MODULE: Generate Gantt chart for workflow execution
+    // MODULE: Generate Gantt chart for workflow execution (API runs only)
     //
     SEQERA_RUNS_DUMP.out.run_dump
         .filter { meta, _run_dir ->
@@ -58,25 +66,39 @@ workflow NF_AGGREGATE {
     ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
 
     //
-    // BENCHMARK REPORT PIPELINE: API → Clean JSON → Build Tables → Render HTML
+    // MODULE: Extract external tarballs containing run JSON data
+    //
+    ch_tarballs = ch_split.external.map { meta ->
+        [meta, file(meta.logs, checkIfExists: true)]
+    }
+    EXTRACT_TARBALL(ch_tarballs)
+    ch_versions = ch_versions.mix(EXTRACT_TARBALL.out.versions)
+
+    //
+    // BENCHMARK REPORT PIPELINE: Clean JSON → Build Tables → Render HTML
     //
     if (params.generate_benchmark_report) {
 
-        // Step 0: Fetch run data on the head job (no process, just streaming)
-        ch_run_data = ids.map { meta ->
+        // Path A: Fetch run data via API for non-external runs
+        ch_api_jsons = ch_split.api.map { meta ->
             def data = SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
             data.meta = [id: meta.id, workspace: meta.workspace, group: meta.group ?: 'default']
-            return data
-        }
-
-        ch_run_jsons = ch_run_data.map { data ->
-            def json_file = file("${workDir}/run_data/${data.meta.id}.json")
+            def json_file = file("${workDir}/run_data/${meta.id}.json")
             json_file.parent.mkdirs()
             json_file.text = toJson(data)
             return json_file
         }
 
-        ch_data_dir = ch_run_jsons
+        // Path B: Collect JSON files from extracted tarballs
+        ch_tarball_jsons = EXTRACT_TARBALL.out.extracted.flatMap { meta, dir ->
+            def jsons = []
+            dir.eachFileMatch(~/.*\.json/) { jsons << it }
+            return jsons
+        }
+
+        // Merge both paths into a single data directory
+        ch_data_dir = ch_api_jsons
+            .mix(ch_tarball_jsons)
             .collect()
             .map { files ->
                 def dir = file("${workDir}/benchmark_data")
@@ -128,7 +150,7 @@ workflow NF_AGGREGATE {
         .set { ch_collated_versions }
 
     //
-    // MODULE: MultiQC
+    // MODULE: MultiQC (uses API run dumps only; external runs don't produce dumps)
     //
     ch_multiqc_report = Channel.empty()
     if (!skip_multiqc) {
