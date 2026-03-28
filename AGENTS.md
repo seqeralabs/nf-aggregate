@@ -8,14 +8,14 @@ This is a **Nextflow DSL2 bioinformatics pipeline** (not a web app). It aggregat
 
 ### Required tools
 
-| Tool | Version | Purpose |
-|------|---------|---------|
-| Nextflow | >= 24.04.2 (use `NXF_VER=24.10.4`) | Workflow engine |
-| Java JDK | 11+ | Nextflow runtime |
-| Docker | latest | Container runtime for pipeline processes |
-| nf-test | >= 0.9.2 | Test framework |
-| nf-core | 3.3.1 | Pipeline linting |
-| pre-commit | latest | Code formatting hooks (prettier, trailing-whitespace, end-of-file-fixer) |
+| Tool       | Version                            | Purpose                                                                  |
+| ---------- | ---------------------------------- | ------------------------------------------------------------------------ |
+| Nextflow   | >= 24.04.2 (use `NXF_VER=24.10.4`) | Workflow engine                                                          |
+| Java JDK   | 11+                                | Nextflow runtime                                                         |
+| Docker     | latest                             | Container runtime for pipeline processes                                 |
+| nf-test    | >= 0.9.2                           | Test framework                                                           |
+| nf-core    | 3.3.1                              | Pipeline linting                                                         |
+| pre-commit | latest                             | Code formatting hooks (prettier, trailing-whitespace, end-of-file-fixer) |
 
 ### Running the pipeline
 
@@ -50,6 +50,7 @@ nf-test test --tag subworkflows --verbose
 ### Docker-in-Docker setup (Cloud VM)
 
 The Cloud VM requires special Docker configuration:
+
 - `fuse-overlayfs` storage driver (kernel doesn't support all overlay2 features)
 - `iptables-legacy` (kernel doesn't support all nftables features)
 - Docker daemon must be started manually: `sudo dockerd &>/tmp/dockerd.log &`
