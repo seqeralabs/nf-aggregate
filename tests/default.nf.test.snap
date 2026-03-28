@@ -149,11 +149,21 @@
     },
     "-profile test_benchmark": {
         "content": [
-            1,
+            5,
             {
-                "BENCHMARK_REPORT": {
-                    "quarto-cli": "1.5.55",
-                    "r": "4.4.2"
+                "BUILD_TABLES": {
+                    "duckdb": "1.3.2",
+                    "python": "3.12.13"
+                },
+                "CLEAN_JSON": {
+                    "duckdb": "1.3.2",
+                    "python": "3.12.13"
+                },
+                "EXTRACT_TARBALL": {
+                    "tar": 1.35
+                },
+                "RENDER_REPORT": {
+                    "python": "3.12.13"
                 }
             },
             [
