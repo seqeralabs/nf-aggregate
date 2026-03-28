@@ -14,6 +14,7 @@
 */
 
 include { NF_AGGREGATE } from './workflows/nf_aggregate'
+include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nf_aggregate'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -36,12 +37,12 @@ workflow SEQERALABS_NF_AGGREGATE {
     //
     // SUBWORKFLOW: Run initialisation tasks
     //
-    // PIPELINE_INITIALISATION(
-    //     params.version,
-    //     params.validate_params,
-    //     params.outdir,
-    //     params.input,
-    // )
+    PIPELINE_INITIALISATION(
+        params.version,
+        params.validate_params,
+        params.outdir,
+        samplesheet,
+    )
 
     //
     // WORKFLOW: Run pipeline

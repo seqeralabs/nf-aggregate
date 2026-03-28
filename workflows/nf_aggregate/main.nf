@@ -11,7 +11,6 @@ include { getProcessVersions     } from '../../subworkflows/local/utils_nf_aggre
 include { getWorkflowVersions    } from '../../subworkflows/local/utils_nf_aggregate'
 include { paramsSummaryMultiqc   } from '../../subworkflows/local/utils_nf_aggregate'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
-include { request; fromJson; toJson } from 'plugin/nf-boost'
 
 workflow NF_AGGREGATE {
     take:
@@ -40,6 +39,7 @@ workflow NF_AGGREGATE {
         java_truststore_password ?: '',
     )
     ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions)
+    ch_all_run_dumps = SEQERA_RUNS_DUMP.out.run_dump.collect()
 
     //
     // MODULE: Generate Gantt chart for workflow execution
@@ -60,34 +60,17 @@ workflow NF_AGGREGATE {
     //
     if (params.generate_benchmark_report) {
         aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
-
-        // Fetch run data directly from Seqera API using nf-boost
-        ch_run_data = ids.map { meta ->
-            def data = SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
-            data.meta = [id: meta.id, workspace: meta.workspace, group: meta.group ?: 'default']
-            return data
+        ch_benchmark_inputs = ch_all_run_dumps.map { runs ->
+            [
+                runs.collect { it[0] },
+                runs.collect { it[1] },
+            ]
         }
-
-        // Write each run's data to a JSON file, collect into one directory
-        ch_run_jsons = ch_run_data.map { data ->
-            def json_file = file("${workDir}/run_data/${data.meta.id}.json")
-            json_file.parent.mkdirs()
-            json_file.text = toJson(data)
-            return json_file
-        }
-
-        ch_data_dir = ch_run_jsons
-            .collect()
-            .map { files ->
-                def dir = file("${workDir}/benchmark_data")
-                dir.mkdirs()
-                files.each { f -> f.copyTo(dir.resolve(f.name)) }
-                return dir
-            }
 
         BENCHMARK_REPORT_V2(
-            ch_data_dir,
+            ch_benchmark_inputs,
             aws_cur_report,
+            params.remove_failed_tasks,
         )
         ch_versions = ch_versions.mix(BENCHMARK_REPORT_V2.out.versions)
     }
@@ -99,8 +82,8 @@ workflow NF_AGGREGATE {
         aws_cur_report_legacy = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
 
         BENCHMARK_REPORT(
-            SEQERA_RUNS_DUMP.out.run_dump.collect { it[1] },
-            SEQERA_RUNS_DUMP.out.run_dump.collect { it[0].group },
+            ch_all_run_dumps.map { runs -> runs.collect { it[1] } },
+            ch_all_run_dumps.map { runs -> runs.collect { it[0].group ?: 'default' } },
             aws_cur_report_legacy,
             params.remove_failed_tasks,
         )
@@ -127,7 +110,7 @@ workflow NF_AGGREGATE {
         ch_workflow_summary = Channel.value(paramsSummaryMultiqc(summary_params))
         ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
         ch_multiqc_files = ch_multiqc_files.mix(ch_collated_versions)
-        ch_multiqc_files = ch_multiqc_files.mix(SEQERA_RUNS_DUMP.out.run_dump.collect { it[1] })
+        ch_multiqc_files = ch_multiqc_files.mix(ch_all_run_dumps.map { runs -> runs.collect { it[1] } })
 
         MULTIQC(
             ch_multiqc_files.collect(),

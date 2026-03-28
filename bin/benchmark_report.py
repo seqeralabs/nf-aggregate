@@ -2,7 +2,6 @@
 """Generate benchmark report matching the Quarto/R reference, using Python + DuckDB + eCharts."""
 
 import json
-import sys
 from pathlib import Path
 from datetime import datetime
 
@@ -31,12 +30,71 @@ def load_run_data(data_dir: Path) -> list[dict]:
     return runs
 
 
+def load_run_dumps(dump_dir: Path) -> list[dict]:
+    """Load unpacked `tw runs dump` directories into the report data model."""
+    runs = []
+    for run_dir in sorted(path for path in dump_dir.iterdir() if path.is_dir()):
+        workflow_path = run_dir / "workflow.json"
+        tasks_path = run_dir / "workflow-tasks.json"
+        metrics_path = run_dir / "workflow-metrics.json"
+        progress_path = run_dir / "workflow-load.json"
+        launch_path = run_dir / "workflow-launch.json"
+        service_info_path = run_dir / "service-info.json"
+
+        if not workflow_path.exists():
+            continue
+
+        with workflow_path.open() as f:
+            workflow = json.load(f)
+        with tasks_path.open() as f:
+            tasks = json.load(f) if tasks_path.exists() else []
+        with metrics_path.open() as f:
+            metrics = json.load(f) if metrics_path.exists() else []
+        with progress_path.open() as f:
+            progress = json.load(f) if progress_path.exists() else {}
+        with launch_path.open() as f:
+            launch = json.load(f) if launch_path.exists() else {}
+        with service_info_path.open() as f:
+            service_info = json.load(f) if service_info_path.exists() else {}
+
+        group = workflow.get("label") or workflow.get("group") or "default"
+        if isinstance(workflow.get("labels"), list) and workflow["labels"]:
+            group = workflow["labels"][0]
+
+        runs.append(
+            {
+                "meta": {
+                    "id": workflow.get("id", run_dir.name),
+                    "group": group,
+                    "workspace": workflow.get("workspaceName") or workflow.get("workspace", ""),
+                },
+                "workflow": workflow,
+                "metrics": metrics,
+                "tasks": tasks,
+                "progress": progress,
+                "launch": launch,
+                "computeEnv": service_info.get("computeEnv") or service_info.get("computeEnvironment") or {},
+            }
+        )
+    return runs
+
+
 def _write_tmp_json(rows: list[dict], name: str) -> str:
     import tempfile, os
     path = os.path.join(tempfile.gettempdir(), f"nfagg_{name}.json")
     with open(path, "w") as f:
         json.dump(rows, f)
     return path
+
+
+def _first_present(mapping: dict | None, *keys: str):
+    if not isinstance(mapping, dict):
+        return None
+    for key in keys:
+        value = mapping.get(key)
+        if value is not None:
+            return value
+    return None
 
 
 def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.DuckDBPyConnection:
@@ -47,7 +105,8 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
     run_rows = []
     for r in runs:
         wf = r["workflow"]
-        prog = r.get("progress", {}).get("workflowProgress", {})
+        progress_payload = r.get("progress", {}) or {}
+        prog = progress_payload.get("workflowProgress", progress_payload)
         stats = wf.get("stats", {})
         config = wf.get("configProfiles", "")
         launch = r.get("launch", {}) or {}
@@ -70,11 +129,11 @@ def build_database(runs: list[dict], cur_path: str | None = None) -> duckdb.Duck
             "succeeded": stats.get("succeedCount", 0),
             "failed": stats.get("failedCount", 0),
             "cached": stats.get("cachedCount", 0),
-            "cpu_efficiency": prog.get("cpuEfficiency"),
-            "memory_efficiency": prog.get("memoryEfficiency"),
-            "cpu_time_ms": prog.get("cpuTime", 0),
-            "read_bytes": prog.get("readBytes", 0),
-            "write_bytes": prog.get("writeBytes", 0),
+            "cpu_efficiency": _first_present(prog, "cpuEfficiency"),
+            "memory_efficiency": _first_present(prog, "memoryEfficiency"),
+            "cpu_time_ms": _first_present(prog, "cpuTime", "cpuTimeMillis") or 0,
+            "read_bytes": _first_present(prog, "readBytes") or 0,
+            "write_bytes": _first_present(prog, "writeBytes") or 0,
             "fusion_enabled": fusion_enabled,
             "wave_enabled": bool(wf.get("wave", {}).get("enabled", False)) if wf.get("wave") else False,
             "command_line": wf.get("commandLine", ""),
@@ -1129,13 +1188,21 @@ app = typer.Typer(add_completion=False)
 
 @app.command()
 def main(
-    data_dir: Path = typer.Option(..., exists=True, help="Directory containing run JSON files"),
+    data_dir: Path | None = typer.Option(None, exists=True, help="Directory containing run JSON files"),
+    dump_dir: Path | None = typer.Option(None, exists=True, help="Directory containing unpacked run dump folders"),
     costs: Path | None = typer.Option(None, help="AWS CUR parquet file"),
     output: Path = typer.Option(Path("benchmark_report.html"), help="Output HTML file"),
     remove_failed: bool = typer.Option(True, help="Exclude failed tasks from analysis"),
 ) -> None:
     """Generate a benchmark report from Seqera Platform API data."""
-    runs = load_run_data(data_dir)
+    if dump_dir:
+        runs = load_run_dumps(dump_dir)
+    elif data_dir:
+        runs = load_run_data(data_dir)
+    else:
+        typer.echo("Provide either --data-dir or --dump-dir", err=True)
+        raise typer.Exit(code=1)
+
     if not runs:
         typer.echo("No run data found", err=True)
         raise typer.Exit(code=1)
