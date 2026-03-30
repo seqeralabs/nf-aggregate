@@ -25,6 +25,7 @@ nf-boost `request()` + `map` → DuckDB → eCharts. Zero containers for data fe
 ```
 
 Additional paths (always active):
+
 - `SEQERA_RUNS_DUMP` (tower-cli) → run dump dirs → `MULTIQC` + `PLOT_RUN_GANTT`
 
 ## Data Flow
@@ -53,6 +54,7 @@ Script: `bin/benchmark_report.py report`
 Opens the DuckDB file, runs 9 SQL queries, renders self-contained HTML with eCharts.
 
 Report sections:
+
 1. **Benchmark Overview** — pipeline × group matrix
 2. **Run Overview** — summary table + metrics charts
 3. **Run Metrics** — wall time, CPU time, cost, status, efficiency, I/O
@@ -70,12 +72,14 @@ endpoints per run and writes one JSON file per run. Not used by the Nextflow pip
 ## DuckDB Tables
 
 **`runs`** — one row per workflow run:
+
 - run_id, group, pipeline, run_name, status, start, complete, duration_ms
 - succeeded, failed, **cached** (from `workflow.stats.cachedCount`)
 - cpu_efficiency, memory_efficiency, cpu_time_ms, read_bytes, write_bytes
 - fusion_enabled, wave_enabled, executor, region, etc.
 
 **`tasks`** — one row per task:
+
 - run_id, group, hash, name, process, tag, status
 - submit, start, complete, duration_ms, realtime_ms
 - cpus, memory_bytes, rss, peak_rss, read_bytes, write_bytes
@@ -83,10 +87,12 @@ endpoints per run and writes one JSON file per run. Not used by the Nextflow pip
 - derived: process_short, wait_ms, staging_ms
 
 **`metrics`** — per-process resource stats:
+
 - run_id, group, process
 - cpu/mem/vmem/time/reads/writes/cpuUsage/memUsage/timeUsage × {mean,min,q1,q2,q3,max}
 
 **`costs`** (optional, from AWS CUR parquet):
+
 - run_id, process, hash, cost, used_cost, unused_cost
 
 ## Input Format
@@ -158,13 +164,13 @@ nf-agg/
 
 ## Key Params
 
-| Param | Default | Purpose |
-|---|---|---|
-| `generate_benchmark_report` | false | Enable benchmark report |
-| `benchmark_aws_cur_report` | null | AWS CUR parquet for cost analysis |
-| `seqera_api_endpoint` | `https://api.cloud.seqera.io` | Platform API URL |
-| `skip_run_gantt` | false | Skip Gantt chart generation |
-| `skip_multiqc` | false | Skip MultiQC aggregation |
+| Param                       | Default                       | Purpose                           |
+| --------------------------- | ----------------------------- | --------------------------------- |
+| `generate_benchmark_report` | false                         | Enable benchmark report           |
+| `benchmark_aws_cur_report`  | null                          | AWS CUR parquet for cost analysis |
+| `seqera_api_endpoint`       | `https://api.cloud.seqera.io` | Platform API URL                  |
+| `skip_run_gantt`            | false                         | Skip Gantt chart generation       |
+| `skip_multiqc`              | false                         | Skip MultiQC aggregation          |
 
 ## Plugins
 

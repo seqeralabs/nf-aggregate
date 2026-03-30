@@ -1,1 +1,15 @@
-{"version":"lineage/v1beta1","kind":"TaskOutput","spec":{"taskRun":"lid://03590c15df07f5e6766a2433aabe008c","workflowRun":"lid://7c4ea73142e1bef77cfeabb28d13cc9b","createdAt":"2026-03-29T21:11:45.633453-04:00","output":[{"type":"val","name":"metaOut","value":null},{"type":"path","name":null,"value":null},{"type":"path","name":null,"value":null}],"labels":null}}
+{
+    "version": "lineage/v1beta1",
+    "kind": "TaskOutput",
+    "spec": {
+        "taskRun": "lid://03590c15df07f5e6766a2433aabe008c",
+        "workflowRun": "lid://7c4ea73142e1bef77cfeabb28d13cc9b",
+        "createdAt": "2026-03-29T21:11:45.633453-04:00",
+        "output": [
+            { "type": "val", "name": "metaOut", "value": null },
+            { "type": "path", "name": null, "value": null },
+            { "type": "path", "name": null, "value": null }
+        ],
+        "labels": null
+    }
+}
