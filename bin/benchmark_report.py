@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 import duckdb
+import httpx
 import typer
 import yaml
 from jinja2 import BaseLoader, Environment
@@ -679,6 +680,113 @@ def render_report(
     typer.echo(f"Report written to {output}")
 
 
+# ── Seqera Platform API fetch (mirrors lib/SeqeraApi.groovy) ─────────────────
+
+
+def resolve_workspace_id(
+    workspace: str, api_endpoint: str, headers: dict[str, str]
+) -> int:
+    """Resolve 'org/workspace' string to numeric workspace ID."""
+    org_name, workspace_name = workspace.split("/", 1)
+
+    resp = httpx.get(f"{api_endpoint}/orgs", headers=headers)
+    resp.raise_for_status()
+    orgs = resp.json().get("organizations", [])
+    org_id = None
+    for org in orgs:
+        if org["name"] == org_name:
+            org_id = org["orgId"]
+            break
+    if org_id is None:
+        raise RuntimeError(f"Organization '{org_name}' not found")
+
+    resp = httpx.get(
+        f"{api_endpoint}/orgs/{org_id}/workspaces", headers=headers
+    )
+    resp.raise_for_status()
+    workspaces = resp.json().get("workspaces", [])
+    ws_id = None
+    for ws in workspaces:
+        if ws["name"] == workspace_name:
+            ws_id = ws["id"]
+            break
+    if ws_id is None:
+        raise RuntimeError(
+            f"Workspace '{workspace_name}' not found in org '{org_name}'"
+        )
+    return ws_id
+
+
+def fetch_all_tasks(
+    base_url: str, headers: dict[str, str]
+) -> list[dict]:
+    """Paginate through /tasks endpoint. Returns flat list of all tasks."""
+    tasks: list[dict] = []
+    offset = 0
+    page_size = 100
+    while True:
+        sep = "&" if "?" in base_url else "?"
+        url = f"{base_url}{sep}max={page_size}&offset={offset}"
+        resp = httpx.get(url, headers=headers)
+        resp.raise_for_status()
+        page = resp.json().get("tasks", [])
+        tasks.extend(page)
+        if len(page) < page_size:
+            break
+        offset += page_size
+    return tasks
+
+
+def fetch_run_data(
+    run_id: str,
+    workspace: str,
+    api_endpoint: str,
+    token: str,
+) -> dict:
+    """Fetch all data for a single run from Seqera Platform API.
+
+    Returns dict with workflow, metrics, tasks, progress keys.
+    """
+    headers = {"Authorization": f"Bearer {token}"}
+    ws_id = resolve_workspace_id(workspace, api_endpoint, headers)
+
+    workflow_resp = httpx.get(
+        f"{api_endpoint}/workflow/{run_id}",
+        params={"workspaceId": ws_id},
+        headers=headers,
+    )
+    workflow_resp.raise_for_status()
+    workflow_data = workflow_resp.json()
+
+    metrics_resp = httpx.get(
+        f"{api_endpoint}/workflow/{run_id}/metrics",
+        params={"workspaceId": ws_id},
+        headers=headers,
+    )
+    metrics_resp.raise_for_status()
+    metrics_data = metrics_resp.json()
+
+    tasks_url = (
+        f"{api_endpoint}/workflow/{run_id}/tasks?workspaceId={ws_id}"
+    )
+    tasks_data = fetch_all_tasks(tasks_url, headers)
+
+    progress_resp = httpx.get(
+        f"{api_endpoint}/workflow/{run_id}/progress",
+        params={"workspaceId": ws_id},
+        headers=headers,
+    )
+    progress_resp.raise_for_status()
+    progress_data = progress_resp.json()
+
+    return {
+        "workflow": workflow_data.get("workflow"),
+        "metrics": metrics_data.get("metrics", []),
+        "tasks": tasks_data,
+        "progress": progress_data.get("progress"),
+    }
+
+
 # ── CLI subcommands ─────────────────────────────────────────────────────────
 
 
@@ -711,6 +819,37 @@ def report(
 ) -> None:
     """Render benchmark HTML report from a DuckDB database."""
     render_report(db, output, brand, logo)
+
+
+@app.command()
+def fetch(
+    run_ids: list[str] = typer.Option(..., help="Seqera Platform run IDs"),
+    workspace: str = typer.Option(..., help="Workspace as org/name"),
+    group: str = typer.Option("default", help="Group label for these runs"),
+    api_endpoint: str = typer.Option(
+        "https://api.cloud.seqera.io", help="Seqera API endpoint"
+    ),
+    output_dir: Path = typer.Option(
+        Path("json_data"), help="Output directory for JSON files"
+    ),
+) -> None:
+    """Fetch run data from Seqera Platform API and write JSON files."""
+    token = os.environ.get("TOWER_ACCESS_TOKEN")
+    if not token:
+        typer.echo("TOWER_ACCESS_TOKEN environment variable is required", err=True)
+        raise typer.Exit(code=1)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for run_id in run_ids:
+        typer.echo(f"Fetching run {run_id} ...")
+        data = fetch_run_data(run_id, workspace, api_endpoint, token)
+        data["meta"] = {"id": run_id, "workspace": workspace, "group": group}
+        out_file = output_dir / f"{run_id}.json"
+        out_file.write_text(json.dumps(data, default=str))
+        typer.echo(f"  Written to {out_file}")
+
+    typer.echo(f"Done. {len(run_ids)} run(s) saved to {output_dir}")
 
 
 # ── eCharts HTML Template ──────────────────────────────────────────────────

@@ -1,10 +1,11 @@
 """Tests for benchmark_report.py — unified benchmark CLI.
 
-Run: uv run --with duckdb --with typer --with pyyaml --with jinja2 --with pyarrow --with pytest pytest bin/test_benchmark_report.py -v
+Run: uv run --with duckdb --with typer --with pyyaml --with jinja2 --with pyarrow --with httpx --with pytest pytest bin/test_benchmark_report.py -v
 """
 
 import json
 import os
+from unittest.mock import MagicMock, patch
 
 import duckdb
 import pytest
@@ -18,7 +19,9 @@ from benchmark_report import (
     extract_metrics,
     extract_runs,
     extract_tasks,
+    fetch_all_tasks,
     fetch_dicts,
+    fetch_run_data,
     load_brand,
     load_run_data,
     query_benchmark_overview,
@@ -32,6 +35,7 @@ from benchmark_report import (
     query_task_table,
     render_html,
     render_report,
+    resolve_workspace_id,
     table_exists,
 )
 
@@ -715,3 +719,122 @@ class TestSarekFixtures:
         count = db.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
         assert count == 2
         db.close()
+
+
+# ── Fetch subcommand (Seqera Platform API) ─────────────────────────────────
+
+
+def _mock_response(json_data, status_code=200):
+    """Create a mock httpx.Response."""
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.json.return_value = json_data
+    resp.raise_for_status.return_value = None
+    return resp
+
+
+class TestResolveWorkspaceId:
+    """Verify workspace resolution from org/workspace string."""
+
+    @patch("benchmark_report.httpx.get")
+    def test_resolves_workspace(self, mock_get):
+        mock_get.side_effect = [
+            _mock_response({
+                "organizations": [{"name": "myorg", "orgId": 42}]
+            }),
+            _mock_response({
+                "workspaces": [{"name": "myws", "id": 99}]
+            }),
+        ]
+        ws_id = resolve_workspace_id(
+            "myorg/myws", "https://api.example.com", {"Authorization": "Bearer tok"}
+        )
+        assert ws_id == 99
+        assert mock_get.call_count == 2
+
+    @patch("benchmark_report.httpx.get")
+    def test_raises_on_missing_org(self, mock_get):
+        mock_get.return_value = _mock_response({"organizations": []})
+        with pytest.raises(RuntimeError, match="Organization.*not found"):
+            resolve_workspace_id(
+                "badorg/ws", "https://api.example.com", {}
+            )
+
+    @patch("benchmark_report.httpx.get")
+    def test_raises_on_missing_workspace(self, mock_get):
+        mock_get.side_effect = [
+            _mock_response({"organizations": [{"name": "org", "orgId": 1}]}),
+            _mock_response({"workspaces": []}),
+        ]
+        with pytest.raises(RuntimeError, match="Workspace.*not found"):
+            resolve_workspace_id(
+                "org/badws", "https://api.example.com", {}
+            )
+
+
+class TestFetchAllTasks:
+    """Verify task pagination."""
+
+    @patch("benchmark_report.httpx.get")
+    def test_single_page(self, mock_get):
+        mock_get.return_value = _mock_response({
+            "tasks": [{"task": {"id": i}} for i in range(50)]
+        })
+        tasks = fetch_all_tasks("https://api.example.com/workflow/1/tasks?workspaceId=1", {})
+        assert len(tasks) == 50
+        assert mock_get.call_count == 1
+
+    @patch("benchmark_report.httpx.get")
+    def test_multi_page(self, mock_get):
+        full_page = [{"task": {"id": i}} for i in range(100)]
+        partial_page = [{"task": {"id": i}} for i in range(30)]
+        mock_get.side_effect = [
+            _mock_response({"tasks": full_page}),
+            _mock_response({"tasks": partial_page}),
+        ]
+        tasks = fetch_all_tasks("https://api.example.com/workflow/1/tasks?workspaceId=1", {})
+        assert len(tasks) == 130
+        assert mock_get.call_count == 2
+
+
+class TestFetchRunData:
+    """Verify fetch_run_data calls all required API endpoints."""
+
+    @patch("benchmark_report.httpx.get")
+    def test_calls_four_endpoints(self, mock_get):
+        # Setup responses for: orgs, workspaces, workflow, metrics, tasks, progress
+        mock_get.side_effect = [
+            # resolve_workspace_id: GET /orgs
+            _mock_response({"organizations": [{"name": "org", "orgId": 1}]}),
+            # resolve_workspace_id: GET /orgs/1/workspaces
+            _mock_response({"workspaces": [{"name": "ws", "id": 10}]}),
+            # GET /workflow/{id}
+            _mock_response({"workflow": {"id": "abc123", "status": "SUCCEEDED"}}),
+            # GET /workflow/{id}/metrics
+            _mock_response({"metrics": [{"process": "PROC_A"}]}),
+            # GET /workflow/{id}/tasks (single page)
+            _mock_response({"tasks": [{"task": {"name": "t1"}}]}),
+            # GET /workflow/{id}/progress
+            _mock_response({"progress": {"workflowProgress": {}}}),
+        ]
+        result = fetch_run_data("abc123", "org/ws", "https://api.example.com", "tok123")
+
+        assert result["workflow"]["id"] == "abc123"
+        assert len(result["metrics"]) == 1
+        assert len(result["tasks"]) == 1
+        assert result["progress"] is not None
+        # 2 calls for workspace resolution + 4 data endpoints = 6 total
+        assert mock_get.call_count == 6
+
+    @patch("benchmark_report.httpx.get")
+    def test_returns_expected_keys(self, mock_get):
+        mock_get.side_effect = [
+            _mock_response({"organizations": [{"name": "o", "orgId": 1}]}),
+            _mock_response({"workspaces": [{"name": "w", "id": 5}]}),
+            _mock_response({"workflow": {"id": "r1"}}),
+            _mock_response({"metrics": []}),
+            _mock_response({"tasks": []}),
+            _mock_response({"progress": {"workflowProgress": {}}}),
+        ]
+        result = fetch_run_data("r1", "o/w", "https://api.example.com", "tok")
+        assert set(result.keys()) == {"workflow", "metrics", "tasks", "progress"}
