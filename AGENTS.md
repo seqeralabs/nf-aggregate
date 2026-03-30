@@ -5,10 +5,10 @@ Nextflow pipeline to aggregate metrics across Seqera Platform pipeline runs. nf-
 ## Architecture
 
 ```
-input CSV (id, workspace, group)
-  → SeqeraApi.fetchRunData() in map{} (4 API calls/run: workflow, metrics, tasks, progress)
+input CSV (id, workspace, group, logs, fusion)
+  → branch: api (SeqeraApi.fetchRunData) | external (EXTRACT_TARBALL)
   → collect JSON files
-  → BENCHMARK_REPORT process (Python + DuckDB + eCharts)
+  → CLEAN_JSON → CLEAN_CUR (optional) → BUILD_TABLES → RENDER_REPORT
   → benchmark_report.html (~70KB self-contained)
 ```
 
@@ -47,12 +47,6 @@ uv run --with duckdb --with typer python bin/build_tables.py \
 uv run --with jinja2 --with typer --with pyyaml python bin/render_report.py \
   --tables-dir /tmp/tables --brand assets/brand.yml --output /tmp/benchmark_report.html
 
-# Legacy monolithic (still works):
-uv run --with duckdb --with jinja2 --with typer --with pyyaml --with pyarrow \
-  python bin/benchmark_report.py \
-  --data-dir modules/local/benchmark_report/tests/data \
-  --brand assets/brand.yml \
-  --output /tmp/benchmark_report.html
 ```
 
 ## Gotchas
