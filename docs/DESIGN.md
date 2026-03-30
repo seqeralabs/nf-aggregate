@@ -2,7 +2,7 @@
 
 ## Overview
 
-nf-boost `request()` + `map` → DuckDB → eCharts. Zero containers for data fetch, multi-step pipeline for report generation.
+nf-boost `request()` + `map` → DuckDB → eCharts. Zero containers for data fetch, single process for report generation.
 
 ## Architecture
 
@@ -18,15 +18,9 @@ nf-boost `request()` + `map` → DuckDB → eCharts. Zero containers for data fe
 │                                                            │
 │           ↓ collect JSON files into directory               │
 │                                                            │
-│  ┌─ CLEAN_JSON ──→ runs.csv, tasks.csv, metrics.csv       │
-│  │                                                         │
-│  ├─ CLEAN_CUR ───→ costs.csv (optional, CUR 1.0 or 2.0)  │
-│  │                                                         │
-│  ├─ BUILD_TABLES ─→ query result JSONs (9 files)          │
-│  │                   (joins, aggregation, DuckDB queries)  │
-│  │                                                         │
-│  └─ RENDER_REPORT → benchmark_report.html (eCharts)       │
-│                      (strictly HTML rendering, no queries) │
+│  BENCHMARK_REPORT process:                                 │
+│    benchmark_report.py build-db → benchmark.duckdb         │
+│    benchmark_report.py report   → benchmark_report.html    │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -40,46 +34,23 @@ Additional paths (always active):
 No process needed. Pure Nextflow `map` operator calls the Seqera API directly
 via `SeqeraApi.fetchRunData()`. JSON files collected into a directory.
 
-### Step 1: CLEAN_JSON — Normalize raw JSON → CSVs
+### Step 1: build-db — JSON + CUR → DuckDB
 
-Script: `bin/clean_json.py`
+Script: `bin/benchmark_report.py build-db`
 
-Reads run JSON files and produces:
-- `runs.csv` — one row per workflow run (includes `cached` count)
-- `tasks.csv` — one row per task (filtered: keeps COMPLETED + CACHED, drops FAILED)
-- `metrics.csv` — one row per process metric field
+Reads run JSON files and optional AWS CUR parquet. Creates a persistent
+DuckDB database with normalized tables:
 
-### Step 2: CLEAN_CUR — Normalize AWS CUR parquet → CSV (optional)
+- `runs` — one row per workflow run (includes `cached` count)
+- `tasks` — one row per task (filtered: keeps COMPLETED + CACHED, drops FAILED)
+- `metrics` — one row per process metric field
+- `costs` — optional, from AWS CUR parquet (auto-detects CUR 1.0 flat vs 2.0 MAP)
 
-Script: `bin/clean_cur.py`
+### Step 2: report — DuckDB → HTML
 
-Auto-detects CUR format:
-- **CUR 2.0** (MAP format): `resource_tags` is `MAP(VARCHAR, VARCHAR)`
-- **CUR 1.0** (flattened): `resource_tags_user_unique_run_id`, etc.
+Script: `bin/benchmark_report.py report`
 
-Produces: `costs.csv` with columns: `run_id, process, hash, cost, used_cost, unused_cost`
-
-### Step 3: BUILD_TABLES — DuckDB joins/aggregation → query result JSONs
-
-Script: `bin/build_tables.py`
-
-Reads CSVs, runs DuckDB queries, outputs JSON files:
-- `benchmark_overview.json` — Pipeline × group matrix
-- `run_summary.json` — Infrastructure settings (includes `cachedCount`)
-- `run_metrics.json` — Duration, CPU time, efficiency
-- `run_costs.json` — Per-run costs (task-level + optional CUR)
-- `process_stats.json` — Per-process mean ± SD
-- `task_instance_usage.json` — Instance type counts
-- `task_table.json` — Full task table
-- `task_scatter.json` — Realtime vs staging scatter data
-- `cost_overview.json` — CUR cost breakdown (if available)
-
-### Step 4: RENDER_REPORT — HTML rendering (no queries)
-
-Script: `bin/render_report.py`
-
-Loads pre-computed JSON files, renders self-contained HTML with eCharts.
-**Does no DuckDB queries.** Strictly presentation layer.
+Opens the DuckDB file, runs 9 SQL queries, renders self-contained HTML with eCharts.
 
 Report sections:
 1. **Benchmark Overview** — pipeline × group matrix
@@ -88,6 +59,13 @@ Report sections:
 4. **Workflow Status** — succeeded/failed/cached stacked bars
 5. **Process Overview** — dot + error bar charts, cost per process
 6. **Task Overview** — instance usage, scatter, box plots, task table
+
+### Standalone: fetch — API → JSON
+
+Script: `bin/benchmark_report.py fetch`
+
+Python equivalent of `SeqeraApi.groovy` for agent/standalone use. Calls 4 API
+endpoints per run and writes one JSON file per run. Not used by the Nextflow pipeline.
 
 ## DuckDB Tables
 
@@ -132,35 +110,30 @@ nextflow run seqeralabs/nf-aggregate --input runs.csv --generate_benchmark_repor
   --benchmark_aws_cur_report aws_cur.parquet
 ```
 
-## Local Testing (individual scripts)
+## Local Testing
 
 ```bash
-# Step 1: Clean JSON
-uv run --with duckdb --with typer --with pyyaml python bin/clean_json.py \
-  --data-dir tests/data \
-  --output-dir /tmp/cleaned
+# Build DuckDB from JSON data
+uv run --with duckdb --with typer --with pyyaml --with pyarrow \
+  python bin/benchmark_report.py build-db \
+  --data-dir /path/to/json_data --output /tmp/benchmark.duckdb
 
-# Step 3: Build tables
-uv run --with duckdb --with typer python bin/build_tables.py \
-  --runs-csv /tmp/cleaned/runs.csv \
-  --tasks-csv /tmp/cleaned/tasks.csv \
-  --metrics-csv /tmp/cleaned/metrics.csv \
-  --output-dir /tmp/tables
+# Render HTML report from DuckDB
+uv run --with duckdb --with jinja2 --with typer --with pyyaml \
+  python bin/benchmark_report.py report \
+  --db /tmp/benchmark.duckdb --brand assets/brand.yml --output /tmp/report.html
 
-# Step 4: Render report
-uv run --with jinja2 --with typer --with pyyaml python bin/render_report.py \
-  --tables-dir /tmp/tables \
-  --brand assets/brand.yml \
-  --output /tmp/benchmark_report.html
+# Fetch from Seqera API (standalone)
+uv run --with duckdb --with typer --with pyyaml --with httpx \
+  python bin/benchmark_report.py fetch \
+  --run-ids <id> --workspace org/name --output-dir /tmp/json_data
 ```
 
 ## Running Tests
 
 ```bash
-# All new decomposed tests
-uv run --with duckdb --with jinja2 --with typer --with pyyaml --with pyarrow --with pytest \
-  pytest bin/test_clean_json.py bin/test_clean_cur.py bin/test_build_tables.py bin/test_render_report.py -v
-
+uv run --with duckdb --with jinja2 --with typer --with pyyaml --with pyarrow --with httpx --with pytest \
+  pytest bin/test_benchmark_report.py -v
 ```
 
 ## Project Structure
@@ -169,24 +142,17 @@ uv run --with duckdb --with jinja2 --with typer --with pyyaml --with pyarrow --w
 nf-agg/
 ├── workflows/nf_aggregate/main.nf     # orchestrator
 ├── modules/local/
-│   ├── clean_json/main.nf             # JSON → CSVs
-│   ├── clean_cur/main.nf              # CUR parquet → costs CSV
-│   ├── build_tables/main.nf           # CSVs → query result JSONs
-│   ├── render_report/main.nf          # JSONs → HTML report
+│   ├── benchmark_report/main.nf       # build-db + report (single process)
+│   ├── extract_tarball/main.nf        # extract external run tarballs
 │   ├── seqera_runs_dump/              # tower-cli runs dump + metadata
 │   └── plot_run_gantt/                # fusion-only gantt
 ├── lib/
-│   └── SeqeraApi.groovy               # API client (head job)
+│   └── SeqeraApi.groovy               # API client (head job, Nextflow only)
 ├── bin/
-│   ├── clean_json.py                   # Step 1: normalize JSON
-│   ├── clean_cur.py                    # Step 2: normalize CUR
-│   ├── build_tables.py                 # Step 3: DuckDB queries
-│   ├── render_report.py                # Step 4: HTML rendering
-│   ├── test_clean_json.py              # tests for step 1
-│   ├── test_clean_cur.py               # tests for step 2
-│   ├── test_build_tables.py            # tests for step 3
-│   ├── test_render_report.py           # tests for step 4
-│   └── test_render_report.py           # tests for step 4
+│   ├── benchmark_report.py            # unified CLI (build-db, report, fetch)
+│   ├── benchmark_report_template.html # eCharts HTML template
+│   ├── test_benchmark_report.py       # tests
+│   └── plot_run_gantt.py              # gantt chart script
 └── nextflow.config
 ```
 
@@ -212,13 +178,11 @@ nf-agg/
 ## Dependencies
 
 **Nextflow plugins**: nf-boost (for `request`, `fromJson`, `toJson`)
-**Python**: duckdb, jinja2, typer, pyarrow (for parquet), pyyaml
-**Not required**: R, Quarto, renv
+**Python**: duckdb, jinja2, typer, pyarrow (for parquet), pyyaml, httpx (fetch only)
 
 ## Gotchas
 
 - Wave freeze strategy: `['conda', 'container', 'dockerfile']` — no `spack`
 - DuckDB `read_json_auto` needs file paths, not JSON strings — use temp files
-- `commit.gpgsign` must be true (SSH signing via 1Password)
 - CUR hash join: task hash contains '/' (e.g. `45/d87388`) — strip before comparing
-- CLEAN_CUR auto-detects CUR format (MAP vs flattened) — no user config needed
+- CUR auto-detects format (MAP vs flattened) — no user config needed
