@@ -2,10 +2,7 @@
 // WORKFLOW: Run main seqeralabs/nf-aggregate workflow
 //
 
-include { CLEAN_JSON              } from '../../modules/local/clean_json'
-include { CLEAN_CUR              } from '../../modules/local/clean_cur'
-include { BUILD_TABLES           } from '../../modules/local/build_tables'
-include { RENDER_REPORT          } from '../../modules/local/render_report'
+include { BENCHMARK_REPORT        } from '../../modules/local/benchmark_report'
 include { EXTRACT_TARBALL        } from '../../modules/local/extract_tarball'
 include { PLOT_RUN_GANTT         } from '../../modules/local/plot_run_gantt'
 include { SEQERA_RUNS_DUMP       } from '../../modules/local/seqera_runs_dump'
@@ -77,7 +74,7 @@ workflow NF_AGGREGATE {
     ch_versions = ch_versions.mix(EXTRACT_TARBALL.out.versions)
 
     //
-    // BENCHMARK REPORT PIPELINE: Clean JSON → Build Tables → Render HTML
+    // BENCHMARK REPORT: JSON → DuckDB → HTML report
     //
     if (params.generate_benchmark_report) {
 
@@ -109,36 +106,17 @@ workflow NF_AGGREGATE {
                 return dir
             }
 
-        // Step 1: Clean raw JSON → normalized CSVs (runs, tasks, metrics)
-        CLEAN_JSON(ch_data_dir)
-        ch_versions = ch_versions.mix(CLEAN_JSON.out.versions)
+        ch_cur = params.benchmark_aws_cur_report
+            ? Channel.fromPath(params.benchmark_aws_cur_report)
+            : Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file("${projectDir}/assets/NO_FILE"))
 
-        // Step 2: Clean AWS CUR parquet → costs CSV (optional)
-        if (params.benchmark_aws_cur_report) {
-            ch_cur = Channel.fromPath(params.benchmark_aws_cur_report)
-            CLEAN_CUR(ch_cur)
-            ch_costs_csv = CLEAN_CUR.out.costs_csv
-            ch_versions = ch_versions.mix(CLEAN_CUR.out.versions)
-        } else {
-            ch_costs_csv = Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty([])
-        }
-
-        // Step 3: Build query result tables from CSVs
-        BUILD_TABLES(
-            CLEAN_JSON.out.runs_csv,
-            CLEAN_JSON.out.tasks_csv,
-            CLEAN_JSON.out.metrics_csv.ifEmpty(file("${projectDir}/assets/NO_FILE")),
-            ch_costs_csv.ifEmpty(file("${projectDir}/assets/NO_FILE")),
-        )
-        ch_versions = ch_versions.mix(BUILD_TABLES.out.versions)
-
-        // Step 4: Render HTML report from pre-computed tables
-        RENDER_REPORT(
-            BUILD_TABLES.out.tables_dir,
+        BENCHMARK_REPORT(
+            ch_data_dir,
+            ch_cur.ifEmpty(file("${projectDir}/assets/NO_FILE")),
             file("${projectDir}/assets/brand.yml", checkIfExists: true),
             file("${projectDir}/assets/seqera_logo_color.svg", checkIfExists: true),
         )
-        ch_versions = ch_versions.mix(RENDER_REPORT.out.versions)
+        ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions)
     }
 
     //
