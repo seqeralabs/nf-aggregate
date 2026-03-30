@@ -24,7 +24,7 @@ app = typer.Typer(add_completion=False)
 def load_brand(brand_path: Path | None = None) -> dict:
     """Load brand.yml and return flat color map with defaults."""
     defaults = {
-        "accent": "#087F68",
+        "accent": "#065647",
         "accent_light": "#31C9AC",
         "accent_surface": "#E2F7F3",
         "heading": "#201637",
@@ -32,7 +32,7 @@ def load_brand(brand_path: Path | None = None) -> dict:
         "neutral": "#F7F7F7",
         "white": "#ffffff",
         "palette": [
-            "#087F68", "#45a1bf", "#201637", "#f4b548",
+            "#065647", "#45a1bf", "#201637", "#f4b548",
             "#31C9AC", "#8f3d56", "#85c7c6", "#a5cdee",
             "#d2c6ac", "#46a485",
         ],
@@ -124,7 +124,7 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pipeline benchmarking report</title>
+<title> Pipeline benchmarking report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -135,20 +135,20 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
          background: {{ brand_white }}; color: {{ brand_heading }}; line-height: 1.6; font-size: 14px; }
   .container { max-width: 1200px; margin: 0 auto; padding: 0 15px; }
 
-  .navbar { background: {{ brand_white }}; border-bottom: 3px solid {{ brand_accent }}; padding: 10px 0; margin-bottom: 30px; }
-  .navbar .container { display: flex; align-items: center; justify-content: space-between; }
-  .navbar-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: {{ brand_heading }}; }
-  .navbar-brand svg { height: 28px; }
-  .navbar-right { color: {{ brand_border }}; font-size: 13px; }
+  .navbar { background: {{ brand_white }}; border-bottom: 1px solid {{ brand_border }}; padding: 12px 0; margin-bottom: 30px; }
+  .navbar .container { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .navbar-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #000000; }
+  .navbar-brand svg { height: 28px; display: block; }
+  .navbar-right { color: #000000; font-size: 13px; font-weight: 500; }
 
   .section { margin-bottom: 40px; }
   .section h1 { font-size: 26px; font-weight: 600; color: {{ brand_heading }}; margin-bottom: 5px;
-                 padding-bottom: 8px; border-bottom: 2px solid {{ brand_border }}; }
+                 padding-bottom: 8px; border-bottom: 1px solid {{ brand_border }}; }
   .section h2 { font-size: 20px; font-weight: 500; color: {{ brand_heading }}; margin: 25px 0 8px;
                  padding-bottom: 5px; border-bottom: 1px solid {{ brand_border }}; }
   .section h3 { font-size: 17px; font-weight: 500; color: {{ brand_heading }}; margin: 20px 0 8px; }
-  .section-desc { color: {{ brand_accent }}; font-size: 13px; margin-bottom: 15px; line-height: 1.5; }
-  .section-desc strong { color: {{ brand_heading }}; }
+  .section-desc { color: {{ brand_heading }}; font-size: 13px; margin-bottom: 15px; line-height: 1.5; }
+  .section-desc strong { color: {{ brand_heading }}; font-weight: 600; }
 
   .gs-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 20px; }
   .gs-table th { background: {{ brand_neutral }}; padding: 6px 10px; text-align: center; font-weight: 600;
@@ -183,20 +183,21 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
            font-size: 12px; color: {{ brand_border }}; text-align: center; }
   footer a { color: {{ brand_accent }}; text-decoration: none; }
 
-  .side-nav { position: fixed; top: 50px; left: 0; width: 220px; padding: 15px 10px;
-              background: {{ brand_neutral }}; border-right: 1px solid {{ brand_border }}; height: calc(100vh - 50px);
+  .side-nav { position: fixed; top: 53px; left: 0; width: 228px; padding: 12px 8px;
+              background: {{ brand_white }}; border-right: 1px solid {{ brand_border }}; height: calc(100vh - 53px);
               overflow-y: auto; font-size: 12px; z-index: 100; }
-  .nav-icon { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; flex-shrink: 0; }
+  .nav-icon { width: 14px; height: 14px; vertical-align: -2px; margin-right: 6px; flex-shrink: 0; color: #000000; }
   .h-icon { width: 24px; height: 24px; vertical-align: -4px; margin-right: 6px; color: {{ brand_accent }}; }
   .h-icon.sm { width: 20px; height: 20px; vertical-align: -3px; margin-right: 5px; }
-  .side-nav a { display: flex; align-items: center; padding: 4px 8px; color: {{ brand_heading }}; text-decoration: none;
-                border-left: 3px solid transparent; }
-  .side-nav a:hover, .side-nav a.active { color: {{ brand_accent }}; border-left-color: {{ brand_accent }}; }
-  .side-nav a.l2 { padding-left: 20px; color: {{ brand_accent }}; font-size: 11px; }
-  .side-nav a.l3 { padding-left: 32px; color: {{ brand_border }}; font-size: 11px; }
-  .main-content { margin-left: 220px; }
+  .side-nav a { display: flex; align-items: center; padding: 8px 10px; margin-bottom: 2px; color: #000000; text-decoration: none;
+                border-radius: 6px; transition: background 0.15s ease; }
+  .side-nav a:hover { background: {{ brand_neutral }}; color: #000000; }
+  .side-nav a.active { background: {{ brand_accent_surface }}; color: #000000; font-weight: 600; }
+  .side-nav a.l2 { padding-left: 18px; color: #000000; font-size: 12px; }
+  .side-nav a.l3 { padding-left: 28px; color: #000000; font-size: 12px; }
+  .main-content { margin-left: 228px; }
 
-  .csv-btn { float: right; font-size: 11px; color: {{ brand_accent }}; cursor: pointer; border: 1px solid {{ brand_border }};
+  .csv-btn { float: right; font-size: 13px; color: {{ brand_accent }}; cursor: pointer; border: 1px solid {{ brand_border }};
              background: {{ brand_white }}; padding: 2px 10px; border-radius: 3px; text-decoration: none; }
   .csv-btn:hover { background: {{ brand_neutral }}; }
 
@@ -247,7 +248,7 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
 <div class="main-content">
 <div class="container">
 
-  <p class="text-muted" style="margin-bottom: 25px;">
+  <p class="" style="margin-bottom: 25px;">
     Published <strong>{{ generated_at }}</strong>
   </p>
 
@@ -889,6 +890,35 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       table.innerHTML = html;
     }, 200);
   }
+})();
+
+// Side nav: highlight link for section in view
+(function () {
+  const nav = document.getElementById('side-nav');
+  if (!nav) return;
+  const links = [...nav.querySelectorAll('a[href^="#"]')];
+  const sections = links
+    .map((a) => document.getElementById(a.getAttribute('href').slice(1)))
+    .filter(Boolean);
+  if (!sections.length) return;
+
+  function updateActive() {
+    const margin = 100;
+    let current = sections[0];
+    for (const sec of sections) {
+      const top = sec.getBoundingClientRect().top;
+      if (top <= margin) current = sec;
+      else break;
+    }
+    const id = current.id;
+    links.forEach((l) => {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + id);
+    });
+  }
+
+  window.addEventListener('scroll', updateActive, { passive: true });
+  window.addEventListener('resize', updateActive);
+  updateActive();
 })();
 
 // Resize
