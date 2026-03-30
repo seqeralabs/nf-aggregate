@@ -193,8 +193,8 @@ REPORT_TEMPLATE = r"""<!DOCTYPE html>
                 border-radius: 6px; transition: background 0.15s ease; }
   .side-nav a:hover { background: {{ brand_neutral }}; color: #000000; }
   .side-nav a.active { background: {{ brand_accent_surface }}; color: #000000; font-weight: 600; }
-  .side-nav a.l2 { padding-left: 18px; color: #000000; font-size: 12px; }
-  .side-nav a.l3 { padding-left: 28px; color: #000000; font-size: 12px; }
+  .side-nav a.l2 { padding-left: 18px; color: #000000; font-size: 11px; }
+  .side-nav a.l3 { padding-left: 28px; color: #000000; font-size: 11px; }
   .main-content { margin-left: 228px; }
 
   .csv-btn { float: right; font-size: 13px; color: {{ brand_accent }}; cursor: pointer; border: 1px solid {{ brand_border }};
