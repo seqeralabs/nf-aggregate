@@ -137,7 +137,7 @@ nextflow run seqeralabs/nf-aggregate --input runs.csv --generate_benchmark_repor
 ```bash
 # Step 1: Clean JSON
 uv run --with duckdb --with typer --with pyyaml python bin/clean_json.py \
-  --data-dir modules/local/benchmark_report/tests/data \
+  --data-dir tests/data \
   --output-dir /tmp/cleaned
 
 # Step 3: Build tables
@@ -161,9 +161,6 @@ uv run --with jinja2 --with typer --with pyyaml python bin/render_report.py \
 uv run --with duckdb --with jinja2 --with typer --with pyyaml --with pyarrow --with pytest \
   pytest bin/test_clean_json.py bin/test_clean_cur.py bin/test_build_tables.py bin/test_render_report.py -v
 
-# Legacy monolithic tests (still work)
-uv run --with duckdb --with jinja2 --with typer --with pyyaml --with pyarrow --with pytest \
-  pytest bin/test_benchmark_report.py -v
 ```
 
 ## Project Structure
@@ -176,7 +173,6 @@ nf-agg/
 │   ├── clean_cur/main.nf              # CUR parquet → costs CSV
 │   ├── build_tables/main.nf           # CSVs → query result JSONs
 │   ├── render_report/main.nf          # JSONs → HTML report
-│   ├── benchmark_report/              # (legacy monolithic — deprecated)
 │   ├── seqera_runs_dump/              # tower-cli runs dump + metadata
 │   └── plot_run_gantt/                # fusion-only gantt
 ├── lib/
@@ -186,12 +182,11 @@ nf-agg/
 │   ├── clean_cur.py                    # Step 2: normalize CUR
 │   ├── build_tables.py                 # Step 3: DuckDB queries
 │   ├── render_report.py                # Step 4: HTML rendering
-│   ├── benchmark_report.py             # (legacy monolithic — deprecated)
 │   ├── test_clean_json.py              # tests for step 1
 │   ├── test_clean_cur.py               # tests for step 2
 │   ├── test_build_tables.py            # tests for step 3
 │   ├── test_render_report.py           # tests for step 4
-│   └── test_benchmark_report.py        # legacy tests
+│   └── test_render_report.py           # tests for step 4
 └── nextflow.config
 ```
 
