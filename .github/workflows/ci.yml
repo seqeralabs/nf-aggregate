@@ -36,7 +36,7 @@ jobs:
 
       - name: List nf-test files
         id: list
-        uses: adamrtalbot/detect-nf-test-changes@v0.0.3
+        uses: adamrtalbot/detect-nf-test-changes@de3c3c8e113031b4f15a3c1104b5f135e8346997 # v0.0.6
         with:
           head: ${{ github.sha }}
           base: origin/${{ github.base_ref }}
