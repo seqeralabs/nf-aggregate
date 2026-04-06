@@ -45,11 +45,6 @@
                     "description": "Seqera Platform API endpoint URL.",
                     "fa_icon": "fas fa-question-circle"
                 },
-                "seqera_cli_extra_args": {
-                    "type": "string",
-                    "description": "Extra arguments to pass to the Seqera Platform CLI command in addition to defaults defined by the pipeline.",
-                    "fa_icon": "fas fa-plus"
-                },
                 "java_truststore_path": {
                     "type": "string",
                     "description": "Path to custom cacerts Java truststore used by Seqera Platform.",
@@ -59,18 +54,6 @@
                     "type": "string",
                     "description": "Password for custom cacerts Java truststore used by Seqera Platform.",
                     "fa_icon": "fas fa-key"
-                },
-                "skip_run_gantt": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Skip GANTT chart creation for each run.",
-                    "fa_icon": "fas fa-fast-forward"
-                },
-                "skip_multiqc": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Skip MultiQC.",
-                    "fa_icon": "fas fa-fast-forward"
                 },
                 "generate_benchmark_report": {
                     "type": "boolean",
@@ -109,31 +92,10 @@
                     "fa_icon": "fas fa-copy",
                     "enum": ["symlink", "rellink", "link", "copy", "copyNoFollow", "move"]
                 },
-                "max_multiqc_email_size": {
-                    "type": "string",
-                    "description": "File size limit when attaching MultiQC reports to summary emails.",
-                    "pattern": "^\\d+(\\.\\d+)?\\.?\\s*(K|M|G|T)?B$",
-                    "default": "25.MB",
-                    "fa_icon": "fas fa-file-upload",
-                    "hidden": true
-                },
                 "monochrome_logs": {
                     "type": "boolean",
                     "description": "Do not use coloured log outputs.",
                     "fa_icon": "fas fa-palette",
-                    "hidden": true
-                },
-                "multiqc_config": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "Custom config file to supply to MultiQC.",
-                    "fa_icon": "fas fa-cog",
-                    "hidden": true
-                },
-                "multiqc_logo": {
-                    "type": "string",
-                    "description": "Custom logo file to supply to MultiQC. File name must also be set in the MultiQC config file",
-                    "fa_icon": "fas fa-image",
                     "hidden": true
                 },
                 "validate_params": {
