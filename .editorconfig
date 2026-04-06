@@ -18,3 +18,8 @@ indent_style = unset
 # ignore ro-crate metadata files
 [**/ro-crate-metadata.json]
 insert_final_newline = unset
+
+# ignore auto-generated multiqc report
+[assets/multiqc_report.html]
+indent_style = unset
+indent_size = unset
