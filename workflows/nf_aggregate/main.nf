@@ -27,6 +27,15 @@ workflow NF_AGGREGATE {
 
     ch_api_runs = ch_split.api.collect().flatMap { it }
 
+    if (!params.generate_benchmark_report) {
+        ch_split.api.count().subscribe { n ->
+            if (n > 0) {
+                log.warn "Found ${n} API run(s) but --generate_benchmark_report is not enabled. " +
+                         "API runs will not produce any output. Enable --generate_benchmark_report to process them."
+            }
+        }
+    }
+
     //
     // MODULE: Extract external tarballs containing run JSON data
     //
