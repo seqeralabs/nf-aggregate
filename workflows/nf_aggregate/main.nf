@@ -96,8 +96,13 @@ workflow NF_AGGREGATE {
     //
     // Collate software versions
     //
+    ch_workflow_versions = Channel.of(
+        "Workflow:\n  Nextflow: ${workflow.nextflow.version}\n  ${workflow.manifest.name}: ${workflow.manifest.version}"
+    ).collectFile(name: 'workflow_versions.yml', newLine: true)
+    ch_versions = ch_versions.mix(ch_workflow_versions)
+
     softwareVersionsToYAML(ch_versions.unique())
-        .collectFile(storeDir: "${params.outdir}/pipeline_info", name: 'collated_software_mqc_versions.yml', newLine: true)
+        .collectFile(storeDir: "${params.outdir}/pipeline_info", name: 'collated_software_versions.yml', newLine: true)
 
     emit:
     versions = ch_versions
