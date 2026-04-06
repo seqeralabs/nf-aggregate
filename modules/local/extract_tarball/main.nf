@@ -3,7 +3,7 @@ process EXTRACT_TARBALL {
     tag "${meta.id}"
 
     conda 'conda-forge::tar=1.34'
-    container 'ubuntu:22.04'
+    container 'docker.io/library/ubuntu:22.04'
 
     input:
     tuple val(meta), path(tarball)
