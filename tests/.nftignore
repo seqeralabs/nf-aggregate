@@ -12,3 +12,4 @@ pipeline_info/*.{html,json,txt,yml}
 **/runs_dump/**/service-info.json
 **/runs_dump/**/workflow-launch.json
 benchmark_report/benchmark_report.html
+benchmark_report/benchmark.duckdb

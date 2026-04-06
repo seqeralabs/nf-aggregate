@@ -71,9 +71,9 @@
                 "seqera_cli_cpu_time_plot.txt:md5,97b8afc5e39838c44f027393e00162db",
                 "seqera_cli_process_statuses_plot.txt:md5,715e9a350d22c881b7a5b7df73c52ef2",
                 "seqera_cli_wall_time_plot.txt:md5,d00c9623dbe36e810997ffd83ef2abb5",
-                "5HieFbNIsw59ul_gantt.html:md5,97139e35cc491bbb19c886c0ac49c4d5",
-                "5ko1KRYm0seibn_gantt.html:md5,e36ee76ed1aa57a965cf341dd0a7aa46",
-                "ULVYH4G9KM9sP_gantt.html:md5,aac23810ffe79a668cdb962f9423b85d",
+                "5HieFbNIsw59ul_gantt.html:md5,94171524784502419b08a95312f5e58c",
+                "5ko1KRYm0seibn_gantt.html:md5,f5dfeba1c133fc9c0864757877d74843",
+                "ULVYH4G9KM9sP_gantt.html:md5,8c856344e824f909b8df7dfe88071233",
                 "workflow-load.json:md5,0a0dd7d875c5ae4a6edbf438382c6611",
                 "workflow-metadata.json:md5,5fc3e36d7eab54b4c3068d4b21431e97",
                 "workflow-metrics.json:md5,4cca2b6bee4da27024f0b443028d0afc",
@@ -95,7 +95,7 @@
             "nf-test": "0.9.2",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-04-05T23:24:10.923673"
+        "timestamp": "2026-04-05T23:45:49.924756"
     },
     "-profile test_benchmark": {
         "content": [
@@ -117,13 +117,13 @@
                 "pipeline_info/collated_software_mqc_versions.yml"
             ],
             [
-                "benchmark.duckdb:md5,eef62b244589e970dddd017ccf6a39f7"
+                
             ]
         ],
         "meta": {
             "nf-test": "0.9.2",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-04-05T23:19:15.9449"
+        "timestamp": "2026-04-05T23:38:57.490364"
     }
 }
