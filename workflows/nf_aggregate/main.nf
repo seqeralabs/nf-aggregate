@@ -4,8 +4,7 @@
 
 include { BENCHMARK_REPORT        } from '../../modules/local/benchmark_report'
 include { EXTRACT_TARBALL        } from '../../modules/local/extract_tarball'
-include { getProcessVersions     } from '../../subworkflows/local/utils_nf_aggregate'
-include { getWorkflowVersions    } from '../../subworkflows/local/utils_nf_aggregate'
+include { softwareVersionsToYAML } from 'plugin/nf-core-utils'
 
 workflow NF_AGGREGATE {
     take:
@@ -88,10 +87,7 @@ workflow NF_AGGREGATE {
     //
     // Collate software versions
     //
-    ch_versions
-        .unique()
-        .map { getProcessVersions(it) }
-        .mix(Channel.of(getWorkflowVersions()))
+    softwareVersionsToYAML(ch_versions.unique())
         .collectFile(storeDir: "${params.outdir}/pipeline_info", name: 'collated_software_mqc_versions.yml', newLine: true)
 
     emit:
