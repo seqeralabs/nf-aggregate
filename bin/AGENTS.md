@@ -22,7 +22,3 @@ Unified benchmark report CLI. Typer app with 3 subcommands:
 ### Dependencies
 
 `duckdb`, `jinja2`, `typer`, `pyyaml`, `pyarrow`, `httpx` (fetch only)
-
-## plot_run_gantt.py
-
-Fusion-only Gantt chart. Reads `workflow-tasks.json` + `.fusion.log` from dump directory. Groups tasks by instance ID + machine type. pandas + plotly_express timeline. Only runs for fusion-enabled workflows.

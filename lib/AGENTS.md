@@ -28,7 +28,7 @@ Uses `TOWER_ACCESS_TOKEN` env var via `System.getenv()`. Forwarded to Nextflow p
 
 ### Workspace Resolution
 
-Calls `/orgs` → finds org by name → calls `/orgs/{orgId}/workspaces` → finds workspace by name → returns numeric ID. This is duplicated in `modules/local/seqera_runs_dump/functions.nf` (legacy path) — same logic, different implementation.
+Calls `/orgs` → finds org by name → calls `/orgs/{orgId}/workspaces` → finds workspace by name → returns numeric ID.
 
 ### Gotchas
 

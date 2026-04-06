@@ -15,16 +15,7 @@
 
 **seqeralabs/nf-aggregate** is a Nextflow pipeline to aggregate pertinent metrics across pipeline runs on the Seqera Platform.
 
-<p align="center">
-  <img src="assets/multiqc_screenshot.png" alt="MultiQC screenshot" width="75%"/>
-</p>
-
-The pipeline performs the following steps:
-
-1. Downloads run information via the Seqera CLI in parallel
-2. Runs MultiQC to aggregate all of the run metrics into a single report
-
-You can download an example MultiQC report [here](assets/multiqc_report.html).
+The pipeline fetches run data from the Seqera Platform API and generates benchmark reports comparing pipeline runs.
 
 ## Prerequisites
 
@@ -71,15 +62,13 @@ id,workspace,group
 
 ## Use logs from an external Seqera Platform deployment
 
-Sometimes we want to compile benchmark reports from runs from two different Seqera platform deployments, for example a dev and a production environment to compare performance. External logs in nf-aggregate can be used by specifying the workspace as `external` and providing some additional optional columns that point to the log folder and specify whether these external logs contain fusion logs (did you export them with the `--add-fusion-logs` flag in your `tw run dumps`. If they do contain fusion logs, you can generate a gannt plot for them, as for runs supplied only via id.)
-
-Here is an example of using a mix of run ids for which we want to extract logs from our platform deployment and some run logs from another deployment we want to compare. In the example below, `1JI5B1avuj3o58` is a run that contains fusion logs, while `1vsww7GjKBsVNa` does not contain fusion logs.
+Sometimes we want to compile benchmark reports from runs from two different Seqera platform deployments, for example a dev and a production environment to compare performance. External logs in nf-aggregate can be used by specifying the workspace as `external` and providing a `logs` column that points to the log folder or tarball.
 
 ```
-id,workspace,group,logs,fusion
+id,workspace,group,logs
 3VcLMAI8wyy0Ld,community/showcase,group1,
-1JI5B1avuj3o58,external,group2,/path/to/my/run_dumps_tarball.tar.gz,true
-1vsww7GjKBsVNa,external,group2,/path/to/my/run_dumps_folder,false
+1JI5B1avuj3o58,external,group2,/path/to/my/run_dumps_tarball.tar.gz
+1vsww7GjKBsVNa,external,group2,/path/to/my/run_dumps_folder
 ```
 
 ## Incorporate AWS split cost allocation data
@@ -103,26 +92,11 @@ The results from the pipeline will be published in the path specified by the `--
 
 ```
 ./results
-├── multiqc/
-│   ├── multiqc_data/
-│   ├── multiqc_plots/
-│   └── multiqc_report.html                 ## MultiQC report
-├── nf-core_rnaseq/
-│   ├── gantt/
-│   │   └── 4Bi5xBK6E2Nbhj_gantt.html       ## Gantt plot for run
-│   └── runs_dump/
-│       └── 4Bi5xBK6E2Nbhj/                 ## Output of 'tw runs dump'
-│           ├── service-info.json
-│           ├── workflow-launch.json
-│           ├── workflow-load.json
-│           ├── workflow-metrics.json
-│           ├── workflow-tasks.json
-│           └── workflow.json
+├── benchmark_report/
+│   ├── benchmark.duckdb
+│   └── benchmark_report.html                ## Benchmark report
 └── pipeline_info/
 ```
-
-> [!NOTE]
-> Gantt plots depend on information derived from the Fusion logs. For that reason, Gantt plots will be ommitted from the pipeline outputs for non-Fusion runs, irrespective of whether the `--skip_run_gantt` parameter has been set.
 
 ## Contributions and Support
 
@@ -130,7 +104,7 @@ If you would like to contribute to this pipeline, please see the [contributing g
 
 ## Credits
 
-nf-aggregate was written by the Scientific Development and MultiQC teams at [Seqera Labs](https://seqera.io/).
+nf-aggregate was written by the Scientific Development team at [Seqera Labs](https://seqera.io/).
 
 ## Citations
 

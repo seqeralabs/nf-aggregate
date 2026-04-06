@@ -24,10 +24,6 @@ nf-boost `request()` + `map` → DuckDB → eCharts. Zero containers for data fe
 └────────────────────────────────────────────────────────────┘
 ```
 
-Additional paths (always active):
-
-- `SEQERA_RUNS_DUMP` (tower-cli) → run dump dirs → `MULTIQC` + `PLOT_RUN_GANTT`
-
 ## Data Flow
 
 ### Step 0: Fetch via nf-boost `request()` + `map` (head job)
@@ -150,15 +146,12 @@ nf-agg/
 ├── modules/local/
 │   ├── benchmark_report/main.nf       # build-db + report (single process)
 │   ├── extract_tarball/main.nf        # extract external run tarballs
-│   ├── seqera_runs_dump/              # tower-cli runs dump + metadata
-│   └── plot_run_gantt/                # fusion-only gantt
 ├── lib/
 │   └── SeqeraApi.groovy               # API client (head job, Nextflow only)
 ├── bin/
 │   ├── benchmark_report.py            # unified CLI (build-db, report, fetch)
 │   ├── benchmark_report_template.html # eCharts HTML template
 │   ├── test_benchmark_report.py       # tests
-│   └── plot_run_gantt.py              # gantt chart script
 └── nextflow.config
 ```
 
@@ -169,8 +162,6 @@ nf-agg/
 | `generate_benchmark_report` | false                         | Enable benchmark report           |
 | `benchmark_aws_cur_report`  | null                          | AWS CUR parquet for cost analysis |
 | `seqera_api_endpoint`       | `https://api.cloud.seqera.io` | Platform API URL                  |
-| `skip_run_gantt`            | false                         | Skip Gantt chart generation       |
-| `skip_multiqc`              | false                         | Skip MultiQC aggregation          |
 
 ## Plugins
 
