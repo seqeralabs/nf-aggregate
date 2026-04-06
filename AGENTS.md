@@ -1,6 +1,6 @@
 # nf-aggregate
 
-Nextflow pipeline to aggregate metrics across Seqera Platform pipeline runs. nf-core template based (v3.3.0.dev0).
+Nextflow pipeline to aggregate metrics across Seqera Platform pipeline runs.
 
 ## Architecture
 
