@@ -12,30 +12,30 @@
 
 ## File Structure
 
-| Action | Path | Responsibility |
-|--------|------|---------------|
-| Create | `bin/benchmark_report.py` | Single CLI with `fetch`, `build-db`, `report` subcommands |
-| Create | `bin/test_benchmark_report.py` | Unified test suite for all subcommands |
-| Delete | `bin/clean_json.py` | Replaced by `build-db` subcommand |
-| Delete | `bin/clean_cur.py` | Replaced by `build-db` subcommand |
-| Delete | `bin/build_tables.py` | Queries move into `report` subcommand |
-| Delete | `bin/render_report.py` | Becomes `report` subcommand |
-| Delete | `bin/test_clean_json.py` | Consolidated into `test_benchmark_report.py` |
-| Delete | `bin/test_clean_cur.py` | Consolidated into `test_benchmark_report.py` |
-| Delete | `bin/test_build_tables.py` | Consolidated into `test_benchmark_report.py` |
-| Delete | `bin/test_render_report.py` | Consolidated into `test_benchmark_report.py` |
-| Create | `modules/local/benchmark_report/main.nf` | Single Nextflow process replacing CLEAN_JSON + CLEAN_CUR + BUILD_TABLES + RENDER_REPORT |
-| Create | `modules/local/benchmark_report/nextflow.config` | publishDir config for the new process |
-| Delete | `modules/local/clean_json/` | Replaced by benchmark_report module |
-| Delete | `modules/local/clean_cur/` | Replaced by benchmark_report module |
-| Delete | `modules/local/build_tables/` | Replaced by benchmark_report module |
-| Delete | `modules/local/render_report/` | Replaced by benchmark_report module |
-| Modify | `workflows/nf_aggregate/main.nf` | Replace 4-process pipeline with single BENCHMARK_REPORT call |
-| Modify | `workflows/nf_aggregate/nextflow.config` | Replace render_report config include with benchmark_report |
-| Modify | `tests/default.nf.test` | Update snapshot expectations |
-| Modify | `docs/DESIGN.md` | Update architecture docs |
-| Modify | `AGENTS.md` | Update architecture docs |
-| Modify | `bin/AGENTS.md` | Update script docs |
+| Action | Path                                             | Responsibility                                                                          |
+| ------ | ------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Create | `bin/benchmark_report.py`                        | Single CLI with `fetch`, `build-db`, `report` subcommands                               |
+| Create | `bin/test_benchmark_report.py`                   | Unified test suite for all subcommands                                                  |
+| Delete | `bin/clean_json.py`                              | Replaced by `build-db` subcommand                                                       |
+| Delete | `bin/clean_cur.py`                               | Replaced by `build-db` subcommand                                                       |
+| Delete | `bin/build_tables.py`                            | Queries move into `report` subcommand                                                   |
+| Delete | `bin/render_report.py`                           | Becomes `report` subcommand                                                             |
+| Delete | `bin/test_clean_json.py`                         | Consolidated into `test_benchmark_report.py`                                            |
+| Delete | `bin/test_clean_cur.py`                          | Consolidated into `test_benchmark_report.py`                                            |
+| Delete | `bin/test_build_tables.py`                       | Consolidated into `test_benchmark_report.py`                                            |
+| Delete | `bin/test_render_report.py`                      | Consolidated into `test_benchmark_report.py`                                            |
+| Create | `modules/local/benchmark_report/main.nf`         | Single Nextflow process replacing CLEAN_JSON + CLEAN_CUR + BUILD_TABLES + RENDER_REPORT |
+| Create | `modules/local/benchmark_report/nextflow.config` | publishDir config for the new process                                                   |
+| Delete | `modules/local/clean_json/`                      | Replaced by benchmark_report module                                                     |
+| Delete | `modules/local/clean_cur/`                       | Replaced by benchmark_report module                                                     |
+| Delete | `modules/local/build_tables/`                    | Replaced by benchmark_report module                                                     |
+| Delete | `modules/local/render_report/`                   | Replaced by benchmark_report module                                                     |
+| Modify | `workflows/nf_aggregate/main.nf`                 | Replace 4-process pipeline with single BENCHMARK_REPORT call                            |
+| Modify | `workflows/nf_aggregate/nextflow.config`         | Replace render_report config include with benchmark_report                              |
+| Modify | `tests/default.nf.test`                          | Update snapshot expectations                                                            |
+| Modify | `docs/DESIGN.md`                                 | Update architecture docs                                                                |
+| Modify | `AGENTS.md`                                      | Update architecture docs                                                                |
+| Modify | `bin/AGENTS.md`                                  | Update script docs                                                                      |
 
 ## Subcommand Design
 
@@ -77,6 +77,7 @@ Opens the DuckDB file, runs the 9 fixed queries, renders the HTML report. No int
 ### Nextflow shortcut
 
 The Nextflow process will call:
+
 ```bash
 benchmark_report.py build-db --data-dir $data_dir $cost_flag --output benchmark.duckdb
 benchmark_report.py report --db benchmark.duckdb $brand_flag $logo_flag --output benchmark_report.html
@@ -87,6 +88,7 @@ benchmark_report.py report --db benchmark.duckdb $brand_flag $logo_flag --output
 ## Task 1: Create `bin/benchmark_report.py` with `build-db` subcommand
 
 **Files:**
+
 - Create: `bin/benchmark_report.py`
 - Create: `bin/test_benchmark_report.py`
 
@@ -246,12 +248,14 @@ Expected: FAIL (module not found)
 - [ ] **Step 2: Write `benchmark_report.py` with `build-db` subcommand**
 
 Create `bin/benchmark_report.py` with:
+
 - `load_run_data()`, `extract_runs()`, `extract_tasks()`, `extract_metrics()` — ported verbatim from `clean_json.py`
 - CUR functions `detect_format()`, `build_costs_map_format()`, `build_costs_flat_format()` — ported from `clean_cur.py`
 - `build_db()` function that creates a persistent DuckDB file with all tables
 - Typer app with `build-db` subcommand
 
 The `build_db()` function should:
+
 1. Load run JSON files from `--data-dir`
 2. Extract runs, tasks, metrics into DuckDB tables
 3. Optionally load CUR parquet into `costs` table
@@ -274,6 +278,7 @@ git commit -m "✨ feat(benchmark): add benchmark_report.py with build-db subcom
 ## Task 2: Add CUR cost support to `build-db`
 
 **Files:**
+
 - Modify: `bin/benchmark_report.py`
 - Modify: `bin/test_benchmark_report.py`
 
@@ -399,6 +404,7 @@ git commit -m "✨ feat(benchmark): add CUR cost support to build-db subcommand"
 ## Task 3: Add `report` subcommand
 
 **Files:**
+
 - Modify: `bin/benchmark_report.py`
 - Modify: `bin/test_benchmark_report.py`
 
@@ -464,10 +470,12 @@ Run tests, expected: FAIL
 - [ ] **Step 2: Add query functions and `render_report()` to `benchmark_report.py`**
 
 Port from `build_tables.py`:
+
 - `fetch_dicts()`, `table_exists()`
 - All 9 `query_*()` functions
 
 Port from `render_report.py`:
+
 - `load_brand()`, `_load_echarts_theme()`
 - `render_html()` (rename to `_render_html()` — internal)
 - `REPORT_TEMPLATE` constant
@@ -507,6 +515,7 @@ git commit -m "✨ feat(benchmark): add report subcommand with DuckDB-backed que
 ## Task 4: Add `fetch` subcommand for standalone API access
 
 **Files:**
+
 - Modify: `bin/benchmark_report.py`
 - Modify: `bin/test_benchmark_report.py`
 
@@ -612,6 +621,7 @@ git commit -m "✨ feat(benchmark): add fetch subcommand for standalone API acce
 ## Task 5: Create Nextflow module and update workflow
 
 **Files:**
+
 - Create: `modules/local/benchmark_report/main.nf`
 - Create: `modules/local/benchmark_report/nextflow.config`
 - Modify: `workflows/nf_aggregate/main.nf`
@@ -682,6 +692,7 @@ process {
 - [ ] **Step 3: Update workflow to use single process**
 
 Modify `workflows/nf_aggregate/main.nf`:
+
 - Remove includes for `CLEAN_JSON`, `CLEAN_CUR`, `BUILD_TABLES`, `RENDER_REPORT`
 - Add include for `BENCHMARK_REPORT`
 - Replace the 4-step benchmark pipeline block (lines 82-142) with a single `BENCHMARK_REPORT` call:
@@ -754,6 +765,7 @@ git commit -m "♻️ refactor(pipeline): replace 4-process benchmark pipeline w
 ## Task 6: Delete old scripts and modules
 
 **Files:**
+
 - Delete: `bin/clean_json.py`, `bin/clean_cur.py`, `bin/build_tables.py`, `bin/render_report.py`
 - Delete: `bin/test_clean_json.py`, `bin/test_clean_cur.py`, `bin/test_build_tables.py`, `bin/test_render_report.py`
 - Delete: `modules/local/clean_json/` (entire directory)
@@ -799,6 +811,7 @@ git commit -m "🔥 remove(benchmark): delete old 4-script pipeline and modules"
 ## Task 7: Update documentation
 
 **Files:**
+
 - Modify: `docs/DESIGN.md`
 - Modify: `AGENTS.md`
 - Modify: `bin/AGENTS.md`
@@ -852,6 +865,7 @@ git commit -m "📝 docs(benchmark): update architecture for unified benchmark_r
 ## Task 8: Update nf-test snapshots
 
 **Files:**
+
 - Modify: `tests/default.nf.test`
 - Modify: `tests/default.nf.test.snap`
 
@@ -866,6 +880,7 @@ nf-test test tests/default.nf.test --tag benchmark --update-snapshot
 - [ ] **Step 2: Verify the snapshot contains expected outputs**
 
 Check that the new snapshot includes:
+
 - `benchmark_report/benchmark_report.html`
 - `benchmark_report/benchmark.duckdb`
 - No references to `cleaned/`, `tables/`, or intermediate CSVs
@@ -887,6 +902,7 @@ After all tasks are complete:
 2. **No broken references:** `grep -r "clean_json\|clean_cur\|build_tables\|render_report" --include="*.nf" --include="*.py" --include="*.config"` returns nothing
 3. **Nextflow lint passes:** `nextflow lint -harshil-alignment -format` on modified `.nf` files
 4. **Standalone CLI works:**
+
    ```bash
    # Build DB from test fixtures
    uv run --with duckdb --with typer --with pyyaml --with pyarrow \
@@ -898,4 +914,5 @@ After all tasks are complete:
      python bin/benchmark_report.py report \
      --db /tmp/benchmark.duckdb --brand assets/brand.yml --output /tmp/report.html
    ```
+
 5. **DuckDB queryable by agent:** `duckdb /tmp/benchmark.duckdb "SELECT * FROM runs"`

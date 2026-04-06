@@ -26,8 +26,6 @@ If you're not used to this workflow with git, you can start with some [docs from
 When you create a pull request with changes, [GitHub Actions](https://github.com/features/actions) will run automatic tests.
 Typically, pull-requests are only fully reviewed when these tests are passing, though of course we can help out before then.
 
-
-
 ### Lint tests
 
 `nf-core` has a [set of guidelines](https://nf-co.re/developers/guidelines) which all pipelines must adhere to.

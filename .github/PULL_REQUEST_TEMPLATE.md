@@ -8,26 +8,17 @@ These are the most common things requested on pull requests (PRs).
 
 Remember that PRs should be made against the dev branch, unless you're preparing a pipeline release.
 
-<<<<<<< HEAD
-Learn more about contributing: [CONTRIBUTING.md](https://github.com/seqeralabs/nf-aggregate/tree/master/.github/CONTRIBUTING.md)
-=======
 Learn more about contributing: [CONTRIBUTING.md](https://github.com/seqeralabs/nf-aggregate/tree/main/.github/CONTRIBUTING.md)
->>>>>>> aca0dae (initial template build from nf-core/tools, version 3.2.0)
 -->
 
 ## PR checklist
 
 - [ ] This comment contains a description of changes (with reason).
 - [ ] If you've fixed a bug or added code that should be tested, add tests!
-<<<<<<< HEAD
-- [ ] If you've added a new tool - have you followed the pipeline conventions in the [contribution docs](https://github.com/seqeralabs/nf-aggregate/tree/master/.github/CONTRIBUTING.md)
+- [ ] If you've added a new tool - have you followed the pipeline conventions in the [contribution docs](https://github.com/seqeralabs/nf-aggregate/tree/main/.github/CONTRIBUTING.md)
 - [ ] Make sure your code lints (`nf-core pipelines lint`).
 - [ ] Ensure the test suite passes (`nextflow run . -profile test,docker --outdir <OUTDIR>`).
 - [ ] Check for unexpected warnings in debug mode (`nextflow run . -profile debug,test,docker --outdir <OUTDIR>`).
-=======
-- [ ] If you've added a new tool - have you followed the pipeline conventions in the [contribution docs](https://github.com/seqeralabs/nf-aggregate/tree/main/.github/CONTRIBUTING.md)
-- [ ] Make sure your code lints (`nf-core pipelines lint`).
->>>>>>> aca0dae (initial template build from nf-core/tools, version 3.2.0)
 - [ ] Usage Documentation in `docs/usage.md` is updated.
 - [ ] Output Documentation in `docs/output.md` is updated.
 - [ ] `CHANGELOG.md` is updated.

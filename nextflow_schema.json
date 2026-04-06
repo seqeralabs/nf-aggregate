@@ -62,16 +62,19 @@
                 },
                 "skip_run_gantt": {
                     "type": "boolean",
+                    "default": true,
                     "description": "Skip GANTT chart creation for each run.",
                     "fa_icon": "fas fa-fast-forward"
                 },
                 "skip_multiqc": {
                     "type": "boolean",
+                    "default": true,
                     "description": "Skip MultiQC.",
                     "fa_icon": "fas fa-fast-forward"
                 },
                 "generate_benchmark_report": {
                     "type": "boolean",
+                    "default": false,
                     "fa_icon": "fas fa-tachometer-alt",
                     "description": "Compile a benchmarking report for Seqera Platform runs."
                 },

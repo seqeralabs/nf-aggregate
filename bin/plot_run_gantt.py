@@ -4,13 +4,12 @@
 import json
 import math
 from datetime import datetime, timedelta
+from typing import IO
 from pathlib import Path
 
+import click
 import pandas as pd
 import plotly.express as px
-import typer
-
-app = typer.Typer(add_completion=False)
 
 
 def extract_instance(fusion_logs: Path) -> str:
@@ -25,19 +24,20 @@ def extract_instance(fusion_logs: Path) -> str:
         return ""
 
 
-@app.command()
-def build_gantt(
-    title: str = typer.Option("Pipeline GANTT", help="Plot title."),
-    input_dir: Path = typer.Option(..., help="The pipeline dump directory."),
-    output_file: Path = typer.Option(..., help="The HTML output file."),
-) -> None:
+@click.command()
+@click.option("--title", default="Pipeline GANTT", help="Plot title.")
+@click.option(
+    "--input-dir", type=click.Path(), help="The pipeline dump tar.gz input file."
+)
+@click.option("--output-file", type=click.Path(), help="The HTML output file")
+def build_gantt(title: str, input_dir: str, output_file: str):
     tasks = []
     instance_ids = {}
 
-    for path in input_dir.glob("workflow-tasks.json"):
+    for path in Path(input_dir).glob("workflow-tasks.json"):
         with path.open() as json_file:
             tasks = json.load(json_file)
-    for path in input_dir.glob("**/.fusion.log"):
+    for path in Path(input_dir).glob("**/.fusion.log"):
         task_id = int(path.parent.name)
         instance_id = extract_instance(path)
         instance_ids[task_id] = instance_id
@@ -86,8 +86,8 @@ def build_gantt(
         color="instance",
         text="name",
     )
-    fig.write_html(str(output_file))
+    fig.write_html(output_file)
 
 
 if __name__ == "__main__":
-    app()
+    build_gantt()

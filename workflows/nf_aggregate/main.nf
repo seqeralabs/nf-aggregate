@@ -11,7 +11,7 @@ include { getProcessVersions     } from '../../subworkflows/local/utils_nf_aggre
 include { getWorkflowVersions    } from '../../subworkflows/local/utils_nf_aggregate'
 include { paramsSummaryMultiqc   } from '../../subworkflows/local/utils_nf_aggregate'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
-include { request; fromJson; toJson } from 'plugin/nf-boost'
+import groovy.json.JsonOutput
 
 workflow NF_AGGREGATE {
     take:
@@ -37,30 +37,38 @@ workflow NF_AGGREGATE {
         external: it.workspace == 'external' && it.logs
     }.set { ch_split }
 
+    // Collect API runs so the channel can be consumed by multiple operators
+    ch_api_runs = ch_split.api.collect().flatMap { it }
+
     //
     // MODULE: Fetch run information via the Seqera CLI (API runs only)
+    // Only needed when MultiQC or Gantt chart are enabled
     //
-    SEQERA_RUNS_DUMP(
-        ch_split.api,
-        seqera_api_endpoint,
-        java_truststore_path ?: '',
-        java_truststore_password ?: '',
-    )
-    ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions)
+    if (!skip_multiqc || !skip_run_gantt) {
+        SEQERA_RUNS_DUMP(
+            ch_api_runs,
+            seqera_api_endpoint,
+            java_truststore_path ?: '',
+            java_truststore_password ?: '',
+        )
+        ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions)
 
-    //
-    // MODULE: Generate Gantt chart for workflow execution (API runs only)
-    //
-    SEQERA_RUNS_DUMP.out.run_dump
-        .filter { meta, _run_dir ->
-            meta.fusion && !skip_run_gantt
+        //
+        // MODULE: Generate Gantt chart for workflow execution (API runs only)
+        //
+        if (!skip_run_gantt) {
+            SEQERA_RUNS_DUMP.out.run_dump
+                .filter { meta, _run_dir ->
+                    meta.fusion
+                }
+                .set { ch_runs_for_gantt }
+
+            PLOT_RUN_GANTT(
+                ch_runs_for_gantt
+            )
+            ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
         }
-        .set { ch_runs_for_gantt }
-
-    PLOT_RUN_GANTT(
-        ch_runs_for_gantt
-    )
-    ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
+    }
 
     //
     // MODULE: Extract external tarballs containing run JSON data
@@ -79,19 +87,19 @@ workflow NF_AGGREGATE {
     if (params.generate_benchmark_report) {
 
         // Path A: Fetch run data via API for non-external runs
-        ch_api_jsons = ch_split.api.map { meta ->
+        ch_api_jsons = ch_api_runs.map { meta ->
             def data = SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
             data.meta = [id: meta.id, workspace: meta.workspace, group: meta.group ?: 'default']
             def json_file = file("${workDir}/run_data/${meta.id}.json")
             json_file.parent.mkdirs()
-            json_file.text = toJson(data)
+            json_file.text = JsonOutput.toJson(data)
             return json_file
         }
 
         // Path B: Collect JSON files from extracted tarballs
         ch_tarball_jsons = EXTRACT_TARBALL.out.extracted.flatMap { meta, dir ->
             def jsons = []
-            dir.eachFileMatch(~/.*\.json/) { jsons << it }
+            dir.toFile().eachFileMatch(~/.*\.json/) { jsons << file(it) }
             return jsons
         }
 

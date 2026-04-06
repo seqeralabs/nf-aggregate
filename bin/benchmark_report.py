@@ -13,11 +13,27 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+from urllib.error import HTTPError
+from urllib.parse import urlencode, urlparse, urlunparse, parse_qs
+from urllib.request import Request, urlopen
+
 import duckdb
-import httpx
 import typer
 import yaml
 from jinja2 import BaseLoader, Environment
+
+
+def _api_get(url: str, headers: dict[str, str], params: dict[str, str] | None = None) -> dict:
+    """Perform a GET request and return parsed JSON. Replaces httpx.get()."""
+    if params:
+        parsed = urlparse(url)
+        existing = parse_qs(parsed.query)
+        existing.update({k: [v] for k, v in params.items()})
+        flat = {k: v[0] for k, v in existing.items()}
+        url = urlunparse(parsed._replace(query=urlencode(flat)))
+    req = Request(url, headers=headers)
+    with urlopen(req) as resp:
+        return json.loads(resp.read())
 
 app = typer.Typer(add_completion=False)
 
@@ -313,8 +329,12 @@ def build_db(
             ALTER TABLE tasks ADD COLUMN wait_ms BIGINT DEFAULT 0;
             ALTER TABLE tasks ADD COLUMN staging_ms BIGINT DEFAULT 0;
             UPDATE tasks SET
-                wait_ms = GREATEST(0, COALESCE(duration_ms - realtime_ms, 0)),
-                staging_ms = GREATEST(0, COALESCE(duration_ms - realtime_ms - wait_ms, 0));
+                wait_ms = GREATEST(0, COALESCE(
+                    EPOCH_MS(CAST(start AS TIMESTAMP)) - EPOCH_MS(CAST(submit AS TIMESTAMP)), 0
+                )),
+                staging_ms = GREATEST(0, COALESCE(
+                    EPOCH_MS(CAST(complete AS TIMESTAMP)) - EPOCH_MS(CAST(start AS TIMESTAMP)) - realtime_ms, 0
+                ));
         """)
         # Remove failed tasks (keep COMPLETED + CACHED)
         db.execute(
@@ -460,8 +480,8 @@ def query_process_stats(db: duckdb.DuckDBPyConnection) -> list[dict]:
             process AS process_name,
             process_short,
             COUNT(*) AS n_tasks,
-            AVG((COALESCE(duration_ms, 0) - realtime_ms) / 60000.0) AS avg_staging_min,
-            STDDEV_SAMP((COALESCE(duration_ms, 0) - realtime_ms) / 60000.0) AS sd_staging_min,
+            AVG(staging_ms / 60000.0) AS avg_staging_min,
+            STDDEV_SAMP(staging_ms / 60000.0) AS sd_staging_min,
             AVG(realtime_ms / 60000.0) AS avg_realtime_min,
             STDDEV_SAMP(realtime_ms / 60000.0) AS sd_realtime_min,
             AVG((COALESCE(duration_ms, 0)) / 60000.0) AS avg_runtime_min,
@@ -507,7 +527,7 @@ def query_task_table(db: duckdb.DuckDBPyConnection) -> list[dict]:
             duration_ms AS "Duration_ms",
             COALESCE(cost, 0) AS "Cost",
             cpus AS "CPUused",
-            ROUND(memory_bytes / 1e9, 0) AS "Memoryused_GB",
+            ROUND(CAST(memory_bytes AS DOUBLE) / 1e9, 0) AS "Memoryused_GB",
             pcpu AS "Pcpu",
             pmem AS "Pmem",
             rss AS "Rss",
@@ -532,10 +552,10 @@ def query_task_scatter(db: duckdb.DuckDBPyConnection) -> list[dict]:
             process_short,
             name,
             realtime_ms / 60000.0 AS realtime_min,
-            GREATEST(0, (duration_ms - realtime_ms)) / 60000.0 AS staging_min,
+            staging_ms / 60000.0 AS staging_min,
             COALESCE(cost, 0) AS cost,
             cpus,
-            memory_bytes / 1e9 AS memory_gb,
+            CAST(memory_bytes AS DOUBLE) / 1e9 AS memory_gb,
         FROM tasks
         WHERE status IN ('COMPLETED', 'CACHED')
         ORDER BY process_short
@@ -689,9 +709,8 @@ def resolve_workspace_id(
     """Resolve 'org/workspace' string to numeric workspace ID."""
     org_name, workspace_name = workspace.split("/", 1)
 
-    resp = httpx.get(f"{api_endpoint}/orgs", headers=headers)
-    resp.raise_for_status()
-    orgs = resp.json().get("organizations", [])
+    data = _api_get(f"{api_endpoint}/orgs", headers=headers)
+    orgs = data.get("organizations", [])
     org_id = None
     for org in orgs:
         if org["name"] == org_name:
@@ -700,11 +719,8 @@ def resolve_workspace_id(
     if org_id is None:
         raise RuntimeError(f"Organization '{org_name}' not found")
 
-    resp = httpx.get(
-        f"{api_endpoint}/orgs/{org_id}/workspaces", headers=headers
-    )
-    resp.raise_for_status()
-    workspaces = resp.json().get("workspaces", [])
+    data = _api_get(f"{api_endpoint}/orgs/{org_id}/workspaces", headers=headers)
+    workspaces = data.get("workspaces", [])
     ws_id = None
     for ws in workspaces:
         if ws["name"] == workspace_name:
@@ -727,9 +743,8 @@ def fetch_all_tasks(
     while True:
         sep = "&" if "?" in base_url else "?"
         url = f"{base_url}{sep}max={page_size}&offset={offset}"
-        resp = httpx.get(url, headers=headers)
-        resp.raise_for_status()
-        page = resp.json().get("tasks", [])
+        data = _api_get(url, headers=headers)
+        page = data.get("tasks", [])
         tasks.extend(page)
         if len(page) < page_size:
             break
@@ -750,34 +765,28 @@ def fetch_run_data(
     headers = {"Authorization": f"Bearer {token}"}
     ws_id = resolve_workspace_id(workspace, api_endpoint, headers)
 
-    workflow_resp = httpx.get(
+    workflow_data = _api_get(
         f"{api_endpoint}/workflow/{run_id}",
-        params={"workspaceId": ws_id},
         headers=headers,
+        params={"workspaceId": str(ws_id)},
     )
-    workflow_resp.raise_for_status()
-    workflow_data = workflow_resp.json()
 
-    metrics_resp = httpx.get(
+    metrics_data = _api_get(
         f"{api_endpoint}/workflow/{run_id}/metrics",
-        params={"workspaceId": ws_id},
         headers=headers,
+        params={"workspaceId": str(ws_id)},
     )
-    metrics_resp.raise_for_status()
-    metrics_data = metrics_resp.json()
 
     tasks_url = (
         f"{api_endpoint}/workflow/{run_id}/tasks?workspaceId={ws_id}"
     )
     tasks_data = fetch_all_tasks(tasks_url, headers)
 
-    progress_resp = httpx.get(
+    progress_data = _api_get(
         f"{api_endpoint}/workflow/{run_id}/progress",
-        params={"workspaceId": ws_id},
         headers=headers,
+        params={"workspaceId": str(ws_id)},
     )
-    progress_resp.raise_for_status()
-    progress_data = progress_resp.json()
 
     return {
         "workflow": workflow_data.get("workflow"),

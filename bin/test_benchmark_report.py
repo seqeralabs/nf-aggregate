@@ -1,6 +1,6 @@
 """Tests for benchmark_report.py — unified benchmark CLI.
 
-Run: uv run --with duckdb --with typer --with pyyaml --with jinja2 --with pyarrow --with httpx --with pytest pytest bin/test_benchmark_report.py -v
+Run: uv run --with duckdb --with typer --with pyyaml --with jinja2 --with pyarrow --with pytest pytest bin/test_benchmark_report.py -v
 """
 
 import json
