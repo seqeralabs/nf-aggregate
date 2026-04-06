@@ -1,3 +1,3 @@
-id,workspace,group,logs,fusion
-15dvxY1LnZYrYe,external,g5,logs/15dvxY1LnZYrYe.tar.gz,true
-5ymDk0hmgqv4L4,external,cpu,logs/5ymDk0hmgqv4L4.tar.gz,true
+id,workspace,group,logs
+15dvxY1LnZYrYe,external,g5,logs/15dvxY1LnZYrYe.tar.gz
+5ymDk0hmgqv4L4,external,cpu,logs/5ymDk0hmgqv4L4.tar.gz
