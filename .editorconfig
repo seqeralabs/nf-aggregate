@@ -23,3 +23,8 @@ insert_final_newline = unset
 [assets/multiqc_report.html]
 indent_style = unset
 indent_size = unset
+
+# ignore Jinja HTML template (CSS alignment requires non-standard indentation)
+[bin/benchmark_report_template.html]
+indent_style = unset
+indent_size = unset
