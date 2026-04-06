@@ -7,7 +7,7 @@
             },
             [
                 "pipeline_info",
-                "pipeline_info/collated_software_mqc_versions.yml"
+                "pipeline_info/collated_software_versions.yml"
             ],
             [
                 
@@ -36,7 +36,7 @@
                 "benchmark_report/benchmark.duckdb",
                 "benchmark_report/benchmark_report.html",
                 "pipeline_info",
-                "pipeline_info/collated_software_mqc_versions.yml"
+                "pipeline_info/collated_software_versions.yml"
             ],
             [
                 
