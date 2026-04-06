@@ -26,7 +26,6 @@ workflow NF_AGGREGATE {
         external: it.workspace == 'external' && it.logs
     }.set { ch_split }
 
-    // Collect API runs so the channel can be consumed by multiple operators
     ch_api_runs = ch_split.api.collect().flatMap { it }
 
     //
