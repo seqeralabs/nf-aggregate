@@ -588,7 +588,7 @@ def query_cost_overview(db: duckdb.DuckDBPyConnection) -> list[dict] | None:
 def load_brand(brand_path: Path | None = None) -> dict:
     """Load brand.yml and return flat color map with defaults."""
     defaults = {
-        "accent": "#087F68",
+        "accent": "#065647",
         "accent_light": "#31C9AC",
         "accent_surface": "#E2F7F3",
         "heading": "#201637",
@@ -596,7 +596,7 @@ def load_brand(brand_path: Path | None = None) -> dict:
         "neutral": "#F7F7F7",
         "white": "#ffffff",
         "palette": [
-            "#087F68", "#45a1bf", "#201637", "#f4b548",
+            "#065647", "#45a1bf", "#201637", "#f4b548",
             "#31C9AC", "#8f3d56", "#85c7c6", "#a5cdee",
             "#d2c6ac", "#46a485",
         ],

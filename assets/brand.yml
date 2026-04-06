@@ -21,7 +21,7 @@ colors:
           - Use for decorative fills, progress bars, illustrations
 
     deep_green:
-      hex: "#087F68"
+      hex: "#065647"
       token: nextflow-9
       contrast: "5.0:1 on white"
       usage:
