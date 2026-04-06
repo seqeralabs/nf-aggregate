@@ -75,6 +75,7 @@ workflow SEQERALABS_NF_AGGREGATE {
 */
 
 workflow {
+    main:
 
     //
     // WORKFLOW: Run main workflow
@@ -82,8 +83,7 @@ workflow {
     SEQERALABS_NF_AGGREGATE(
         params.input
     )
-}
 
-workflow.onComplete {
+    onComplete:
     dumpParametersToJSON(params.outdir, params, workflow.launchDir)
 }
