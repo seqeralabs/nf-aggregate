@@ -42,6 +42,9 @@ lint:
     - process.time
   pipeline_name_conventions: false
   schema_lint: false
+  template_strings:
+    - bin/benchmark_report_template.html
+    - assets/AGENTS.md
   nf_test_content:
     - tests/nextflow.config
 nf_core_version: 3.3.1

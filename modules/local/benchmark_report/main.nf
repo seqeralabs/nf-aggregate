@@ -1,52 +1,39 @@
 process BENCHMARK_REPORT {
 
-    container 'cr.seqera.io/scidev/benchmark-reports:sha-a6d15e8'
+    conda 'python=3.12 duckdb=1.3 jinja2=3.1 typer=0.15 pyarrow=18 pyyaml=6'
+    container 'community.wave.seqera.io/library/python_duckdb_jinja2_typer_pruned:2d95e1e826bbe38f'
 
     input:
-    path run_dumps
-    val  groups
+    path data_dir
     path benchmark_aws_cur_report
-    val  remove_failed_tasks
+    path brand_yml
+    path logo_svg
 
     output:
-    path "benchmark_report.html" , emit: benchmark_html
-    path "versions.yml"          , emit: versions
+    path "benchmark_report.html", emit: html
+    path "benchmark.duckdb",      emit: database
+    path "versions.yml",          emit: versions
 
     script:
-    def aws_cost_param = benchmark_aws_cur_report ? "--profile cost -P aws_cost:\$TASK_DIR/${benchmark_aws_cur_report}" : ""
-    def benchmark_samplesheet = "benchmark_samplesheet.csv"
-    def failed_tasks = remove_failed_tasks ? "-P remove_failed_tasks:True" : ""
-
+    def cost_flag = benchmark_aws_cur_report.name != 'NO_FILE' ? "--costs ${benchmark_aws_cur_report}" : ""
+    def brand_flag = brand_yml.name != 'NO_FILE' ? "--brand ${brand_yml}" : ""
+    def logo_flag = logo_svg.name != 'NO_FILE' ? "--logo ${logo_svg}" : ""
     """
-    # Set up R environment from renv
-    export R_LIBS_USER=/project/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu
-    TASK_DIR="\$PWD"
+    benchmark_report.py build-db \\
+        --data-dir ${data_dir} \\
+        ${cost_flag} \\
+        --output benchmark.duckdb
 
-    # Setup cache directories
-    export QUARTO_CACHE=/tmp/quarto/cache
-    export XDG_CACHE_HOME=/tmp/quarto
-
-    # Create the benchmark samplesheet csv
-    echo "group,file_path" > ${benchmark_samplesheet}
-    ${groups.withIndex().collect { group, idx ->
-        "echo \"${group},\$TASK_DIR/${run_dumps[idx]}\" >> ${benchmark_samplesheet}"
-    }.join('\n')}
-
-    cd /project
-    quarto render main_benchmark_report.qmd \\
-        -P log_csv:"\$TASK_DIR/"${benchmark_samplesheet} \\
-        $aws_cost_param \\
-        $failed_tasks \\
-        --output-dir .\\
+    benchmark_report.py report \\
+        --db benchmark.duckdb \\
+        ${brand_flag} \\
+        ${logo_flag} \\
         --output benchmark_report.html
-
-    cp /project/benchmark_report.html "\$TASK_DIR/"
-    cd "\$TASK_DIR/"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        r: \$(R --version | head -1 | sed 's/R version \\([0-9.]*\\).*/\\1/')
-        quarto-cli: \$(quarto --version | head -1 | sed 's/quarto //g')
-END_VERSIONS
+        python: \$(python --version | sed 's/Python //g')
+        duckdb: \$(python -c "import duckdb; print(duckdb.__version__)")
+    END_VERSIONS
     """
 }

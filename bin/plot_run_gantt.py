@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Generate a Gantt chart from pipeline task data."""
 
 import json
 import math

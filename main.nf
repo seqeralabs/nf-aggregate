@@ -9,13 +9,6 @@
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    CONFIG FILES
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS / WORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
@@ -23,10 +16,21 @@
 include { NF_AGGREGATE            } from './workflows/nf_aggregate'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nf_aggregate'
 
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    NAMED WORKFLOWS FOR PIPELINE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
 //
-// WORKFLOW: Execute a single named workflow for the pipeline
+// WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow {
+workflow SEQERALABS_NF_AGGREGATE {
+    take:
+    samplesheet // channel: samplesheet read in from --input
+
+    main:
+
     ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
     ch_multiqc_logo = params.multiqc_logo ? Channel.fromPath(params.multiqc_logo, checkIfExists: true) : Channel.fromPath("${projectDir}/assets/seqera_logo_colour.png", checkIfExists: true)
 
@@ -41,7 +45,7 @@ workflow {
     )
 
     //
-    // WORKFLOW: Run primary workflows for the pipeline
+    // WORKFLOW: Run pipeline
     //
     NF_AGGREGATE(
         PIPELINE_INITIALISATION.out.ids,
@@ -52,5 +56,20 @@ workflow {
         params.skip_multiqc,
         params.java_truststore_path,
         params.java_truststore_password,
+    )
+}
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    RUN MAIN WORKFLOW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+workflow {
+
+    //
+    // WORKFLOW: Run main workflow
+    //
+    SEQERALABS_NF_AGGREGATE(
+        params.input
     )
 }

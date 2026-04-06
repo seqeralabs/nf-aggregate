@@ -10,3 +10,12 @@ null/
 .nf-test*
 test.tap
 test.xml
+
+# Local test artifacts
+comparison/
+test_data/
+test_report_v2.html
+modules/local/benchmark_report_v2/tests/data/
+.beads/
+.lineage/
+.claude/

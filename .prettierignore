@@ -1,6 +1,3 @@
-email_template.html
-adaptivecard.json
-slackreport.json
 .nextflow*
 work/
 data/
@@ -10,5 +7,4 @@ testing/
 testing*
 *.pyc
 bin/
-ro-crate-metadata.json
-*.html
+assets/multiqc_report.html
