@@ -40,11 +40,17 @@ workflow NF_AGGREGATE {
     // MODULE: Extract external tarballs containing run JSON data
     //
     def samplesheet_dir = file(params.input).parent
-    ch_tarballs = ch_split.external.map { meta ->
+    ch_external_logs = ch_split.external.map { meta ->
         def logs_path = meta.logs.startsWith('/') ? file(meta.logs) : samplesheet_dir.resolve(meta.logs)
         [meta, file(logs_path, checkIfExists: true)]
     }
-    EXTRACT_TARBALL(ch_tarballs)
+
+    ch_external_logs.branch {
+        dirs:     it[1].isDirectory()
+        tarballs: !it[1].isDirectory()
+    }.set { ch_external_split }
+
+    EXTRACT_TARBALL(ch_external_split.tarballs)
     ch_versions = ch_versions.mix(EXTRACT_TARBALL.out.versions)
 
     //
@@ -69,9 +75,16 @@ workflow NF_AGGREGATE {
             return jsons
         }
 
+        ch_external_dir_jsons = ch_external_split.dirs.flatMap { meta, dir ->
+            def jsons = []
+            dir.toFile().eachFileMatch(~/.*\.json/) { jsons << file(it) }
+            return jsons
+        }
+
         // Merge both paths into a single data directory
         ch_data_dir = ch_api_jsons
             .mix(ch_tarball_jsons)
+            .mix(ch_external_dir_jsons)
             .collect()
             .map { files ->
                 def dir = file("${workDir}/benchmark_data")
