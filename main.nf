@@ -85,5 +85,5 @@ workflow {
     )
 
     onComplete:
-    dumpParametersToJSON(params.outdir, params, workflow.launchDir)
+    dumpParametersToJSON(params.outdir, params)
 }
