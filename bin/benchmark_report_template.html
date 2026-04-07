@@ -697,7 +697,6 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
 
   const costBoxEl = document.createElement('div');
   costBoxEl.className = 'chart';
-  costBoxEl.style.height = '500px';
   container.appendChild(costBoxEl);
 
   setTimeout(() => {
@@ -718,12 +717,13 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       }
     });
 
+    costBoxEl.style.height = Math.max(500, processes.length * 25 + 60) + 'px';
     echarts.init(costBoxEl, 'seqera').setOption({
       title: { text: 'Task cost ($) per process' },
       tooltip: { trigger: 'item' },
       grid: { top: 40, bottom: 20, containLabel: true },
       yAxis: { type: 'category', data: processes,
-               axisLabel: { width: 220, overflow: 'truncate' },
+               axisLabel: { width: 220, overflow: 'truncate', interval: 0 },
                inverse: true },
       xAxis: { type: 'value', name: 'Cost ($)', nameLocation: 'center', nameGap: 25 },
       series: [{ type: 'boxplot', data: boxData }],
