@@ -1,0 +1,65 @@
+def INPUT_PATH = new File('workflows/nf_aggregate/assets/test_benchmark.csv').canonicalPath
+
+def expectedOutputNames = [
+    'benchmark_report',
+    'benchmark_report/benchmark.duckdb',
+    'benchmark_report/benchmark_report.html',
+    'pipeline_info',
+    'pipeline_info/collated_software_versions.yml',
+]
+
+def collatedVersions = { outdir ->
+    new File("${outdir}/pipeline_info/collated_software_versions.yml").text
+}
+
+nextflow_pipeline {
+    name "Pipeline benchmark from tarballs"
+    script "../../main.nf"
+    tag "pipeline"
+    tag "nf-aggregate"
+    tag "benchmark-tarball"
+
+    test("benchmark report includes extracted tarball runs") {
+        tag("benchmark")
+
+        when {
+            params {
+                input                     = INPUT_PATH
+                outdir                    = "$outputDir"
+                generate_benchmark_report = true
+            }
+        }
+
+        then {
+            def versions = collatedVersions(params.outdir)
+            def stdout = workflow.stdout.join('\n')
+            def report = new File("${params.outdir}/benchmark_report/benchmark_report.html")
+            def database = new File("${params.outdir}/benchmark_report/benchmark.duckdb")
+            def reportText = report.text
+
+            assert workflow.success
+            assert workflow.trace.succeeded().size() == 3
+            assert !stdout.contains('Invalid method invocation')
+            assert stdout.contains('SEQERALABS_NF_AGGREGATE:NF_AGGREGATE:EXTRACT_TARBALL')
+            assert stdout.contains('SEQERALABS_NF_AGGREGATE:NF_AGGREGATE:BENCHMARK_REPORT')
+            assert versions.contains('EXTRACT_TARBALL:')
+            assert versions.contains('BENCHMARK_REPORT:')
+            assert report.isFile()
+            assert database.isFile()
+            assert reportText.contains('Benchmark overview')
+            assert reportText.contains('Run overview')
+            assert reportText.contains('Process overview')
+            assert reportText.contains('Task overview')
+            assert reportText.contains('15dvxY1LnZYrYe')
+            assert reportText.contains('5ymDk0hmgqv4L4')
+            assert reportText.contains('g5')
+            assert reportText.contains('cpu')
+
+            assert snapshot(
+                workflow.trace.succeeded().size(),
+                removeFromYamlMap("$outputDir/pipeline_info/collated_software_versions.yml", "Workflow"),
+                expectedOutputNames
+            ).match()
+        }
+    }
+}
