@@ -41,6 +41,64 @@ app = typer.Typer(add_completion=False)
 # ── JSON normalization (from clean_json.py) ─────────────────────────────────
 
 
+def _run_group(run: dict) -> str:
+    """Return the benchmark group for a run."""
+    return run["meta"]["group"]
+
+
+def _run_workflow(run: dict) -> dict:
+    """Return the workflow payload for a run."""
+    return run["workflow"]
+
+
+def _task_payload(task_raw: dict) -> dict:
+    """Unwrap nested task payloads returned by the API."""
+    if isinstance(task_raw, dict) and "task" in task_raw:
+        return task_raw["task"]
+    return task_raw
+
+
+def _compute_progress_from_tasks(run: dict) -> dict:
+    """Compute workflowProgress metrics from task-level data.
+
+    This is a fallback for runs where the Platform did not provide
+    aggregate progress (e.g. imported from Nextflow log tarballs).
+    """
+    tasks = [_task_payload(t) for t in run.get("tasks", [])]
+    completed = [t for t in tasks if t.get("status") == "COMPLETED"]
+    if not completed:
+        return {}
+
+    cpu_time = sum(
+        (t.get("cpus") or 0) * (t.get("realtime") or 0) for t in completed
+    )
+    # cpuLoad = actual CPU usage: pcpu is % of a single core,
+    # so pcpu/100 * realtime gives core-milliseconds used.
+    cpu_load = sum(
+        (t.get("pcpu") or 0) / 100.0 * (t.get("realtime") or 0)
+        for t in completed
+    )
+    mem_rss = sum(t.get("peakRss") or t.get("rss") or 0 for t in completed)
+    mem_req = sum(t.get("memory") or 0 for t in completed)
+    read_bytes = sum(t.get("readBytes") or 0 for t in completed)
+    write_bytes = sum(t.get("writeBytes") or 0 for t in completed)
+
+    return {
+        "cpuTime": int(cpu_time),
+        "cpuLoad": int(cpu_load),
+        "cpuEfficiency": (
+            round(cpu_load / cpu_time * 100, 2) if cpu_time else None
+        ),
+        "memoryRss": mem_rss,
+        "memoryReq": mem_req,
+        "memoryEfficiency": (
+            round(mem_rss / mem_req * 100, 2) if mem_req else None
+        ),
+        "readBytes": read_bytes,
+        "writeBytes": write_bytes,
+    }
+
+
 def _write_tmp_json(rows: list[dict], name: str) -> str:
     """Write rows to a temporary JSON file for DuckDB to read."""
     path = os.path.join(tempfile.gettempdir(), f"nfagg_{name}.json")
@@ -62,8 +120,10 @@ def extract_runs(runs: list[dict]) -> list[dict]:
     """Extract run-level metadata from raw API data."""
     run_rows = []
     for r in runs:
-        wf = r["workflow"]
+        wf = _run_workflow(r)
         prog = r.get("progress", {}).get("workflowProgress", {})
+        if not prog:
+            prog = _compute_progress_from_tasks(r)
         stats = wf.get("stats", {})
         launch = r.get("launch", {}) or {}
         ce = r.get("computeEnv", {}) or {}
@@ -74,7 +134,7 @@ def extract_runs(runs: list[dict]) -> list[dict]:
 
         run_rows.append({
             "run_id": wf["id"],
-            "group": r["meta"]["group"],
+            "group": _run_group(r),
             "pipeline": (
                 wf.get("projectName")
                 or wf.get("repository", "").split("/")[-1]
@@ -120,14 +180,10 @@ def extract_tasks(runs: list[dict]) -> list[dict]:
     """Extract task-level data from raw API data."""
     task_rows = []
     for r in runs:
-        run_id = r["workflow"]["id"]
-        group = r["meta"]["group"]
+        run_id = _run_workflow(r)["id"]
+        group = _run_group(r)
         for t_raw in r.get("tasks", []):
-            t = (
-                t_raw.get("task", t_raw)
-                if isinstance(t_raw, dict) and "task" in t_raw
-                else t_raw
-            )
+            t = _task_payload(t_raw)
             task_rows.append({
                 "run_id": run_id,
                 "group": group,
@@ -164,8 +220,8 @@ def extract_metrics(runs: list[dict]) -> list[dict]:
     """Extract per-process metrics from raw API data."""
     metrics_rows = []
     for r in runs:
-        run_id = r["workflow"]["id"]
-        group = r["meta"]["group"]
+        run_id = _run_workflow(r)["id"]
+        group = _run_group(r)
         for m in r.get("metrics", []):
             row = {
                 "run_id": run_id,
@@ -186,14 +242,22 @@ def extract_metrics(runs: list[dict]) -> list[dict]:
 # ── CUR cost processing (from clean_cur.py) ────────────────────────────────
 
 
-def detect_cur_format(db: duckdb.DuckDBPyConnection, cur_path: str) -> str:
-    """Detect CUR format: 'map' (CUR 2.0) or 'flat' (CUR 1.0) or 'unknown'."""
-    cur_cols = {
-        r[0]
-        for r in db.execute(
+def _parquet_columns(
+    db: duckdb.DuckDBPyConnection,
+    cur_path: str,
+) -> set[str]:
+    """Return the available columns in a parquet file."""
+    return {
+        row[0]
+        for row in db.execute(
             f"SELECT column_name FROM (DESCRIBE SELECT * FROM read_parquet('{cur_path}'))"
         ).fetchall()
     }
+
+
+def detect_cur_format(db: duckdb.DuckDBPyConnection, cur_path: str) -> str:
+    """Detect CUR format: 'map' (CUR 2.0) or 'flat' (CUR 1.0) or 'unknown'."""
+    cur_cols = _parquet_columns(db, cur_path)
 
     is_map = (
         "resource_tags" in cur_cols
@@ -242,12 +306,7 @@ def build_costs_flat_format(
     db: duckdb.DuckDBPyConnection, cur_path: str
 ) -> None:
     """Build costs table from CUR 1.0 flattened format."""
-    cur_cols = {
-        r[0]
-        for r in db.execute(
-            f"SELECT column_name FROM (DESCRIBE SELECT * FROM read_parquet('{cur_path}'))"
-        ).fetchall()
-    }
+    cur_cols = _parquet_columns(db, cur_path)
 
     has_nf_run_id = "resource_tags_user_nf_unique_run_id" in cur_cols
     has_run_id = "resource_tags_user_unique_run_id" in cur_cols
@@ -443,30 +502,30 @@ def query_run_metrics(db: duckdb.DuckDBPyConnection) -> list[dict]:
 def query_run_costs(db: duckdb.DuckDBPyConnection) -> list[dict]:
     """Per-run cost from task-level sums + optional CUR costs."""
     has_cur = table_exists(db, "costs")
+    cost_expr = "COALESCE(t.cost, 0)"
+    used_cost_expr = "NULL"
+    unused_cost_expr = "NULL"
+    cost_join = ""
+
     if has_cur:
-        return fetch_dicts(db, """
-            SELECT
-                r.run_id,
-                r."group",
-                ROUND(SUM(COALESCE(c.cost, t.cost, 0)), 2) AS cost,
-                ROUND(SUM(COALESCE(c.used_cost, t.cost, 0)), 2) AS used_cost,
-                ROUND(SUM(COALESCE(c.unused_cost, 0)), 2) AS unused_cost,
-            FROM runs r
-            LEFT JOIN tasks t ON r.run_id = t.run_id
+        cost_expr = "COALESCE(c.cost, t.cost, 0)"
+        used_cost_expr = "ROUND(SUM(COALESCE(c.used_cost, t.cost, 0)), 2)"
+        unused_cost_expr = "ROUND(SUM(COALESCE(c.unused_cost, 0)), 2)"
+        cost_join = """
             LEFT JOIN costs c ON t.run_id = c.run_id
                 AND LEFT(REPLACE(t.hash, '/', ''), 8) = c.hash
-            GROUP BY r.run_id, r."group"
-            ORDER BY r."group"
-        """)
+        """
+
     return fetch_dicts(db, """
         SELECT
             r.run_id,
             r."group",
-            ROUND(SUM(COALESCE(t.cost, 0)), 2) AS cost,
-            NULL AS used_cost,
-            NULL AS unused_cost,
+            ROUND(SUM(""" + cost_expr + """), 2) AS cost,
+            """ + used_cost_expr + """ AS used_cost,
+            """ + unused_cost_expr + """ AS unused_cost,
         FROM runs r
         LEFT JOIN tasks t ON r.run_id = t.run_id
+        """ + cost_join + """
         GROUP BY r.run_id, r."group"
         ORDER BY r."group"
     """)
