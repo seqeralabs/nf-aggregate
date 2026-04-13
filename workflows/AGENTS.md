@@ -2,7 +2,7 @@
 
 ## nf_aggregate/main.nf
 
-Main orchestrator workflow. Takes: ids channel, multiqc config/logo, API endpoint, skip flags, truststore params.
+Main orchestrator workflow. Takes: ids channel, API endpoint, truststore params.
 
 ### Input Routing
 
@@ -13,11 +13,8 @@ Runs are split into two paths using `branch{}` on the `ids` channel:
 
 ### Execution Paths
 
-1. **API runs:** `SEQERA_RUNS_DUMP` → run dumps for MultiQC + Gantt
-2. **External runs:** `EXTRACT_TARBALL` → extracted JSON files for benchmark report
-3. **Fusion API runs + !skip_run_gantt:** `PLOT_RUN_GANTT` per fusion-enabled run
-4. **generate_benchmark_report:** API JSONs + tarball JSONs merged → `CLEAN_JSON` → `BUILD_TABLES` → `RENDER_REPORT`
-5. **!skip_multiqc:** `MULTIQC` aggregating API run dumps + version info
+1. **External runs:** `EXTRACT_TARBALL` → extracted JSON files for benchmark report
+2. **generate_benchmark_report:** API JSONs + tarball JSONs merged → `BENCHMARK_REPORT`
 
 ### Benchmark Data Collection
 

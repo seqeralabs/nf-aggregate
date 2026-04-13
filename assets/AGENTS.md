@@ -30,12 +30,6 @@ Official Seqera logo from `seqeralabs/logos` repo. Injected via `--logo` CLI fla
 
 Inter font (Google Fonts CDN, weights 300-600). Degular (commercial, headings) approximated with Inter at heavier weights (h1→600, h2/h3→500).
 
-## MultiQC
-
-- `multiqc_config.yml` — default MultiQC configuration
-- `multiqc_report.html` — example/reference report
-- `multiqc_screenshot.png` — reference screenshot
-
 ## Input
 
 - `samplesheet.csv` — example input samplesheet

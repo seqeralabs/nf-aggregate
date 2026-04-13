@@ -12,10 +12,6 @@ input CSV (id, workspace, group, logs, fusion)
   → benchmark.duckdb + benchmark_report.html
 ```
 
-Additional paths (always active):
-
-- `SEQERA_RUNS_DUMP` (tower-cli) → run dump dirs → `MULTIQC` + `PLOT_RUN_GANTT`
-
 ## Key Params
 
 | Param                       | Default                       | Purpose                           |
@@ -23,8 +19,6 @@ Additional paths (always active):
 | `generate_benchmark_report` | false                         | Enable benchmark report           |
 | `benchmark_aws_cur_report`  | null                          | AWS CUR parquet for cost analysis |
 | `seqera_api_endpoint`       | `https://api.cloud.seqera.io` | Platform API URL                  |
-| `skip_run_gantt`            | false                         | Skip Gantt chart generation       |
-| `skip_multiqc`              | false                         | Skip MultiQC aggregation          |
 
 ## Plugins
 

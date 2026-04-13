@@ -30,10 +30,6 @@
                 "pattern": "^\\S+$",
                 "errorMessage": "Please provide a valid file path to your Seqera Platform logs.",
                 "meta": ["logs"]
-            },
-            "fusion": {
-                "type": "boolean",
-                "meta": ["fusion"]
             }
         },
         "required": ["id", "workspace"]

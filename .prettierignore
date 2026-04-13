@@ -7,4 +7,3 @@ testing/
 testing*
 *.pyc
 bin/
-assets/multiqc_report.html

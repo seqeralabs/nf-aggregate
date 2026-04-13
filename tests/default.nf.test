@@ -9,27 +9,20 @@ nextflow_pipeline {
         tag( "test")
         when {
             params {
+                input  = "${projectDir}/workflows/nf_aggregate/assets/test_run_ids.csv"
                 outdir = "$outputDir"
-                skip_run_gantt = false
-                skip_multiqc   = false
             }
         }
 
         then {
-            // stable_name: All files + folders in ${params.outdir}/ with a stable name
-            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}', 'multiqc/multiqc_plots/{pdf,png,svg}/*.{pdf,png,svg}'])
-            // stable_path: All files in ${params.outdir}/ with stable content
+            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
             def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
             assert workflow.success
             assertAll(
                 { assert snapshot(
-                    // Number of successful tasks
                     workflow.trace.succeeded().size(),
-                    // pipeline versions.yml file for multiqc from which Nextflow and pipeline versions are removed (all from the workflow key)
                     removeFromYamlMap("$outputDir/pipeline_info/collated_software_mqc_versions.yml", "Workflow"),
-                    // All stable path name, with a relative path
                     stable_name,
-                    // All files with stable contents
                     stable_path
                 ).match() }
             )
@@ -44,26 +37,18 @@ nextflow_pipeline {
                 input                        = "${projectDir}/workflows/nf_aggregate/assets/test_benchmark.csv"
                 outdir                       = "$outputDir"
                 generate_benchmark_report    = true
-                skip_run_gantt               = true
-                skip_multiqc                 = true
             }
         }
 
         then {
-            // stable_name: All files + folders in ${params.outdir}/ with a stable name
-            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}', 'multiqc/multiqc_plots/{pdf,png,svg}/*.{pdf,png,svg}'])
-            // stable_path: All files in ${params.outdir}/ with stable content
+            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
             def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
             assert workflow.success
             assertAll(
                 { assert snapshot(
-                    // Number of successful tasks
                     workflow.trace.succeeded().size(),
-                    // pipeline versions.yml file for multiqc from which Nextflow and pipeline versions are removed (all from the workflow key)
                     removeFromYamlMap("$outputDir/pipeline_info/collated_software_mqc_versions.yml", "Workflow"),
-                    // All stable path name, with a relative path
                     stable_name,
-                    // All files with stable contents
                     stable_path
                 ).match() }
             )

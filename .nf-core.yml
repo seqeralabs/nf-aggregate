@@ -11,7 +11,6 @@ lint:
     - LICENSE
     - assets/email_template.html
     - assets/email_template.txt
-    - assets/multiqc_config.yml
     - assets/nf-core-nf-aggregate_logo_light.png
     - assets/sendmail_template.txt
     - conf/base.config
@@ -32,7 +31,6 @@ lint:
     - docs/images/nf-aggregate_logo_dark.png
     - docs/images/nf-aggregate_logo_light.png
   modules_config: false
-  multiqc_config: false
   nextflow_config:
     - custom_config
     - manifest.homePage
@@ -62,4 +60,4 @@ template:
     - ci
     - igenomes
     - nf_core_configs
-  version: 0.7.0
+  version: 1.0.0
