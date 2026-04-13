@@ -75,15 +75,16 @@ workflow SEQERALABS_NF_AGGREGATE {
 */
 
 workflow {
-    main:
-
     //
     // WORKFLOW: Run main workflow
     //
     SEQERALABS_NF_AGGREGATE(
         params.input
     )
+}
 
-    onComplete:
-    dumpParametersToJSON(params.outdir, params)
+workflow.onComplete {
+    if (params.outdir) {
+        dumpParametersToJSON(params.outdir, params, workflow.launchDir)
+    }
 }
