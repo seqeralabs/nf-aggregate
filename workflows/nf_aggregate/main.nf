@@ -60,7 +60,21 @@ workflow NF_AGGREGATE {
 
         // Path A: Fetch run data via API for non-external runs
         ch_api_jsons = ch_api_runs.map { meta ->
-            def data = SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
+            def data = null
+            def maxRetries = 3
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    data = SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
+                    break
+                } catch (Exception e) {
+                    if (attempt == maxRetries) {
+                        throw new RuntimeException("Failed to fetch run data for ${meta.id} after ${maxRetries} attempts: ${e.message}", e)
+                    }
+                    def sleepMs = 1000 * Math.pow(2, attempt - 1) as long
+                    log.warn "API call failed for run ${meta.id} (attempt ${attempt}/${maxRetries}), retrying in ${sleepMs}ms: ${e.message}"
+                    Thread.sleep(sleepMs)
+                }
+            }
             data.meta = [id: meta.id, workspace: meta.workspace, group: meta.group ?: 'default']
             def json_file = file("${workDir}/run_data/${meta.id}.json")
             json_file.parent.mkdirs()
