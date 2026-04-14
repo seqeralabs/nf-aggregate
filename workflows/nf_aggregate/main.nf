@@ -110,7 +110,7 @@ workflow NF_AGGREGATE {
     // Collate software versions
     //
     ch_workflow_versions = Channel.of(
-        "Workflow:\n  Nextflow: ${workflow.nextflow.version}\n  ${workflow.manifest.name}: ${workflow.manifest.version}"
+        "Workflow:\n  Nextflow: ${workflow.nextflow.version}\n  ${workflow.manifest.name}: ${workflow.manifest.version}".toString()
     ).collectFile(name: 'workflow_versions.yml', newLine: true)
     ch_versions = ch_versions.mix(ch_workflow_versions)
 
