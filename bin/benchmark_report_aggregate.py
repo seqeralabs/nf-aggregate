@@ -60,6 +60,17 @@ def _lookup_cost(
     return None
 
 
+def _cost_or_task(cost_row: dict[str, Any] | None, key: str, task_cost: float, default: float = 0.0) -> float:
+    if not cost_row:
+        return task_cost if key in {"cost", "used_cost"} else default
+
+    value = cost_row.get(key)
+    if value is None:
+        return task_cost if key in {"cost", "used_cost"} else default
+
+    return float(value)
+
+
 def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
     benchmark_overview: list[dict[str, Any]] = []
     run_summary: list[dict[str, Any]] = []
@@ -177,18 +188,18 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
         task_cost = float(t.get("cost") or 0.0)
 
         if cost_row:
-            run_cost_acc[run_group_key]["cost"] += float(cost_row.get("cost") or task_cost)
-            run_cost_acc[run_group_key]["used_cost"] += float(cost_row.get("used_cost") or task_cost)
-            run_cost_acc[run_group_key]["unused_cost"] += float(cost_row.get("unused_cost") or 0.0)
+            run_cost_acc[run_group_key]["cost"] += _cost_or_task(cost_row, "cost", task_cost)
+            run_cost_acc[run_group_key]["used_cost"] += _cost_or_task(cost_row, "used_cost", task_cost)
+            run_cost_acc[run_group_key]["unused_cost"] += _cost_or_task(cost_row, "unused_cost", task_cost, default=0.0)
         else:
             run_cost_acc[run_group_key]["cost"] += task_cost
             run_cost_acc[run_group_key]["used_cost"] += task_cost
 
         if has_cost_rows:
             overview_key = (group, process_short)
-            cost_group_acc[overview_key]["total_cost"] += float(cost_row.get("cost") if cost_row else task_cost)
-            cost_group_acc[overview_key]["used_cost"] += float(cost_row.get("used_cost") if cost_row else task_cost)
-            cost_group_acc[overview_key]["unused_cost"] += float(cost_row.get("unused_cost") if cost_row else 0.0)
+            cost_group_acc[overview_key]["total_cost"] += _cost_or_task(cost_row, "cost", task_cost)
+            cost_group_acc[overview_key]["used_cost"] += _cost_or_task(cost_row, "used_cost", task_cost)
+            cost_group_acc[overview_key]["unused_cost"] += _cost_or_task(cost_row, "unused_cost", task_cost, default=0.0)
             cost_group_acc[overview_key]["n_tasks"] += 1
 
         status = t.get("status")

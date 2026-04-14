@@ -35,6 +35,67 @@ def test_run_costs_without_cur_uses_task_cost(tmp_path, make_run, flat_task, wri
     assert data["run_costs"][0]["used_cost"] is None
 
 
+def test_cur_zero_costs_do_not_fall_back_to_task_cost(tmp_path):
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    jsonl_dir.mkdir(parents=True)
+
+    runs = [
+        {
+            "run_id": "run1",
+            "group": "cpu",
+            "pipeline": "pipe",
+            "username": "u",
+            "pipeline_version": "main",
+            "nextflow_version": "24.10.0",
+            "platform_version": "x",
+            "succeeded": 1,
+            "failed": 0,
+            "cached": 0,
+            "executor": "awsbatch",
+            "region": "us-east-1",
+            "fusion_enabled": False,
+            "wave_enabled": False,
+            "container_engine": "docker",
+            "duration_ms": 10,
+            "cpu_time_ms": 1000,
+            "cpu_efficiency": 50.0,
+            "memory_efficiency": 50.0,
+            "read_bytes": 0,
+            "write_bytes": 0,
+        }
+    ]
+    tasks = [
+        {
+            "run_id": "run1",
+            "group": "cpu",
+            "hash": "ab/cdef12",
+            "process": "foo:PROC_A",
+            "process_short": "PROC_A",
+            "name": "PROC_A",
+            "status": "COMPLETED",
+            "staging_ms": 0,
+            "realtime_ms": 1000,
+            "duration_ms": 1000,
+            "cost": 9.0,
+        }
+    ]
+    costs = [
+        {"run_id": "run1", "process": "foo:PROC_A", "hash": "abcdef12", "cost": 0.0, "used_cost": 0.0, "unused_cost": 0.0}
+    ]
+
+    (jsonl_dir / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in runs))
+    (jsonl_dir / "tasks.jsonl").write_text("".join(json.dumps(t) + "\n" for t in tasks))
+    (jsonl_dir / "costs.jsonl").write_text("".join(json.dumps(c) + "\n" for c in costs))
+
+    data = build_report_data(jsonl_dir)
+
+    assert data["run_costs"][0]["cost"] == 0.0
+    assert data["run_costs"][0]["used_cost"] == 0.0
+    assert data["run_costs"][0]["unused_cost"] == 0.0
+    assert data["cost_overview"][0]["total_cost"] == 0.0
+    assert data["cost_overview"][0]["used_cost"] == 0.0
+
+
 def test_task_table_includes_cached(tmp_path, make_run, flat_task, write_run_json):
     data_dir = tmp_path / "data"
     jsonl_dir = tmp_path / "jsonl_bundle"
