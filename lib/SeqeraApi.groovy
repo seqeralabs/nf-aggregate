@@ -4,14 +4,23 @@ class SeqeraApi {
 
     static Map apiGet(String url, Map headers) {
         def conn = new URL(url).openConnection()
-        conn.setRequestMethod('GET')
-        headers.each { k, v -> conn.setRequestProperty(k, v) }
-        def code = conn.getResponseCode()
-        if (code != 200) {
-            throw new RuntimeException("API request failed: ${url} → HTTP ${code}")
+        try {
+            conn.setRequestMethod('GET')
+            headers.each { k, v -> conn.setRequestProperty(k, v) }
+            def code = conn.getResponseCode()
+            if (code != 200) {
+                throw new RuntimeException("API request failed: ${url} → HTTP ${code}")
+            }
+            def stream = conn.getInputStream()
+            try {
+                def text = stream.getText()
+                return new groovy.json.JsonSlurper().parseText(text)
+            } finally {
+                stream.close()
+            }
+        } finally {
+            conn.disconnect()
         }
-        def text = conn.getInputStream().getText()
-        return new groovy.json.JsonSlurper().parseText(text)
     }
 
     /**
