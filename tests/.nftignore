@@ -1,4 +1,5 @@
 .DS_Store
 pipeline_info/*.{html,json,txt,yml}
 benchmark_report/benchmark_report.html
-benchmark_report/benchmark.duckdb
+benchmark_report/jsonl_bundle/
+benchmark_report/report_data.json

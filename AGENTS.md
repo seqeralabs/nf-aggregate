@@ -69,13 +69,21 @@ uv run --with typer --with pyyaml \
 | Service | Purpose | Run command |
 |---------|---------|-------------|
 | Nextflow pipeline | Core product — aggregates metrics from Seqera Platform runs | `nextflow run . --input <csv> --outdir results -profile docker` |
-| Python benchmark_report.py | Builds DuckDB + renders HTML report | See "Rebuild Command" section above |
+| Python benchmark_report.py | Normalizes JSON -> JSONL, aggregates report data, then renders HTML | See "Rebuild Command" section above |
 
 ### Running tests
 
-- **pytest (Python unit tests):** `uv run --with duckdb --with typer --with pyyaml --with jinja2 --with pyarrow --with pytest --with httpx pytest bin/test_benchmark_report.py -v`
+- **pytest (Python unit tests):** `uv run --with typer --with pyyaml --with jinja2 --with pyarrow --with pytest --with httpx pytest -v modules/local/aggregate_benchmark_report_data/tests/test_aggregate.py modules/local/normalize_benchmark_jsonl/tests/test_normalize.py modules/local/render_benchmark_report/tests/test_render.py bin/test_benchmark_report_fetch.py`
 - **nf-test (pipeline integration tests):** `nf-test test --profile=+docker --verbose`
 - **Lint:** `pre-commit run --all-files`
+
+### Agent quick verify (offline)
+
+Run this exact sequence when validating split benchmark-report changes in Cursor Cloud:
+
+1. `uv run --with typer --with pyyaml --with jinja2 --with pyarrow --with pytest --with httpx pytest -v modules/local/aggregate_benchmark_report_data/tests/test_aggregate.py modules/local/normalize_benchmark_jsonl/tests/test_normalize.py modules/local/render_benchmark_report/tests/test_render.py bin/test_benchmark_report_fetch.py`
+2. `nf-test test --profile=+docker --verbose`
+3. `nextflow run . --input workflows/nf_aggregate/assets/test_benchmark.csv --generate_benchmark_report --outdir /tmp/nf-aggregate-e2e-results -profile docker`
 
 ### Docker in Cloud VM (cgroupv2 workaround)
 
