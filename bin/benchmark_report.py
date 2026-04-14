@@ -52,8 +52,7 @@ def render_html_cmd(
 
 @app.command()
 def report(
-    jsonl_dir: Path = typer.Option(None, "--jsonl-dir", exists=True, help="Directory containing JSONL bundle"),
-    db: Path = typer.Option(None, "--db", exists=True, help="Deprecated legacy input path"),
+    jsonl_dir: Path = typer.Option(..., "--jsonl-dir", exists=True, help="Directory containing JSONL bundle"),
     output: Path = typer.Option(Path("benchmark_report.html"), help="Output HTML file"),
     data_output: Path = typer.Option(Path("report_data.json"), help="Intermediate report_data.json output"),
     brand: Path = typer.Option(None, help="Brand YAML file"),
@@ -63,29 +62,7 @@ def report(
     from benchmark_report_aggregate import aggregate_report_data
     from benchmark_report_render import render_report_from_json
 
-    selected_jsonl_dir = jsonl_dir
-
-    if db is not None:
-        if selected_jsonl_dir is not None:
-            typer.echo("Use either --jsonl-dir or --db, not both", err=True)
-            raise typer.Exit(code=1)
-
-        if db.is_dir() and (db / "runs.jsonl").exists() and (db / "tasks.jsonl").exists():
-            typer.echo("--db is deprecated; interpreting it as a JSONL bundle directory", err=True)
-            selected_jsonl_dir = db
-        else:
-            typer.echo(
-                "DuckDB report input is no longer supported. "
-                "Use --jsonl-dir <jsonl_bundle> (or pass a JSONL bundle path via --db temporarily).",
-                err=True,
-            )
-            raise typer.Exit(code=1)
-
-    if selected_jsonl_dir is None:
-        typer.echo("Missing input: provide --jsonl-dir <jsonl_bundle>", err=True)
-        raise typer.Exit(code=1)
-
-    aggregate_report_data(jsonl_dir=selected_jsonl_dir, output=data_output)
+    aggregate_report_data(jsonl_dir=jsonl_dir, output=data_output)
     render_report_from_json(report_data_path=data_output, output=output, brand_path=brand, logo_path=logo)
     typer.echo(f"Report written to {output}")
 
@@ -117,31 +94,6 @@ def fetch(
         typer.echo(f"  Written to {out_file}")
 
     typer.echo(f"Done. {len(run_ids)} run(s) saved to {output_dir}")
-
-
-@app.command("build-db")
-def build_db_compat(
-    data_dir: Path = typer.Option(..., exists=True, help="Directory containing run JSON files"),
-    output: Path = typer.Option(Path("jsonl_bundle"), "--output", "--output-dir", help="Compatibility output directory"),
-    costs: Path = typer.Option(None, help="Optional AWS CUR parquet file"),
-) -> None:
-    """Deprecated compatibility shim; now writes JSONL bundle instead of DuckDB."""
-    from benchmark_report_normalize import normalize_jsonl
-
-    if output.suffix.lower() == ".duckdb":
-        typer.echo(
-            "build-db no longer creates DuckDB files. "
-            "Please pass a JSONL directory path (e.g. --output-dir jsonl_bundle).",
-            err=True,
-        )
-        raise typer.Exit(code=1)
-
-    if output.exists() and output.is_file():
-        typer.echo(f"Output path exists and is a file: {output}", err=True)
-        raise typer.Exit(code=1)
-
-    typer.echo("build-db is deprecated; writing JSONL bundle instead of DuckDB")
-    normalize_jsonl(data_dir=data_dir, output_dir=output, costs_parquet=costs)
 
 
 if __name__ == "__main__":

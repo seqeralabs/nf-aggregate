@@ -2,7 +2,10 @@
 
 ## Overview
 
-nf-boost `request()` + `map` → DuckDB → eCharts. Zero containers for data fetch, single process for report generation.
+Current benchmark reporting is JSONL-first:
+raw run JSON → `jsonl_bundle/` → `report_data.json` → eCharts HTML.
+
+This document keeps the legacy DuckDB-era notes for historical context, but the implementation no longer uses DuckDB as the report handoff.
 
 ## Architecture
 
