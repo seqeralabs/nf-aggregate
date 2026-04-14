@@ -13,15 +13,15 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { NF_AGGREGATE } from './workflows/nf_aggregate'
+include { NF_AGGREGATE         } from './workflows/nf_aggregate'
 include {
-    checkCondaChannels
-    dumpParametersToJSON
+    checkCondaChannels ;
+    dumpParametersToJSON ;
     getWorkflowVersion
 } from 'plugin/nf-core-utils'
 include {
-    paramsSummaryLog
-    samplesheetToList
+    paramsSummaryLog ;
+    samplesheetToList ;
     validateParameters
 } from 'plugin/nf-schema'
 
@@ -48,7 +48,7 @@ workflow SEQERALABS_NF_AGGREGATE {
         checkCondaChannels()
     }
 
-    log.info paramsSummaryLog(workflow)
+    log.info(paramsSummaryLog(workflow))
 
     if (params.validate_params) {
         validateParameters()
@@ -75,7 +75,6 @@ workflow SEQERALABS_NF_AGGREGATE {
 */
 
 workflow {
-    main:
 
     //
     // WORKFLOW: Run main workflow
@@ -84,6 +83,7 @@ workflow {
         params.input
     )
 
-    onComplete:
-    dumpParametersToJSON(params.outdir, params)
+    workflow.onComplete = {
+        dumpParametersToJSON(params.outdir, params)
+    }
 }
