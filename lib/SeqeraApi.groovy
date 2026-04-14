@@ -64,17 +64,28 @@ class SeqeraApi {
 
     /**
      * Fetch all data for a single run. Returns map with workflow, metrics, tasks, progress.
+     *
+     * Per-row overrides (from the input samplesheet):
+     *   meta.platform  – Seqera Platform API URL; falls back to the global apiEndpoint
+     *   meta.token_env – env-var name holding the bearer token; falls back to TOWER_ACCESS_TOKEN
      */
     static Map fetchRunData(Map meta, String apiEndpoint) {
-        def token = System.getenv("TOWER_ACCESS_TOKEN")
+        def effectiveEndpoint = meta.platform ?: apiEndpoint
+        def tokenEnvVar = meta.token_env ?: "TOWER_ACCESS_TOKEN"
+        def token = System.getenv(tokenEnvVar)
+        if (!token) {
+            throw new RuntimeException(
+                "Environment variable '${tokenEnvVar}' is not set (required for run ${meta.id})"
+            )
+        }
         def headers = ["Authorization": "Bearer ${token}"]
-        def wsId = resolveWorkspaceId(meta.workspace, apiEndpoint, headers)
-        def base = "${apiEndpoint}/workflow/${meta.id}?workspaceId=${wsId}"
+        def wsId = resolveWorkspaceId(meta.workspace, effectiveEndpoint, headers)
+        def base = "${effectiveEndpoint}/workflow/${meta.id}?workspaceId=${wsId}"
 
         def workflow = apiGet(base, headers)
-        def metrics = apiGet("${apiEndpoint}/workflow/${meta.id}/metrics?workspaceId=${wsId}", headers)
-        def tasks = apiGetAllTasks("${apiEndpoint}/workflow/${meta.id}/tasks?workspaceId=${wsId}", headers)
-        def progress = apiGet("${apiEndpoint}/workflow/${meta.id}/progress?workspaceId=${wsId}", headers)
+        def metrics = apiGet("${effectiveEndpoint}/workflow/${meta.id}/metrics?workspaceId=${wsId}", headers)
+        def tasks = apiGetAllTasks("${effectiveEndpoint}/workflow/${meta.id}/tasks?workspaceId=${wsId}", headers)
+        def progress = apiGet("${effectiveEndpoint}/workflow/${meta.id}/progress?workspaceId=${wsId}", headers)
 
         return [
             workflow: workflow?.workflow,

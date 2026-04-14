@@ -30,6 +30,18 @@
                 "pattern": "^\\S+$",
                 "errorMessage": "Please provide a valid file path to your Seqera Platform logs.",
                 "meta": ["logs"]
+            },
+            "platform": {
+                "type": "string",
+                "pattern": "^https?://.*$",
+                "errorMessage": "Please provide a valid Seqera Platform API URL (e.g. https://api.cloud.seqera.io)",
+                "meta": ["platform"]
+            },
+            "token_env": {
+                "type": "string",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "errorMessage": "Please provide a valid environment variable name (e.g. TOWER_PROD_TOKEN)",
+                "meta": ["token_env"]
             }
         },
         "required": ["id", "workspace"]

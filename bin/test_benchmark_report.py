@@ -44,9 +44,15 @@ from benchmark_report import (
 
 
 def _make_run(run_id="run1", group="cpu", tasks=None, status="SUCCEEDED",
-              cached_count=0, failed_count=0, succeed_count=None):
+              cached_count=0, failed_count=0, succeed_count=None,
+              platform=None, token_env=None):
     """Minimal run dict matching SeqeraApi.fetchRunData() output."""
     task_list = tasks or []
+    meta = {"id": run_id, "workspace": "org/ws", "group": group}
+    if platform is not None:
+        meta["platform"] = platform
+    if token_env is not None:
+        meta["token_env"] = token_env
     return {
         "workflow": {
             "id": run_id,
@@ -72,7 +78,7 @@ def _make_run(run_id="run1", group="cpu", tasks=None, status="SUCCEEDED",
                 "memoryEfficiency": 30.0,
             }
         },
-        "meta": {"id": run_id, "workspace": "org/ws", "group": group},
+        "meta": meta,
     }
 
 
@@ -624,6 +630,137 @@ class TestEndToEnd:
         assert "pipeline" in html
 
 
+# ── Per-row platform/token_env meta passthrough ───────────────────────────
+
+
+class TestPlatformTokenMetaPassthrough:
+    """Verify runs with platform/token_env meta fields flow through the pipeline."""
+
+    def test_extract_runs_with_platform_meta(self):
+        run = _make_run(
+            platform="https://api.staging.seqera.io",
+            token_env="STAGING_TOKEN",
+            tasks=[_flat_task()],
+        )
+        rows = extract_runs([run])
+        assert len(rows) == 1
+        assert rows[0]["run_id"] == "run1"
+
+    def test_extract_runs_without_platform_meta(self):
+        run = _make_run(tasks=[_flat_task()])
+        rows = extract_runs([run])
+        assert len(rows) == 1
+        assert rows[0]["run_id"] == "run1"
+
+    def test_extract_tasks_with_platform_meta(self):
+        run = _make_run(
+            platform="https://api.staging.seqera.io",
+            token_env="STAGING_TOKEN",
+            tasks=[_flat_task()],
+        )
+        rows = extract_tasks([run])
+        assert len(rows) == 1
+        assert rows[0]["run_id"] == "run1"
+
+    def test_build_db_with_platform_meta(self, tmp_path):
+        data_dir = tmp_path / "data"
+        _write_run_json(data_dir, [
+            _make_run(
+                run_id="prod1",
+                group="prod",
+                platform="https://api.cloud.seqera.io",
+                token_env="PROD_TOKEN",
+                tasks=[_flat_task()],
+            ),
+        ])
+        db_path = tmp_path / "test.duckdb"
+        build_db(data_dir, db_path)
+        db = duckdb.connect(str(db_path), read_only=True)
+        count = db.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+        assert count == 1
+        db.close()
+
+    def test_build_db_mixed_runs(self, tmp_path):
+        """Mix of runs with and without per-row overrides."""
+        data_dir = tmp_path / "data"
+        _write_run_json(data_dir, [
+            _make_run(
+                run_id="prod1",
+                group="prod",
+                platform="https://api.cloud.seqera.io",
+                token_env="PROD_TOKEN",
+                tasks=[_flat_task(name="P1")],
+            ),
+            _make_run(
+                run_id="dev1",
+                group="dev",
+                platform="https://api.dev.seqera.io",
+                token_env="DEV_TOKEN",
+                tasks=[_flat_task(name="P2")],
+            ),
+            _make_run(
+                run_id="default1",
+                group="default",
+                tasks=[_flat_task(name="P3")],
+            ),
+        ])
+        db_path = tmp_path / "test.duckdb"
+        build_db(data_dir, db_path)
+        db = duckdb.connect(str(db_path), read_only=True)
+        runs = db.execute("SELECT run_id, \"group\" FROM runs ORDER BY run_id").fetchall()
+        assert len(runs) == 3
+        assert {r[0] for r in runs} == {"prod1", "dev1", "default1"}
+        db.close()
+
+    def test_queries_work_with_platform_meta(self, tmp_path):
+        """All query functions succeed with per-row override metadata."""
+        data_dir = tmp_path / "data"
+        _write_run_json(data_dir, [
+            _make_run(
+                run_id="r1",
+                group="staging",
+                platform="https://api.staging.seqera.io",
+                token_env="STAGING_TOKEN",
+                tasks=[_flat_task()],
+            ),
+        ])
+        db_path = tmp_path / "test.duckdb"
+        build_db(data_dir, db_path)
+        db = duckdb.connect(str(db_path), read_only=True)
+        assert len(query_benchmark_overview(db)) == 1
+        assert len(query_run_summary(db)) == 1
+        assert len(query_run_metrics(db)) == 1
+        assert len(query_run_costs(db)) == 1
+        assert len(query_process_stats(db)) >= 0
+        db.close()
+
+    def test_end_to_end_render_with_platform_meta(self, tmp_path):
+        """Full pipeline: build_db -> render_report with per-row overrides."""
+        data_dir = tmp_path / "data"
+        _write_run_json(data_dir, [
+            _make_run(
+                run_id="staging1",
+                group="staging",
+                platform="https://api.staging.seqera.io",
+                token_env="STAGING_TOKEN",
+                tasks=[_flat_task()],
+            ),
+            _make_run(
+                run_id="prod1",
+                group="prod",
+                tasks=[_flat_task()],
+            ),
+        ])
+        db_path = tmp_path / "test.duckdb"
+        build_db(data_dir, db_path)
+        output = tmp_path / "report.html"
+        render_report(db_path, output)
+        html = output.read_text()
+        assert "Pipeline benchmarking report" in html
+        assert "staging" in html
+        assert "prod" in html
+
+
 # ── Brand loading ───────────────────────────────────────────────────────────
 
 
@@ -632,7 +769,7 @@ class TestBrandLoading:
 
     def test_defaults_without_brand_file(self):
         brand = load_brand(None)
-        assert brand["accent"] == "#087F68"
+        assert brand["accent"] == "#065647"
         assert len(brand["palette"]) == 10
 
     def test_loads_brand_file(self, tmp_path):
@@ -724,48 +861,57 @@ class TestSarekFixtures:
 # ── Fetch subcommand (Seqera Platform API) ─────────────────────────────────
 
 
-def _mock_response(json_data, status_code=200):
-    """Create a mock httpx.Response."""
+import io
+from urllib.error import HTTPError, URLError
+
+
+def _mock_urlopen(json_data, status_code=200):
+    """Create a context-manager mock matching urllib.request.urlopen."""
+    body = json.dumps(json_data).encode()
     resp = MagicMock()
-    resp.status_code = status_code
-    resp.json.return_value = json_data
-    resp.raise_for_status.return_value = None
+    resp.read.return_value = body
+    resp.__enter__ = lambda s: s
+    resp.__exit__ = MagicMock(return_value=False)
     return resp
+
+
+def _mock_urlopen_sequence(responses):
+    """Return a side_effect function that yields mock responses in order."""
+    it = iter(responses)
+    def _side_effect(*args, **kwargs):
+        return next(it)
+    return _side_effect
 
 
 class TestResolveWorkspaceId:
     """Verify workspace resolution from org/workspace string."""
 
-    @patch("benchmark_report.httpx.get")
-    def test_resolves_workspace(self, mock_get):
-        mock_get.side_effect = [
-            _mock_response({
-                "organizations": [{"name": "myorg", "orgId": 42}]
-            }),
-            _mock_response({
-                "workspaces": [{"name": "myws", "id": 99}]
-            }),
-        ]
+    @patch("benchmark_report.urlopen")
+    def test_resolves_workspace(self, mock_urlopen):
+        mock_urlopen.side_effect = _mock_urlopen_sequence([
+            _mock_urlopen({"organizations": [{"name": "myorg", "orgId": 42}]}),
+            _mock_urlopen({"workspaces": [{"name": "myws", "id": 99}]}),
+        ])
         ws_id = resolve_workspace_id(
             "myorg/myws", "https://api.example.com", {"Authorization": "Bearer tok"}
         )
         assert ws_id == 99
-        assert mock_get.call_count == 2
+        assert mock_urlopen.call_count == 2
 
-    @patch("benchmark_report.httpx.get")
-    def test_raises_on_missing_org(self, mock_get):
-        mock_get.return_value = _mock_response({"organizations": []})
+    @patch("benchmark_report.urlopen")
+    def test_raises_on_missing_org(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_urlopen({"organizations": []})
         with pytest.raises(RuntimeError, match="Organization.*not found"):
             resolve_workspace_id(
                 "badorg/ws", "https://api.example.com", {}
             )
 
-    @patch("benchmark_report.httpx.get")
-    def test_raises_on_missing_workspace(self, mock_get):
-        mock_get.side_effect = [
-            _mock_response({"organizations": [{"name": "org", "orgId": 1}]}),
-            _mock_response({"workspaces": []}),
-        ]
+    @patch("benchmark_report.urlopen")
+    def test_raises_on_missing_workspace(self, mock_urlopen):
+        mock_urlopen.side_effect = _mock_urlopen_sequence([
+            _mock_urlopen({"organizations": [{"name": "org", "orgId": 1}]}),
+            _mock_urlopen({"workspaces": []}),
+        ])
         with pytest.raises(RuntimeError, match="Workspace.*not found"):
             resolve_workspace_id(
                 "org/badws", "https://api.example.com", {}
@@ -775,48 +921,45 @@ class TestResolveWorkspaceId:
 class TestFetchAllTasks:
     """Verify task pagination."""
 
-    @patch("benchmark_report.httpx.get")
-    def test_single_page(self, mock_get):
-        mock_get.return_value = _mock_response({
+    @patch("benchmark_report.urlopen")
+    def test_single_page(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_urlopen({
             "tasks": [{"task": {"id": i}} for i in range(50)]
         })
         tasks = fetch_all_tasks("https://api.example.com/workflow/1/tasks?workspaceId=1", {})
         assert len(tasks) == 50
-        assert mock_get.call_count == 1
+        assert mock_urlopen.call_count == 1
 
-    @patch("benchmark_report.httpx.get")
-    def test_multi_page(self, mock_get):
+    @patch("benchmark_report.urlopen")
+    def test_multi_page(self, mock_urlopen):
         full_page = [{"task": {"id": i}} for i in range(100)]
         partial_page = [{"task": {"id": i}} for i in range(30)]
-        mock_get.side_effect = [
-            _mock_response({"tasks": full_page}),
-            _mock_response({"tasks": partial_page}),
-        ]
+        mock_urlopen.side_effect = _mock_urlopen_sequence([
+            _mock_urlopen({"tasks": full_page}),
+            _mock_urlopen({"tasks": partial_page}),
+        ])
         tasks = fetch_all_tasks("https://api.example.com/workflow/1/tasks?workspaceId=1", {})
         assert len(tasks) == 130
-        assert mock_get.call_count == 2
+        assert mock_urlopen.call_count == 2
 
 
 class TestFetchRunData:
     """Verify fetch_run_data calls all required API endpoints."""
 
-    @patch("benchmark_report.httpx.get")
-    def test_calls_four_endpoints(self, mock_get):
-        # Setup responses for: orgs, workspaces, workflow, metrics, tasks, progress
-        mock_get.side_effect = [
-            # resolve_workspace_id: GET /orgs
-            _mock_response({"organizations": [{"name": "org", "orgId": 1}]}),
-            # resolve_workspace_id: GET /orgs/1/workspaces
-            _mock_response({"workspaces": [{"name": "ws", "id": 10}]}),
-            # GET /workflow/{id}
-            _mock_response({"workflow": {"id": "abc123", "status": "SUCCEEDED"}}),
-            # GET /workflow/{id}/metrics
-            _mock_response({"metrics": [{"process": "PROC_A"}]}),
-            # GET /workflow/{id}/tasks (single page)
-            _mock_response({"tasks": [{"task": {"name": "t1"}}]}),
-            # GET /workflow/{id}/progress
-            _mock_response({"progress": {"workflowProgress": {}}}),
+    def _standard_responses(self, endpoint="https://api.example.com"):
+        """Six mock responses for a successful fetch_run_data call."""
+        return [
+            _mock_urlopen({"organizations": [{"name": "org", "orgId": 1}]}),
+            _mock_urlopen({"workspaces": [{"name": "ws", "id": 10}]}),
+            _mock_urlopen({"workflow": {"id": "abc123", "status": "SUCCEEDED"}}),
+            _mock_urlopen({"metrics": [{"process": "PROC_A"}]}),
+            _mock_urlopen({"tasks": [{"task": {"name": "t1"}}]}),
+            _mock_urlopen({"progress": {"workflowProgress": {}}}),
         ]
+
+    @patch("benchmark_report.urlopen")
+    def test_calls_four_endpoints(self, mock_urlopen):
+        mock_urlopen.side_effect = _mock_urlopen_sequence(self._standard_responses())
         result = fetch_run_data("abc123", "org/ws", "https://api.example.com", "tok123")
 
         assert result["workflow"]["id"] == "abc123"
@@ -824,17 +967,89 @@ class TestFetchRunData:
         assert len(result["tasks"]) == 1
         assert result["progress"] is not None
         # 2 calls for workspace resolution + 4 data endpoints = 6 total
-        assert mock_get.call_count == 6
+        assert mock_urlopen.call_count == 6
 
-    @patch("benchmark_report.httpx.get")
-    def test_returns_expected_keys(self, mock_get):
-        mock_get.side_effect = [
-            _mock_response({"organizations": [{"name": "o", "orgId": 1}]}),
-            _mock_response({"workspaces": [{"name": "w", "id": 5}]}),
-            _mock_response({"workflow": {"id": "r1"}}),
-            _mock_response({"metrics": []}),
-            _mock_response({"tasks": []}),
-            _mock_response({"progress": {"workflowProgress": {}}}),
-        ]
+    @patch("benchmark_report.urlopen")
+    def test_returns_expected_keys(self, mock_urlopen):
+        mock_urlopen.side_effect = _mock_urlopen_sequence([
+            _mock_urlopen({"organizations": [{"name": "o", "orgId": 1}]}),
+            _mock_urlopen({"workspaces": [{"name": "w", "id": 5}]}),
+            _mock_urlopen({"workflow": {"id": "r1"}}),
+            _mock_urlopen({"metrics": []}),
+            _mock_urlopen({"tasks": []}),
+            _mock_urlopen({"progress": {"workflowProgress": {}}}),
+        ])
         result = fetch_run_data("r1", "o/w", "https://api.example.com", "tok")
         assert set(result.keys()) == {"workflow", "metrics", "tasks", "progress"}
+
+    @patch("benchmark_report.urlopen")
+    def test_uses_provided_api_endpoint(self, mock_urlopen):
+        """Verify that fetch_run_data sends requests to the given endpoint."""
+        alt_endpoint = "https://api.staging.seqera.io"
+        mock_urlopen.side_effect = _mock_urlopen_sequence(
+            self._standard_responses(endpoint=alt_endpoint)
+        )
+        fetch_run_data("run1", "org/ws", alt_endpoint, "tok")
+
+        # Every URL should target the alternate endpoint
+        for call in mock_urlopen.call_args_list:
+            req = call[0][0]  # first positional arg is the Request object
+            assert req.full_url.startswith(alt_endpoint), (
+                f"Expected URL to start with {alt_endpoint}, got {req.full_url}"
+            )
+
+    @patch("benchmark_report.urlopen")
+    def test_http_401_raises(self, mock_urlopen):
+        """Unauthorized token should propagate as an HTTPError."""
+        mock_urlopen.side_effect = HTTPError(
+            url="https://api.example.com/orgs",
+            code=401,
+            msg="Unauthorized",
+            hdrs={},
+            fp=io.BytesIO(b""),
+        )
+        with pytest.raises(HTTPError) as exc_info:
+            fetch_run_data("run1", "org/ws", "https://api.example.com", "bad-token")
+        assert exc_info.value.code == 401
+
+    @patch("benchmark_report.urlopen")
+    def test_http_500_raises(self, mock_urlopen):
+        """Server errors should propagate as an HTTPError."""
+        mock_urlopen.side_effect = HTTPError(
+            url="https://api.example.com/orgs",
+            code=500,
+            msg="Internal Server Error",
+            hdrs={},
+            fp=io.BytesIO(b""),
+        )
+        with pytest.raises(HTTPError) as exc_info:
+            fetch_run_data("run1", "org/ws", "https://api.example.com", "tok")
+        assert exc_info.value.code == 500
+
+    @patch("benchmark_report.urlopen")
+    def test_connection_error_raises(self, mock_urlopen):
+        """Unreachable endpoint should propagate as a URLError."""
+        mock_urlopen.side_effect = URLError("Name or service not known")
+        with pytest.raises(URLError):
+            fetch_run_data("run1", "org/ws", "https://unreachable.example.com", "tok")
+
+    @patch("benchmark_report.urlopen")
+    def test_error_midway_through_fetch(self, mock_urlopen):
+        """Error after workspace resolution but during data fetch."""
+        error_503 = HTTPError(
+            url="https://api.example.com/workflow/run1",
+            code=503,
+            msg="Service Unavailable",
+            hdrs={},
+            fp=io.BytesIO(b""),
+        )
+        mock_urlopen.side_effect = [
+            # Workspace resolution succeeds
+            _mock_urlopen({"organizations": [{"name": "org", "orgId": 1}]}),
+            _mock_urlopen({"workspaces": [{"name": "ws", "id": 10}]}),
+            # Workflow fetch fails
+            error_503,
+        ]
+        with pytest.raises(HTTPError) as exc_info:
+            fetch_run_data("run1", "org/ws", "https://api.example.com", "tok")
+        assert exc_info.value.code == 503

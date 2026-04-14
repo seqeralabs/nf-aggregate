@@ -75,7 +75,13 @@ workflow NF_AGGREGATE {
                     Thread.sleep(sleepMs)
                 }
             }
-            data.meta = [id: meta.id, workspace: meta.workspace, group: meta.group ?: 'default']
+            data.meta = [
+                id:        meta.id,
+                workspace: meta.workspace,
+                group:     meta.group ?: 'default',
+                platform:  meta.platform ?: null,
+                token_env: meta.token_env ?: null,
+            ]
             def tmpDir = java.nio.file.Files.createTempDirectory("nf-agg-run-${meta.id}-")
             def json_file = file(tmpDir.resolve("${meta.id}.json"))
             json_file.text = groovy.json.JsonOutput.toJson(data)
