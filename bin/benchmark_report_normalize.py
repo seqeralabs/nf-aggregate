@@ -222,21 +222,27 @@ def _to_tags_dict(value: Any) -> dict[str, Any]:
     return {}
 
 
-def _normalize_cost_rows(costs_parquet: Path) -> list[dict[str, Any]]:
+def _iter_parquet_rows(costs_parquet: Path):
     try:
         import pyarrow.parquet as pq
     except ImportError as exc:
         raise RuntimeError("pyarrow is required to normalize CUR parquet") from exc
 
-    table = pq.read_table(costs_parquet)
-    rows = table.to_pylist()
-    cols = set(table.column_names)
+    parquet_file = pq.ParquetFile(costs_parquet)
+    cols = set(parquet_file.schema_arrow.names)
 
-    is_map = "resource_tags" in cols and "resource_tags_user_unique_run_id" not in cols
+    for batch in parquet_file.iter_batches():
+        for row in batch.to_pylist():
+            yield cols, row
 
+
+def _normalize_cost_rows(costs_parquet: Path) -> list[dict[str, Any]]:
     grouped: dict[tuple[str, str, str], dict[str, float | str]] = {}
+    is_map: bool | None = None
 
-    for row in rows:
+    for cols, row in _iter_parquet_rows(costs_parquet):
+        if is_map is None:
+            is_map = "resource_tags" in cols and "resource_tags_user_unique_run_id" not in cols
         if is_map:
             tags = _to_tags_dict(row.get("resource_tags"))
             run_id = tags.get("user_unique_run_id") or tags.get("user_nf_unique_run_id")
