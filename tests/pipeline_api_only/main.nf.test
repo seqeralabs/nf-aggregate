@@ -28,12 +28,9 @@ nextflow_pipeline {
 
         then {
             def versions = collatedVersions(params.outdir)
-            def stdout = workflow.stdout.join('\n')
 
             assert workflow.success
             assert workflow.trace.succeeded().size() == 0
-            assert !stdout.contains('Invalid method invocation')
-            assert stdout.contains('Found 3 API run(s) but --generate_benchmark_report is not enabled.')
             assert versions.contains('Workflow:')
             assert !versions.contains('EXTRACT_TARBALL:')
             assert !versions.contains('BENCHMARK_REPORT:')

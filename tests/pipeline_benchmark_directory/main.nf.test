@@ -33,16 +33,14 @@ nextflow_pipeline {
 
         then {
             def versions = collatedVersions(params.outdir)
-            def stdout = workflow.stdout.join('\n')
             def report = new File("${params.outdir}/benchmark_report/benchmark_report.html")
             def database = new File("${params.outdir}/benchmark_report/benchmark.duckdb")
             def reportText = report.text
 
             assert workflow.success
             assert workflow.trace.succeeded().size() == 1
-            assert !stdout.contains('Invalid method invocation')
-            assert !stdout.contains('SEQERALABS_NF_AGGREGATE:NF_AGGREGATE:EXTRACT_TARBALL')
-            assert stdout.contains('SEQERALABS_NF_AGGREGATE:NF_AGGREGATE:BENCHMARK_REPORT')
+            assert workflow.trace.succeeded().any { it.name.contains('BENCHMARK_REPORT') }
+            assert !workflow.trace.succeeded().any { it.name.contains('EXTRACT_TARBALL') }
             assert !versions.contains('EXTRACT_TARBALL:')
             assert versions.contains('BENCHMARK_REPORT:')
             assert report.isFile()

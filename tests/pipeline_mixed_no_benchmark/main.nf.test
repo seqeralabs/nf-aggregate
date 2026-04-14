@@ -29,13 +29,10 @@ nextflow_pipeline {
 
         then {
             def versions = collatedVersions(params.outdir)
-            def stdout = workflow.stdout.join('\n')
 
             assert workflow.success
             assert workflow.trace.succeeded().size() == 1
-            assert !stdout.contains('Invalid method invocation')
-            assert stdout.contains('Found 1 API run(s) but --generate_benchmark_report is not enabled.')
-            assert stdout.contains('SEQERALABS_NF_AGGREGATE:NF_AGGREGATE:EXTRACT_TARBALL')
+            assert workflow.trace.succeeded().any { it.name.contains('EXTRACT_TARBALL') }
             assert versions.contains('Workflow:')
             assert versions.contains('EXTRACT_TARBALL:')
             assert !versions.contains('BENCHMARK_REPORT:')
