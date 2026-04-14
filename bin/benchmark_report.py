@@ -510,30 +510,32 @@ def query_run_metrics(db: duckdb.DuckDBPyConnection) -> list[dict]:
 def query_run_costs(db: duckdb.DuckDBPyConnection) -> list[dict]:
     """Per-run cost from task-level sums + optional CUR costs."""
     has_cur = table_exists(db, "costs")
-    cost_expr = "COALESCE(t.cost, 0)"
-    used_cost_expr = "NULL"
-    unused_cost_expr = "NULL"
-    cost_join = ""
 
     if has_cur:
-        cost_expr = "COALESCE(c.cost, t.cost, 0)"
-        used_cost_expr = "ROUND(SUM(COALESCE(c.used_cost, t.cost, 0)), 2)"
-        unused_cost_expr = "ROUND(SUM(COALESCE(c.unused_cost, 0)), 2)"
-        cost_join = """
+        return fetch_dicts(db, """
+            SELECT
+                r.run_id,
+                r."group",
+                ROUND(SUM(COALESCE(c.cost, t.cost, 0)), 2) AS cost,
+                ROUND(SUM(COALESCE(c.used_cost, t.cost, 0)), 2) AS used_cost,
+                ROUND(SUM(COALESCE(c.unused_cost, 0)), 2) AS unused_cost,
+            FROM runs r
+            LEFT JOIN tasks t ON r.run_id = t.run_id
             LEFT JOIN costs c ON t.run_id = c.run_id
                 AND LEFT(REPLACE(t.hash, '/', ''), 8) = c.hash
-        """
+            GROUP BY r.run_id, r."group"
+            ORDER BY r."group"
+        """)
 
     return fetch_dicts(db, """
         SELECT
             r.run_id,
             r."group",
-            ROUND(SUM(""" + cost_expr + """), 2) AS cost,
-            """ + used_cost_expr + """ AS used_cost,
-            """ + unused_cost_expr + """ AS unused_cost,
+            ROUND(SUM(COALESCE(t.cost, 0)), 2) AS cost,
+            NULL AS used_cost,
+            NULL AS unused_cost,
         FROM runs r
         LEFT JOIN tasks t ON r.run_id = t.run_id
-        """ + cost_join + """
         GROUP BY r.run_id, r."group"
         ORDER BY r."group"
     """)
