@@ -61,10 +61,10 @@ def _task_payload(task_raw: dict) -> dict:
 def _compute_progress_from_tasks(run: dict) -> dict:
     """Compute workflowProgress metrics from task-level data.
 
-    This is a fallback for runs where the Platform did not provide
-    aggregate progress (e.g. imported from Nextflow log tarballs).
+    This is a fallback for runs where aggregate progress is missing
+    (e.g. imported from Seqera Platform tw run dumps).
     """
-    tasks = [_task_payload(t) for t in run.get("tasks", [])]
+    tasks = [_task_payload(t) for t in run.get("tasks") or []]
     completed = [t for t in tasks if t.get("status") == "COMPLETED"]
     if not completed:
         return {}
@@ -77,8 +77,9 @@ def _compute_progress_from_tasks(run: dict) -> dict:
     cpu_time = sum(
         _val(t, "cpus") * _val(t, "realtime") for t in completed
     )
-    # cpuLoad = actual CPU usage: pcpu is % of a single core,
-    # so pcpu/100 * realtime gives core-milliseconds used.
+    # cpuLoad = actual CPU usage: pcpu is aggregate CPU% across all cores
+    # (e.g. 400 for a 4-core task at full load), so pcpu/100 * realtime
+    # gives core-milliseconds used.
     cpu_load = sum(
         _val(t, "pcpu") / 100.0 * _val(t, "realtime")
         for t in completed
