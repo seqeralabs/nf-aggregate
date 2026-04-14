@@ -4,7 +4,7 @@ Auto-loaded by Nextflow at pipeline startup. Available in workflow/process scrip
 
 ## SeqeraApi.groovy
 
-nf-boost `request()` wrappers for Seqera Platform API. Used in the v2 benchmark path — called directly in `map{}` operators, no container needed.
+Plain `java.net.URL.openConnection()` HTTP client for Seqera Platform API. Used in the v2 benchmark path — called directly in `map{}` operators, no container needed.
 
 ### Methods
 
@@ -32,6 +32,6 @@ Calls `/orgs` → finds org by name → calls `/orgs/{orgId}/workspaces` → fin
 
 ### Gotchas
 
-- Uses `nextflow.boost.BoostFunctions` — requires `nf-boost` plugin
+- Uses plain `java.net.URL.openConnection()` for HTTP requests — no external plugin dependency
 - Runs in the Nextflow head JVM, not in a container process
 - Network errors throw `RuntimeException` which will fail the pipeline
