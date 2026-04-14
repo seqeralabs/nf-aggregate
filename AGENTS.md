@@ -8,8 +8,9 @@ Nextflow pipeline to aggregate metrics across Seqera Platform pipeline runs.
 input CSV (id, workspace, group, logs, fusion)
   → branch: api (SeqeraApi.fetchRunData) | external (EXTRACT_TARBALL)
   → collect JSON files
-  → BENCHMARK_REPORT process (benchmark_report.py build-db + report)
-  → benchmark.duckdb + benchmark_report.html
+  → NORMALIZE_BENCHMARK_JSONL (raw JSON -> jsonl_bundle/)
+  → AGGREGATE_BENCHMARK_REPORT_DATA (jsonl_bundle -> report_data.json)
+  → RENDER_BENCHMARK_REPORT (report_data.json -> benchmark_report.html)
 ```
 
 ## Key Params
@@ -32,18 +33,23 @@ input CSV (id, workspace, group, logs, fusion)
 ## Rebuild Command (local testing)
 
 ```bash
-# Build DuckDB from JSON data:
-uv run --with duckdb --with typer --with pyyaml --with pyarrow \
-  python bin/benchmark_report.py build-db \
-  --data-dir /path/to/json_data --output /tmp/benchmark.duckdb
+# Normalize raw run JSON (+ optional CUR parquet) to JSONL bundle:
+uv run --with typer --with pyyaml --with pyarrow \
+  python bin/benchmark_report.py normalize-jsonl \
+  --data-dir /path/to/json_data --output-dir /tmp/jsonl_bundle
 
-# Render HTML report from DuckDB:
-uv run --with duckdb --with jinja2 --with typer --with pyyaml \
-  python bin/benchmark_report.py report \
-  --db /tmp/benchmark.duckdb --brand assets/brand.yml --output /tmp/report.html
+# Aggregate JSONL bundle to report data:
+uv run --with typer --with pyyaml \
+  python bin/benchmark_report.py aggregate-report-data \
+  --jsonl-dir /tmp/jsonl_bundle --output /tmp/report_data.json
+
+# Render HTML report from report_data.json:
+uv run --with jinja2 --with typer --with pyyaml \
+  python bin/benchmark_report.py render-html \
+  --data /tmp/report_data.json --brand assets/brand.yml --output /tmp/report.html
 
 # Fetch run data from Seqera Platform API (standalone):
-uv run --with duckdb --with typer --with pyyaml --with httpx \
+uv run --with typer --with pyyaml \
   python bin/benchmark_report.py fetch \
   --run-ids <id> --workspace org/name --output-dir /tmp/json_data
 ```
@@ -51,7 +57,8 @@ uv run --with duckdb --with typer --with pyyaml --with httpx \
 ## Gotchas
 
 - Wave freeze strategy: `['conda', 'container', 'dockerfile']` — no `spack` (breaks builds)
-- DuckDB `read_json_auto` needs file paths, not JSON strings — use temp files
+- JSONL is the primary handoff (`jsonl_bundle/`) for Fusion-friendly streaming
+- `report_data.json` is the explicit boundary between aggregation and rendering
 - `commit.gpgsign` must be true (SSH signing via 1Password)
 - RTK `buildOutputFiltering` / `testOutputAggregation` can swallow nf-test output — disable to debug
 

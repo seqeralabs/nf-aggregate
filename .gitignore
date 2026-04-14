@@ -19,3 +19,4 @@ modules/local/benchmark_report_v2/tests/data/
 .beads/
 .lineage/
 .claude/
+.hermes/
