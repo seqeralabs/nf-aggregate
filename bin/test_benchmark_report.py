@@ -769,7 +769,7 @@ class TestBrandLoading:
 
     def test_defaults_without_brand_file(self):
         brand = load_brand(None)
-        assert brand["accent"] == "#087F68"
+        assert brand["accent"] == "#065647"
         assert len(brand["palette"]) == 10
 
     def test_loads_brand_file(self, tmp_path):
