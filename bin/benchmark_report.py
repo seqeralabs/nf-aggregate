@@ -69,19 +69,27 @@ def _compute_progress_from_tasks(run: dict) -> dict:
     if not completed:
         return {}
 
+    def _val(d: dict, key: str, default: int = 0) -> int | float:
+        """Return d[key] if not None, else default. Avoids falsy-zero bug with `or`."""
+        v = d.get(key)
+        return v if v is not None else default
+
     cpu_time = sum(
-        (t.get("cpus") or 0) * (t.get("realtime") or 0) for t in completed
+        _val(t, "cpus") * _val(t, "realtime") for t in completed
     )
     # cpuLoad = actual CPU usage: pcpu is % of a single core,
     # so pcpu/100 * realtime gives core-milliseconds used.
     cpu_load = sum(
-        (t.get("pcpu") or 0) / 100.0 * (t.get("realtime") or 0)
+        _val(t, "pcpu") / 100.0 * _val(t, "realtime")
         for t in completed
     )
-    mem_rss = sum(t.get("peakRss") or t.get("rss") or 0 for t in completed)
-    mem_req = sum(t.get("memory") or 0 for t in completed)
-    read_bytes = sum(t.get("readBytes") or 0 for t in completed)
-    write_bytes = sum(t.get("writeBytes") or 0 for t in completed)
+    mem_rss = sum(
+        _val(t, "peakRss") if t.get("peakRss") is not None else _val(t, "rss")
+        for t in completed
+    )
+    mem_req = sum(_val(t, "memory") for t in completed)
+    read_bytes = sum(_val(t, "readBytes") for t in completed)
+    write_bytes = sum(_val(t, "writeBytes") for t in completed)
 
     return {
         "cpuTime": int(cpu_time),
