@@ -33,7 +33,9 @@ nextflow_pipeline {
             assert workflow.trace.succeeded().size() == 0
             assert versions.contains('Workflow:')
             assert !versions.contains('EXTRACT_TARBALL:')
-            assert !versions.contains('BENCHMARK_REPORT:')
+            assert !versions.contains('NORMALIZE_BENCHMARK_JSONL:')
+            assert !versions.contains('AGGREGATE_BENCHMARK_REPORT_DATA:')
+            assert !versions.contains('RENDER_BENCHMARK_REPORT:')
             assert !new File("${params.outdir}/benchmark_report").exists()
 
             assert snapshot(

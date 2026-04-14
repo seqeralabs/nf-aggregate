@@ -2,9 +2,11 @@
 // WORKFLOW: Run main seqeralabs/nf-aggregate workflow
 //
 
-include { BENCHMARK_REPORT        } from '../../modules/local/benchmark_report'
-include { EXTRACT_TARBALL        } from '../../modules/local/extract_tarball'
-include { softwareVersionsToYAML } from 'plugin/nf-core-utils'
+include { NORMALIZE_BENCHMARK_JSONL      } from '../../modules/local/normalize_benchmark_jsonl'
+include { AGGREGATE_BENCHMARK_REPORT_DATA } from '../../modules/local/aggregate_benchmark_report_data'
+include { RENDER_BENCHMARK_REPORT         } from '../../modules/local/render_benchmark_report'
+include { EXTRACT_TARBALL                 } from '../../modules/local/extract_tarball'
+include { softwareVersionsToYAML          } from 'plugin/nf-core-utils'
 
 workflow NF_AGGREGATE {
     take:
@@ -54,18 +56,16 @@ workflow NF_AGGREGATE {
     ch_versions = ch_versions.mix(EXTRACT_TARBALL.out.versions)
 
     //
-    // BENCHMARK REPORT: JSON → DuckDB → HTML report
+    // BENCHMARK REPORT: raw JSON -> JSONL bundle -> report_data.json -> HTML
     //
     if (params.generate_benchmark_report) {
 
         // Path A: Fetch run data via API for non-external runs
         ch_api_jsons = ch_api_runs.map { meta ->
-            def data = null
             def maxRetries = 3
-            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            def data = (1..maxRetries).findResult { attempt ->
                 try {
-                    data = SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
-                    break
+                    return SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
                 } catch (Exception e) {
                     if (attempt == maxRetries) {
                         throw new RuntimeException("Failed to fetch run data for ${meta.id} after ${maxRetries} attempts: ${e.message}", e)
@@ -73,6 +73,7 @@ workflow NF_AGGREGATE {
                     def sleepMs = 1000 * Math.pow(2, attempt - 1) as long
                     log.warn "API call failed for run ${meta.id} (attempt ${attempt}/${maxRetries}), retrying in ${sleepMs}ms: ${e.message}"
                     Thread.sleep(sleepMs)
+                    return null
                 }
             }
             data.meta = [
@@ -117,13 +118,23 @@ workflow NF_AGGREGATE {
             ? Channel.fromPath(params.benchmark_aws_cur_report)
             : Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file("${projectDir}/assets/NO_FILE"))
 
-        BENCHMARK_REPORT(
+        NORMALIZE_BENCHMARK_JSONL(
             ch_data_dir,
             ch_cur.ifEmpty(file("${projectDir}/assets/NO_FILE")),
+        )
+        ch_versions = ch_versions.mix(NORMALIZE_BENCHMARK_JSONL.out.versions)
+
+        AGGREGATE_BENCHMARK_REPORT_DATA(
+            NORMALIZE_BENCHMARK_JSONL.out.jsonl,
+        )
+        ch_versions = ch_versions.mix(AGGREGATE_BENCHMARK_REPORT_DATA.out.versions)
+
+        RENDER_BENCHMARK_REPORT(
+            AGGREGATE_BENCHMARK_REPORT_DATA.out.data,
             file("${projectDir}/assets/brand.yml", checkIfExists: true),
             file("${projectDir}/assets/seqera_logo_color.svg", checkIfExists: true),
         )
-        ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions)
+        ch_versions = ch_versions.mix(RENDER_BENCHMARK_REPORT.out.versions)
     }
 
     //
