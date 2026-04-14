@@ -4,8 +4,7 @@
 
 include { BENCHMARK_REPORT        } from '../../modules/local/benchmark_report'
 include { EXTRACT_TARBALL        } from '../../modules/local/extract_tarball'
-include { getProcessVersions     } from '../../subworkflows/local/utils_nf_aggregate'
-include { getWorkflowVersions    } from '../../subworkflows/local/utils_nf_aggregate'
+include { softwareVersionsToYAML } from 'plugin/nf-core-utils'
 
 workflow NF_AGGREGATE {
     take:
@@ -26,17 +25,32 @@ workflow NF_AGGREGATE {
         external: it.workspace == 'external' && it.logs
     }.set { ch_split }
 
-    ch_api_runs = ch_split.api.collect().flatMap { it }
+    ch_api_runs = ch_split.api
+
+    if (!params.generate_benchmark_report) {
+        ch_split.api.count().subscribe { n ->
+            if (n > 0) {
+                log.warn "Found ${n} API run(s) but --generate_benchmark_report is not enabled. " +
+                         "API runs will not produce any output. Enable --generate_benchmark_report to process them."
+            }
+        }
+    }
 
     //
     // MODULE: Extract external tarballs containing run JSON data
     //
     def samplesheet_dir = file(params.input).parent
-    ch_tarballs = ch_split.external.map { meta ->
+    ch_external_logs = ch_split.external.map { meta ->
         def logs_path = meta.logs.startsWith('/') ? file(meta.logs) : samplesheet_dir.resolve(meta.logs)
         [meta, file(logs_path, checkIfExists: true)]
     }
-    EXTRACT_TARBALL(ch_tarballs)
+
+    ch_external_logs.branch {
+        dirs:     it[1].isDirectory()
+        tarballs: !it[1].isDirectory()
+    }.set { ch_external_split }
+
+    EXTRACT_TARBALL(ch_external_split.tarballs)
     ch_versions = ch_versions.mix(EXTRACT_TARBALL.out.versions)
 
     //
@@ -46,10 +60,24 @@ workflow NF_AGGREGATE {
 
         // Path A: Fetch run data via API for non-external runs
         ch_api_jsons = ch_api_runs.map { meta ->
-            def data = SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
+            def data = null
+            def maxRetries = 3
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    data = SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
+                    break
+                } catch (Exception e) {
+                    if (attempt == maxRetries) {
+                        throw new RuntimeException("Failed to fetch run data for ${meta.id} after ${maxRetries} attempts: ${e.message}", e)
+                    }
+                    def sleepMs = 1000 * Math.pow(2, attempt - 1) as long
+                    log.warn "API call failed for run ${meta.id} (attempt ${attempt}/${maxRetries}), retrying in ${sleepMs}ms: ${e.message}"
+                    Thread.sleep(sleepMs)
+                }
+            }
             data.meta = [id: meta.id, workspace: meta.workspace, group: meta.group ?: 'default']
-            def json_file = file("${workDir}/run_data/${meta.id}.json")
-            json_file.parent.mkdirs()
+            def tmpDir = java.nio.file.Files.createTempDirectory("nf-agg-run-${meta.id}-")
+            def json_file = file(tmpDir.resolve("${meta.id}.json"))
             json_file.text = groovy.json.JsonOutput.toJson(data)
             return json_file
         }
@@ -61,12 +89,19 @@ workflow NF_AGGREGATE {
             return jsons
         }
 
+        ch_external_dir_jsons = ch_external_split.dirs.flatMap { meta, dir ->
+            def jsons = []
+            dir.toFile().eachFileMatch(~/.*\.json/) { jsons << file(it) }
+            return jsons
+        }
+
         // Merge both paths into a single data directory
         ch_data_dir = ch_api_jsons
             .mix(ch_tarball_jsons)
+            .mix(ch_external_dir_jsons)
             .collect()
             .map { files ->
-                def dir = file("${workDir}/benchmark_data")
+                def dir = file(java.nio.file.Files.createTempDirectory("nf-agg-benchmark-"))
                 dir.mkdirs()
                 files.each { f -> f.copyTo(dir.resolve(f.name)) }
                 return dir
@@ -88,11 +123,15 @@ workflow NF_AGGREGATE {
     //
     // Collate software versions
     //
-    ch_versions
-        .unique()
-        .map { getProcessVersions(it) }
-        .mix(Channel.of(getWorkflowVersions()))
-        .collectFile(storeDir: "${params.outdir}/pipeline_info", name: 'collated_software_mqc_versions.yml', newLine: true)
+    softwareVersionsToYAML(
+        softwareVersions: ch_versions.unique(),
+        nextflowVersion: workflow.nextflow.version,
+    ).collectFile(
+        storeDir: "${params.outdir}/pipeline_info",
+        name: 'collated_software_versions.yml',
+        sort: true,
+        newLine: true,
+    )
 
     emit:
     versions = ch_versions

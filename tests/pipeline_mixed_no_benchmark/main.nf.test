@@ -1,0 +1,48 @@
+def INPUT_PATH = new File('workflows/nf_aggregate/assets/test_mixed_no_benchmark.csv').canonicalPath
+
+def expectedOutputNames = [
+    'pipeline_info',
+    'pipeline_info/collated_software_versions.yml',
+]
+
+def collatedVersions = { outdir ->
+    new File("${outdir}/pipeline_info/collated_software_versions.yml").text
+}
+
+nextflow_pipeline {
+    name "Pipeline mixed routing without benchmark"
+    script "../../main.nf"
+    tag "pipeline"
+    tag "nf-aggregate"
+    tag "mixed-routing"
+
+    test("mixed input extracts external tarball only") {
+        tag("test")
+        tag("routing")
+
+        when {
+            params {
+                input  = INPUT_PATH
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def versions = collatedVersions(params.outdir)
+
+            assert workflow.success
+            assert workflow.trace.succeeded().size() == 1
+            assert workflow.trace.succeeded().any { it.name.contains('EXTRACT_TARBALL') }
+            assert versions.contains('Workflow:')
+            assert versions.contains('EXTRACT_TARBALL:')
+            assert !versions.contains('BENCHMARK_REPORT:')
+            assert !new File("${params.outdir}/benchmark_report").exists()
+
+            assert snapshot(
+                workflow.trace.succeeded().size(),
+                removeFromYamlMap("$outputDir/pipeline_info/collated_software_versions.yml", "Workflow"),
+                expectedOutputNames
+            ).match()
+        }
+    }
+}

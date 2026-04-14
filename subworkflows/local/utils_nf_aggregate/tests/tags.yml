@@ -1,2 +1,0 @@
-subworkflows_local_utils_nf_aggregate:
-  - subworkflows/local/utils_nf_aggregate/**

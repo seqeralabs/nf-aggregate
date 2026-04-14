@@ -13,8 +13,17 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { NF_AGGREGATE            } from './workflows/nf_aggregate'
-include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nf_aggregate'
+include { NF_AGGREGATE         } from './workflows/nf_aggregate'
+include {
+    checkCondaChannels ;
+    dumpParametersToJSON ;
+    getWorkflowVersion
+} from 'plugin/nf-core-utils'
+include {
+    paramsSummaryLog ;
+    samplesheetToList ;
+    validateParameters
+} from 'plugin/nf-schema'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -30,22 +39,30 @@ workflow SEQERALABS_NF_AGGREGATE {
     samplesheet // channel: samplesheet read in from --input
 
     main:
+    if (params.version) {
+        log.info("${workflow.manifest.name} ${getWorkflowVersion()}")
+        System.exit(0)
+    }
 
-    //
-    // SUBWORKFLOW: Run initialisation tasks
-    //
-    PIPELINE_INITIALISATION(
-        params.version,
-        params.validate_params,
-        params.outdir,
-        params.input,
-    )
+    if (workflow.profile.tokenize(',').intersect(['conda', 'mamba'])) {
+        checkCondaChannels()
+    }
+
+    log.info(paramsSummaryLog(workflow))
+
+    if (params.validate_params) {
+        validateParameters()
+    }
+
+    ch_ids = Channel
+        .fromList(samplesheetToList(samplesheet, 'assets/schema_input.json'))
+        .flatten()
 
     //
     // WORKFLOW: Run pipeline
     //
     NF_AGGREGATE(
-        PIPELINE_INITIALISATION.out.ids,
+        ch_ids,
         params.seqera_api_endpoint,
         params.java_truststore_path,
         params.java_truststore_password,
@@ -65,4 +82,8 @@ workflow {
     SEQERALABS_NF_AGGREGATE(
         params.input
     )
+
+    workflow.onComplete = {
+        dumpParametersToJSON(params.outdir, params)
+    }
 }

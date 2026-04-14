@@ -27,7 +27,7 @@ Both are merged via `mix().collect()` into `workDir/benchmark_data/` dir.
 
 ### Software Versions
 
-All process versions collected → `collated_software_mqc_versions.yml` in `pipeline_info/`.
+All process versions collected → `collated_software_versions.yml` in `pipeline_info/`.
 
 ### Config
 
