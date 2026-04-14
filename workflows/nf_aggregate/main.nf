@@ -76,8 +76,8 @@ workflow NF_AGGREGATE {
                 }
             }
             data.meta = [id: meta.id, workspace: meta.workspace, group: meta.group ?: 'default']
-            def json_file = file("${workDir}/run_data/${meta.id}.json")
-            json_file.parent.mkdirs()
+            def tmpDir = java.nio.file.Files.createTempDirectory("nf-agg-run-${meta.id}-")
+            def json_file = file(tmpDir.resolve("${meta.id}.json"))
             json_file.text = groovy.json.JsonOutput.toJson(data)
             return json_file
         }
@@ -101,7 +101,7 @@ workflow NF_AGGREGATE {
             .mix(ch_external_dir_jsons)
             .collect()
             .map { files ->
-                def dir = file("${workDir}/benchmark_data")
+                def dir = file(java.nio.file.Files.createTempDirectory("nf-agg-benchmark-"))
                 dir.mkdirs()
                 files.each { f -> f.copyTo(dir.resolve(f.name)) }
                 return dir
