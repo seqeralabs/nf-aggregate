@@ -25,7 +25,7 @@ workflow NF_AGGREGATE {
         external: it.workspace == 'external' && it.logs
     }.set { ch_split }
 
-    ch_api_runs = ch_split.api.collect().flatMap { it }
+    ch_api_runs = ch_split.api
 
     if (!params.generate_benchmark_report) {
         ch_split.api.count().subscribe { n ->
