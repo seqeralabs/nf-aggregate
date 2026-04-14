@@ -12,6 +12,8 @@ import pytest
 
 from benchmark_report import (
     REPORT_TEMPLATE,
+    _compute_progress_from_tasks,
+    _load_echarts_theme,
     build_costs_flat_format,
     build_costs_map_format,
     build_db,
@@ -1053,3 +1055,635 @@ class TestFetchRunData:
         with pytest.raises(HTTPError) as exc_info:
             fetch_run_data("run1", "org/ws", "https://api.example.com", "tok")
         assert exc_info.value.code == 503
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW TESTS: P0 — Untested query functions
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestQueryProcessStats:
+    """Verify query_process_stats returns per-process aggregates."""
+
+    def _build_db_with_tasks(self, tmp_path, tasks):
+        data_dir = tmp_path / "data"
+        _write_run_json(data_dir, [_make_run(tasks=tasks)])
+        db_path = tmp_path / "test.duckdb"
+        build_db(data_dir, db_path)
+        return duckdb.connect(str(db_path), read_only=True)
+
+    def test_returns_aggregates(self, tmp_path):
+        tasks = [
+            _flat_task(name="ALIGN:BWA (s1)", cost=1.0),
+            _flat_task(name="ALIGN:BWA (s2)", cost=3.0),
+            _flat_task(name="ALIGN:BWA (s3)", cost=2.0),
+        ]
+        db = self._build_db_with_tasks(tmp_path, tasks)
+        stats = query_process_stats(db)
+        assert len(stats) == 1
+        assert stats[0]["n_tasks"] == 3
+        assert stats[0]["avg_cost"] == pytest.approx(2.0)
+        assert stats[0]["total_cost"] == pytest.approx(6.0)
+        db.close()
+
+    def test_only_completed_tasks(self, tmp_path):
+        tasks = [
+            _flat_task(name="PROC_A (s1)", status="COMPLETED", cost=2.0),
+            _flat_task(name="PROC_A (s2)", status="CACHED", cost=0.0),
+        ]
+        db = self._build_db_with_tasks(tmp_path, tasks)
+        stats = query_process_stats(db)
+        # CACHED tasks are kept in DB but query_process_stats filters to COMPLETED only
+        assert len(stats) == 1
+        assert stats[0]["n_tasks"] == 1
+        db.close()
+
+
+class TestQueryTaskInstanceUsage:
+    """Verify query_task_instance_usage groups by machine type."""
+
+    def _build_db_with_tasks(self, tmp_path, tasks):
+        data_dir = tmp_path / "data"
+        _write_run_json(data_dir, [_make_run(tasks=tasks)])
+        db_path = tmp_path / "test.duckdb"
+        build_db(data_dir, db_path)
+        return duckdb.connect(str(db_path), read_only=True)
+
+    def test_groups_by_machine_type(self, tmp_path):
+        tasks = [
+            _flat_task(name="P1 (s1)"),  # m5.xlarge
+            _flat_task(name="P1 (s2)"),  # m5.xlarge
+            {**_flat_task(name="P2 (s1)"), "machineType": "c5.2xlarge"},
+        ]
+        db = self._build_db_with_tasks(tmp_path, tasks)
+        usage = query_task_instance_usage(db)
+        by_type = {r["machine_type"]: r["count"] for r in usage}
+        assert by_type["m5.xlarge"] == 2
+        assert by_type["c5.2xlarge"] == 1
+        db.close()
+
+    def test_excludes_null_machine_type(self, tmp_path):
+        tasks = [
+            _flat_task(name="P1 (s1)"),  # m5.xlarge
+            {**_flat_task(name="P2 (s1)"), "machineType": ""},
+            {**_flat_task(name="P3 (s1)"), "machineType": None},
+        ]
+        db = self._build_db_with_tasks(tmp_path, tasks)
+        usage = query_task_instance_usage(db)
+        assert len(usage) == 1
+        assert usage[0]["machine_type"] == "m5.xlarge"
+        db.close()
+
+
+class TestQueryCostOverview:
+    """Verify query_cost_overview with and without CUR data."""
+
+    def test_returns_none_without_costs_table(self, tmp_path):
+        data_dir = tmp_path / "data"
+        _write_run_json(data_dir, [_make_run(tasks=[_flat_task()])])
+        db_path = tmp_path / "test.duckdb"
+        build_db(data_dir, db_path)
+        db = duckdb.connect(str(db_path), read_only=True)
+        assert query_cost_overview(db) is None
+        db.close()
+
+    def test_with_cur_data(self, tmp_path):
+        data_dir = tmp_path / "data"
+        task = _flat_task(hash_val="ab/cd1234")
+        _write_run_json(data_dir, [_make_run(tasks=[task])])
+        db_path = tmp_path / "test.duckdb"
+
+        # Write a CUR parquet with matching hash
+        cur_db = duckdb.connect()
+        cur_path = os.path.join(str(tmp_path), "cur.parquet")
+        cur_db.execute(f"""
+            COPY (
+                SELECT
+                    'run1' AS resource_tags_user_unique_run_id,
+                    'PROCESS_A' AS resource_tags_user_pipeline_process,
+                    'abcd1234xxxxxxxx' AS resource_tags_user_task_hash,
+                    10.0 AS line_item_unblended_cost,
+                    8.0 AS split_line_item_split_cost,
+                    2.0 AS split_line_item_unused_cost
+            ) TO '{cur_path}' (FORMAT PARQUET)
+        """)
+        cur_db.close()
+
+        from pathlib import Path
+        build_db(data_dir, db_path, costs_parquet=Path(cur_path))
+        db = duckdb.connect(str(db_path), read_only=True)
+        overview = query_cost_overview(db)
+        assert overview is not None
+        assert len(overview) >= 1
+        assert overview[0]["total_cost"] > 0
+        db.close()
+
+
+class TestQueryRunCostsWithCur:
+    """Verify query_run_costs with CUR costs table present."""
+
+    def test_joins_correctly(self, tmp_path):
+        data_dir = tmp_path / "data"
+        task = _flat_task(hash_val="ab/cd1234")
+        _write_run_json(data_dir, [_make_run(tasks=[task])])
+        db_path = tmp_path / "test.duckdb"
+
+        cur_db = duckdb.connect()
+        cur_path = os.path.join(str(tmp_path), "cur.parquet")
+        cur_db.execute(f"""
+            COPY (
+                SELECT
+                    'run1' AS resource_tags_user_unique_run_id,
+                    'PROCESS_A' AS resource_tags_user_pipeline_process,
+                    'abcd1234xxxxxxxx' AS resource_tags_user_task_hash,
+                    10.0 AS line_item_unblended_cost,
+                    8.0 AS split_line_item_split_cost,
+                    2.0 AS split_line_item_unused_cost
+            ) TO '{cur_path}' (FORMAT PARQUET)
+        """)
+        cur_db.close()
+
+        from pathlib import Path
+        build_db(data_dir, db_path, costs_parquet=Path(cur_path))
+        db = duckdb.connect(str(db_path), read_only=True)
+        costs = query_run_costs(db)
+        assert len(costs) == 1
+        assert costs[0]["used_cost"] is not None
+        assert costs[0]["unused_cost"] is not None
+        db.close()
+
+    def test_sums_used_unused(self, tmp_path):
+        data_dir = tmp_path / "data"
+        task = _flat_task(hash_val="ab/cd1234")
+        _write_run_json(data_dir, [_make_run(tasks=[task])])
+        db_path = tmp_path / "test.duckdb"
+
+        cur_db = duckdb.connect()
+        cur_path = os.path.join(str(tmp_path), "cur.parquet")
+        cur_db.execute(f"""
+            COPY (
+                SELECT
+                    'run1' AS resource_tags_user_unique_run_id,
+                    'PROCESS_A' AS resource_tags_user_pipeline_process,
+                    'abcd1234xxxxxxxx' AS resource_tags_user_task_hash,
+                    10.0 AS line_item_unblended_cost,
+                    8.0 AS split_line_item_split_cost,
+                    2.0 AS split_line_item_unused_cost
+            ) TO '{cur_path}' (FORMAT PARQUET)
+        """)
+        cur_db.close()
+
+        from pathlib import Path
+        build_db(data_dir, db_path, costs_parquet=Path(cur_path))
+        db = duckdb.connect(str(db_path), read_only=True)
+        costs = query_run_costs(db)
+        assert costs[0]["used_cost"] == pytest.approx(8.0)
+        assert costs[0]["unused_cost"] == pytest.approx(2.0)
+        db.close()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW TESTS: P1 — Graceful failure / error handling
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestGracefulFailure:
+    """Verify clear errors and safe defaults on malformed/missing data."""
+
+    def test_load_run_data_malformed_json(self, tmp_path):
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        (data_dir / "bad.json").write_text("{not valid json!!!")
+        with pytest.raises(ValueError, match="Malformed JSON in bad.json"):
+            load_run_data(data_dir)
+
+    def test_extract_runs_missing_workflow_key(self):
+        bad_run = {"meta": {"id": "run1", "workspace": "o/w", "group": "cpu"}}
+        with pytest.raises(ValueError, match="missing 'workflow' key"):
+            extract_runs([bad_run])
+
+    def test_extract_runs_missing_meta_key(self):
+        bad_run = {"workflow": {"id": "run1", "status": "SUCCEEDED"}}
+        with pytest.raises(ValueError, match="missing 'meta' key"):
+            extract_runs([bad_run])
+
+    def test_extract_tasks_with_none_numerics(self):
+        run = _make_run(tasks=[{
+            "name": "PROC_A (s1)",
+            "hash": "ab/cd1234",
+            "process": "PROC_A",
+            "status": "COMPLETED",
+            "cpus": None,
+            "memory": None,
+            "realtime": None,
+            "cost": None,
+            "duration": None,
+        }])
+        rows = extract_tasks([run])
+        assert len(rows) == 1
+        assert rows[0]["cpus"] is None
+        assert rows[0]["memory_bytes"] is None
+
+    def test_build_db_empty_tasks(self, tmp_path):
+        data_dir = tmp_path / "data"
+        _write_run_json(data_dir, [_make_run(tasks=[])])
+        db_path = tmp_path / "test.duckdb"
+        build_db(data_dir, db_path)
+        db = duckdb.connect(str(db_path), read_only=True)
+        tables = {r[0] for r in db.execute("SHOW TABLES").fetchall()}
+        assert "runs" in tables
+        assert "tasks" in tables
+        runs = db.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+        assert runs == 1
+        tasks = db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+        assert tasks == 0
+        db.close()
+
+    def test_build_db_empty_runs(self, tmp_path):
+        import click
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        db_path = tmp_path / "test.duckdb"
+        with pytest.raises(click.exceptions.Exit):
+            build_db(data_dir, db_path)
+
+    def test_load_brand_malformed_yaml(self, tmp_path):
+        brand_file = tmp_path / "bad_brand.yml"
+        brand_file.write_text(": : :\n  - [invalid yaml {{{")
+        from pathlib import Path
+        result = load_brand(brand_file)
+        # Should fall back to defaults instead of crashing
+        assert result["accent"] == "#065647"
+
+    def test_load_brand_partial_colors(self, tmp_path):
+        brand_file = tmp_path / "partial_brand.yml"
+        brand_file.write_text(json.dumps({
+            "colors": {
+                "green_palette": {
+                    "deep_green": {"hex": "#112233"}
+                }
+            }
+        }))
+        from pathlib import Path
+        result = load_brand(brand_file)
+        assert result["accent"] == "#112233"
+        # Other defaults preserved
+        assert result["heading"] == "#201637"
+        assert result["border"] == "#CFD0D1"
+
+
+class TestQueryOnEmptyDB:
+    """Verify all query functions return empty results on empty tables."""
+
+    @pytest.fixture
+    def empty_db(self, tmp_path):
+        data_dir = tmp_path / "data"
+        _write_run_json(data_dir, [_make_run(tasks=[])])
+        db_path = tmp_path / "test.duckdb"
+        build_db(data_dir, db_path)
+        db = duckdb.connect(str(db_path), read_only=True)
+        yield db
+        db.close()
+
+    def test_benchmark_overview(self, empty_db):
+        result = query_benchmark_overview(empty_db)
+        assert isinstance(result, list)
+        assert len(result) == 1  # 1 run, 0 tasks
+
+    def test_run_summary(self, empty_db):
+        result = query_run_summary(empty_db)
+        assert isinstance(result, list)
+        assert len(result) == 1
+
+    def test_run_metrics(self, empty_db):
+        result = query_run_metrics(empty_db)
+        assert isinstance(result, list)
+
+    def test_run_costs(self, empty_db):
+        result = query_run_costs(empty_db)
+        assert isinstance(result, list)
+
+    def test_process_stats(self, empty_db):
+        result = query_process_stats(empty_db)
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    def test_task_instance_usage(self, empty_db):
+        result = query_task_instance_usage(empty_db)
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    def test_task_table(self, empty_db):
+        result = query_task_table(empty_db)
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    def test_task_scatter(self, empty_db):
+        result = query_task_scatter(empty_db)
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    def test_cost_overview(self, empty_db):
+        result = query_cost_overview(empty_db)
+        assert result is None
+
+
+class TestRenderEdgeCases:
+    """Verify rendering handles edge cases without crashing."""
+
+    def test_render_html_with_empty_data(self, tmp_path):
+        data = {
+            "benchmark_overview": [],
+            "run_summary": [],
+            "run_metrics": [],
+            "run_costs": [],
+            "process_stats": [],
+            "task_instance_usage": [],
+            "task_table": [],
+            "task_scatter": [],
+            "cost_overview": None,
+        }
+        output = tmp_path / "report.html"
+        render_html(data, str(output))
+        assert output.exists()
+        html = output.read_text()
+        assert "Pipeline benchmarking report" in html
+
+    def test_render_html_with_none_values(self, tmp_path):
+        data = _minimal_query_data()
+        data["run_metrics"][0]["cpuEfficiency"] = None
+        data["run_metrics"][0]["memoryEfficiency"] = None
+        output = tmp_path / "report.html"
+        render_html(data, str(output))
+        assert output.exists()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW TESTS: P2 — _compute_progress_from_tasks
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestComputeProgressFromTasks:
+    """Verify fallback progress computation from task-level data."""
+
+    def test_basic_computation(self):
+        run = {
+            "tasks": [
+                {
+                    "status": "COMPLETED",
+                    "cpus": 4,
+                    "realtime": 10000,  # 10s
+                    "pcpu": 200.0,     # 200% = 2 cores used
+                    "peakRss": 2_000_000_000,
+                    "memory": 4_000_000_000,
+                    "readBytes": 100,
+                    "writeBytes": 200,
+                },
+                {
+                    "status": "COMPLETED",
+                    "cpus": 2,
+                    "realtime": 20000,  # 20s
+                    "pcpu": 100.0,     # 100% = 1 core used
+                    "peakRss": 1_000_000_000,
+                    "memory": 2_000_000_000,
+                    "readBytes": 50,
+                    "writeBytes": 100,
+                },
+            ]
+        }
+        result = _compute_progress_from_tasks(run)
+        # cpuTime = 4*10000 + 2*20000 = 80000
+        assert result["cpuTime"] == 80000
+        # cpuLoad = 200/100*10000 + 100/100*20000 = 20000 + 20000 = 40000
+        assert result["cpuLoad"] == 40000
+        # cpuEfficiency = 40000/80000*100 = 50.0
+        assert result["cpuEfficiency"] == pytest.approx(50.0)
+        # memoryRss = 2e9 + 1e9 = 3e9
+        assert result["memoryRss"] == 3_000_000_000
+        # memoryReq = 4e9 + 2e9 = 6e9
+        assert result["memoryReq"] == 6_000_000_000
+        # memoryEfficiency = 3e9/6e9*100 = 50.0
+        assert result["memoryEfficiency"] == pytest.approx(50.0)
+        assert result["readBytes"] == 150
+        assert result["writeBytes"] == 300
+
+    def test_no_completed_tasks(self):
+        run = {
+            "tasks": [
+                {"status": "FAILED", "cpus": 4, "realtime": 10000},
+            ]
+        }
+        result = _compute_progress_from_tasks(run)
+        assert result == {}
+
+    def test_empty_tasks(self):
+        run = {"tasks": []}
+        result = _compute_progress_from_tasks(run)
+        assert result == {}
+
+    def test_zero_cpu_time_no_division_error(self):
+        run = {
+            "tasks": [
+                {
+                    "status": "COMPLETED",
+                    "cpus": 0,
+                    "realtime": 0,
+                    "pcpu": 0,
+                    "peakRss": 0,
+                    "memory": 1000,
+                },
+            ]
+        }
+        result = _compute_progress_from_tasks(run)
+        # cpuTime = 0*0 = 0, so cpuEfficiency should be None (no div by zero)
+        assert result["cpuEfficiency"] is None
+
+    def test_zero_memory_req_no_division_error(self):
+        run = {
+            "tasks": [
+                {
+                    "status": "COMPLETED",
+                    "cpus": 1,
+                    "realtime": 1000,
+                    "pcpu": 100.0,
+                    "peakRss": 100,
+                    "memory": 0,
+                },
+            ]
+        }
+        result = _compute_progress_from_tasks(run)
+        assert result["memoryEfficiency"] is None
+
+    def test_none_fields_use_defaults(self):
+        run = {
+            "tasks": [
+                {
+                    "status": "COMPLETED",
+                    "cpus": None,
+                    "realtime": None,
+                    "pcpu": None,
+                    "peakRss": None,
+                    "memory": None,
+                    "readBytes": None,
+                    "writeBytes": None,
+                },
+            ]
+        }
+        result = _compute_progress_from_tasks(run)
+        assert result["cpuTime"] == 0
+        assert result["cpuLoad"] == 0
+        assert result["readBytes"] == 0
+        assert result["writeBytes"] == 0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW TESTS: P3 — extract_metrics content
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestExtractMetricsContent:
+    """Verify extract_metrics extracts field values, not just table creation."""
+
+    def test_basic_extraction(self):
+        run = _make_run()
+        run["metrics"] = [{
+            "process": "ALIGN",
+            "cpu": {"mean": 80.0, "min": 10.0, "q1": 40.0, "q2": 70.0, "q3": 90.0, "max": 100.0},
+            "mem": {"mean": 5e9, "min": 1e9, "q1": 3e9, "q2": 5e9, "q3": 7e9, "max": 9e9},
+        }]
+        rows = extract_metrics([run])
+        assert len(rows) == 1
+        assert rows[0]["process"] == "ALIGN"
+        assert rows[0]["cpu_mean"] == 80.0
+        assert rows[0]["cpu_min"] == 10.0
+        assert rows[0]["mem_max"] == 9e9
+
+    def test_missing_stat_fields(self):
+        run = _make_run()
+        run["metrics"] = [{
+            "process": "PROC_A",
+            "cpu": {"mean": 50.0},
+        }]
+        rows = extract_metrics([run])
+        assert len(rows) == 1
+        assert rows[0]["cpu_mean"] == 50.0
+        assert rows[0]["cpu_q1"] is None
+        assert rows[0]["mem_mean"] is None
+
+    def test_empty_metrics_list(self):
+        run = _make_run()
+        run["metrics"] = []
+        rows = extract_metrics([run])
+        assert rows == []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW TESTS: P4 — _load_echarts_theme
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestLoadEchartsTheme:
+    """Verify eCharts theme loading with fallback behavior."""
+
+    def test_explicit_path(self, tmp_path):
+        theme_file = tmp_path / "theme.json"
+        theme_file.write_text('{"color": ["#ff0000"]}')
+        result = _load_echarts_theme(theme_file)
+        assert '"color"' in result
+        assert "#ff0000" in result
+
+    def test_fallback_to_empty(self, tmp_path):
+        # Point all candidates at non-existent paths so we get the "{}" fallback
+        nonexistent = tmp_path / "does_not_exist.json"
+        fake_script = tmp_path / "fake_bin" / "fake_script.py"
+        fake_script.parent.mkdir(parents=True)
+        fake_script.write_text("")
+        with patch("benchmark_report.__file__", str(fake_script)):
+            # Temporarily change cwd so ./assets also misses
+            original_cwd = os.getcwd()
+            os.chdir(str(tmp_path))
+            try:
+                result = _load_echarts_theme(nonexistent)
+            finally:
+                os.chdir(original_cwd)
+        assert result == "{}"
+
+    def test_explicit_nonexistent_does_not_crash(self, tmp_path):
+        nonexistent = tmp_path / "nope.json"
+        result = _load_echarts_theme(nonexistent)
+        # Should not crash — returns either a found fallback or "{}"
+        assert isinstance(result, str)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW TESTS: P5 — Special characters in rendering
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestRenderSpecialCases:
+    """Verify rendering handles special characters and edge cases."""
+
+    def test_special_chars_in_pipeline_name(self, tmp_path):
+        data = _minimal_query_data()
+        data["benchmark_overview"][0]["pipeline"] = '<script>alert("xss")</script>'
+        output = tmp_path / "report.html"
+        render_html(data, str(output))
+        html = output.read_text()
+        # json.dumps escapes < and > inside data_json, so raw <script> should not appear
+        # outside the JSON block
+        assert output.exists()
+        assert "alert" in html  # data is present
+        # The pipeline name is inside JSON, which escapes angle brackets
+        assert '<script>alert("xss")</script>' not in html.split("const DATA")[0]
+
+    def test_unicode_in_group_name(self, tmp_path):
+        data = _minimal_query_data()
+        data["benchmark_overview"][0]["group"] = "grp-\u00e9\u00e0\u00fc"
+        data["run_summary"][0]["group"] = "grp-\u00e9\u00e0\u00fc"
+        output = tmp_path / "report.html"
+        render_html(data, str(output))
+        assert output.exists()
+
+    def test_logo_svg_included(self, tmp_path):
+        data = _minimal_query_data()
+        logo = '<svg xmlns="http://www.w3.org/2000/svg"><circle r="10"/></svg>'
+        output = tmp_path / "report.html"
+        render_html(data, str(output), logo_svg=logo)
+        html = output.read_text()
+        assert '<circle r="10"/>' in html
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW TESTS: P6 — CUR flat format variant 3
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestCurFlatFormatVariant3:
+    """CUR 1.0 flat format with only nf_unique_run_id column (no unique_run_id)."""
+
+    def test_flat_with_only_nf_column(self, tmp_path):
+        db = duckdb.connect()
+        path = os.path.join(str(tmp_path), "cur_nf_only.parquet")
+        db.execute(f"""
+            COPY (
+                SELECT
+                    'run1' AS resource_tags_user_nf_unique_run_id,
+                    'PROC_A' AS resource_tags_user_pipeline_process,
+                    'abcdef1234567890' AS resource_tags_user_task_hash,
+                    10.0 AS line_item_unblended_cost,
+                    8.0 AS split_line_item_split_cost,
+                    2.0 AS split_line_item_unused_cost
+            ) TO '{path}' (FORMAT PARQUET)
+        """)
+        db.close()
+
+        db = duckdb.connect()
+        assert detect_cur_format(db, path) == "flat"
+        build_costs_flat_format(db, path)
+        tables = {r[0] for r in db.execute("SHOW TABLES").fetchall()}
+        assert "costs" in tables
+        row = db.execute("SELECT run_id, used_cost, unused_cost FROM costs").fetchone()
+        assert row[0] == "run1"
+        assert row[1] == pytest.approx(8.0)
+        assert row[2] == pytest.approx(2.0)
+        db.close()

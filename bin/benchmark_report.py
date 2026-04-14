@@ -43,11 +43,15 @@ app = typer.Typer(add_completion=False)
 
 def _run_group(run: dict) -> str:
     """Return the benchmark group for a run."""
+    if "meta" not in run:
+        raise ValueError(f"Run dict missing 'meta' key. Keys present: {list(run.keys())}")
     return run["meta"]["group"]
 
 
 def _run_workflow(run: dict) -> dict:
     """Return the workflow payload for a run."""
+    if "workflow" not in run:
+        raise ValueError(f"Run dict missing 'workflow' key. Keys present: {list(run.keys())}")
     return run["workflow"]
 
 
@@ -120,8 +124,11 @@ def load_run_data(data_dir: Path) -> list[dict]:
     """Load all run JSON files from a directory."""
     runs = []
     for run_file in sorted(data_dir.glob("*.json")):
-        with run_file.open() as f:
-            runs.append(json.load(f))
+        try:
+            with run_file.open() as f:
+                runs.append(json.load(f))
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Malformed JSON in {run_file.name}: {e}") from e
     return runs
 
 
@@ -672,8 +679,11 @@ def load_brand(brand_path: Path | None = None) -> dict:
         ],
     }
     if brand_path and brand_path.exists():
-        with brand_path.open() as f:
-            raw = yaml.safe_load(f) or {}
+        try:
+            with brand_path.open() as f:
+                raw = yaml.safe_load(f) or {}
+        except yaml.YAMLError:
+            raw = {}
         colors = raw.get("colors", {})
         gp = colors.get("green_palette", {})
         ns = colors.get("neutrals", {})
