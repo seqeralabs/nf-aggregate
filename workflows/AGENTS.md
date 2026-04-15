@@ -14,7 +14,8 @@ Runs are split into two paths using `branch{}` on the `ids` channel:
 ### Execution Paths
 
 1. **External runs:** `EXTRACT_TARBALL` → extracted JSON files for benchmark report
-2. **generate_benchmark_report:** API JSONs + tarball JSONs merged → `BENCHMARK_REPORT`
+2. **generate_benchmark_report:** API JSONs + tarball JSONs merged →
+   `NORMALIZE_BENCHMARK_JSONL` → `AGGREGATE_BENCHMARK_REPORT_DATA` → `RENDER_BENCHMARK_REPORT`
 
 ### Benchmark Data Collection
 

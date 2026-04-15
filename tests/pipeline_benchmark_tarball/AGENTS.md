@@ -9,8 +9,11 @@ Covers benchmark generation when external logs are supplied as tarballs.
 
 ## Expected behavior
 - `EXTRACT_TARBALL` should run for each external input.
-- `BENCHMARK_REPORT` should run once after collection.
-- Benchmark outputs should include both HTML and DuckDB artifacts.
+- Benchmark stages should run once after collection:
+  - `NORMALIZE_BENCHMARK_JSONL`
+  - `AGGREGATE_BENCHMARK_REPORT_DATA`
+  - `RENDER_BENCHMARK_REPORT`
+- Benchmark outputs should include `jsonl_bundle/`, `report_data.json`, and HTML artifacts.
 - The rendered HTML should mention the expected run IDs and groups.
 
 ## Edit guidance

@@ -1,185 +1,145 @@
-# nf-agg: API-First Benchmark Reports
+# nf-agg: API-first benchmark reports (current design)
 
 ## Overview
 
-nf-boost `request()` + `map` → DuckDB → eCharts. Zero containers for data fetch, single process for report generation.
+Benchmark reporting uses a staged handoff:
 
-## Architecture
+`raw run JSON -> jsonl_bundle/ -> report_data.json -> benchmark_report.html`
+
+The current implementation does not use DuckDB as an intermediate artifact.
+
+## Workflow architecture
 
 ```
-                     Nextflow Pipeline (nf-boost)
-┌────────────────────────────────────────────────────────────┐
-│                                                            │
-│  input CSV ──→ .map { fetchWorkflow(it) }   (head job)    │
-│                  ├─ GET /workflow/{id}                      │
-│                  ├─ GET /workflow/{id}/metrics              │
-│                  ├─ GET /workflow/{id}/tasks                │
-│                  └─ GET /workflow/{id}/progress             │
-│                                                            │
-│           ↓ collect JSON files into directory               │
-│                                                            │
-│  BENCHMARK_REPORT process:                                 │
-│    benchmark_report.py build-db → benchmark.duckdb         │
-│    benchmark_report.py report   → benchmark_report.html    │
-└────────────────────────────────────────────────────────────┘
+input CSV (id, workspace, group, logs, fusion)
+  -> branch: api (SeqeraApi.fetchRunData) | external (EXTRACT_TARBALL)
+  -> collect JSON files
+  -> NORMALIZE_BENCHMARK_JSONL (raw JSON -> jsonl_bundle/)
+  -> AGGREGATE_BENCHMARK_REPORT_DATA (jsonl_bundle -> report_data.json)
+  -> RENDER_BENCHMARK_REPORT (report_data.json -> benchmark_report.html)
 ```
 
-## Data Flow
+### Routing behavior
 
-### Step 0: Fetch via nf-boost `request()` + `map` (head job)
+- API runs (`workspace != external`) are fetched via `SeqeraApi.fetchRunData()`
+- External runs (`workspace == external`) are read from directory/tarball logs
+- Tarball inputs pass through `EXTRACT_TARBALL` before merge
 
-No process needed. Pure Nextflow `map` operator calls the Seqera API directly
-via `SeqeraApi.fetchRunData()`. JSON files collected into a directory.
+## Stage boundaries
 
-### Step 1: build-db — JSON + CUR → DuckDB
+### 1) Normalize stage
 
-Script: `bin/benchmark_report.py build-db`
+Command:
 
-Reads run JSON files and optional AWS CUR parquet. Creates a persistent
-DuckDB database with normalized tables:
+```bash
+python bin/benchmark_report.py normalize-jsonl --data-dir <run_json_dir> --output-dir <jsonl_bundle>
+```
 
-- `runs` — one row per workflow run (includes `cached` count)
-- `tasks` — one row per task (filtered: keeps COMPLETED + CACHED, drops FAILED)
-- `metrics` — one row per process metric field
-- `costs` — optional, from AWS CUR parquet (auto-detects CUR 1.0 flat vs 2.0 MAP)
+Responsibilities:
+- read run JSON payloads
+- normalize runs/tasks/metrics rows
+- optionally normalize CUR parquet into `costs.jsonl`
+- write:
+  - `runs.jsonl`
+  - `tasks.jsonl`
+  - `metrics.jsonl`
+  - optional `costs.jsonl`
 
-### Step 2: report — DuckDB → HTML
+### 2) Aggregate stage
 
-Script: `bin/benchmark_report.py report`
+Command:
 
-Opens the DuckDB file, runs 9 SQL queries, renders self-contained HTML with eCharts.
+```bash
+python bin/benchmark_report.py aggregate-report-data --jsonl-dir <jsonl_bundle> --output <report_data.json>
+```
 
-Report sections:
+Responsibilities:
+- stream JSONL rows
+- compute report sections:
+  - `benchmark_overview`
+  - `run_summary`
+  - `run_metrics`
+  - `run_costs`
+  - `process_stats`
+  - `task_instance_usage`
+  - `task_table`
+  - `task_scatter`
+  - optional `cost_overview`
 
-1. **Benchmark Overview** — pipeline × group matrix
-2. **Run Overview** — summary table + metrics charts
-3. **Run Metrics** — wall time, CPU time, cost, status, efficiency, I/O
-4. **Workflow Status** — succeeded/failed/cached stacked bars
-5. **Process Overview** — dot + error bar charts, cost per process
-6. **Task Overview** — instance usage, scatter, box plots, task table
+### 3) Render stage
 
-### Standalone: fetch — API → JSON
+Command:
 
-Script: `bin/benchmark_report.py fetch`
+```bash
+python bin/benchmark_report.py render-html --data <report_data.json> --output <benchmark_report.html>
+```
 
-Python equivalent of `SeqeraApi.groovy` for agent/standalone use. Calls 4 API
-endpoints per run and writes one JSON file per run. Not used by the Nextflow pipeline.
+Responsibilities:
+- load report JSON
+- apply brand/logo overrides when provided
+- render self-contained HTML from the Jinja template
 
-## DuckDB Tables
+## Benchmark CLI surface
 
-**`runs`** — one row per workflow run:
+`bin/benchmark_report.py` provides:
+- `normalize-jsonl`
+- `aggregate-report-data`
+- `render-html`
+- `report` (aggregate + render convenience wrapper)
+- `fetch` (standalone API fetch helper)
 
-- run_id, group, pipeline, run_name, status, start, complete, duration_ms
-- succeeded, failed, **cached** (from `workflow.stats.cachedCount`)
-- cpu_efficiency, memory_efficiency, cpu_time_ms, read_bytes, write_bytes
-- fusion_enabled, wave_enabled, executor, region, etc.
+## Inputs and outputs
 
-**`tasks`** — one row per task:
-
-- run_id, group, hash, name, process, tag, status
-- submit, start, complete, duration_ms, realtime_ms
-- cpus, memory_bytes, rss, peak_rss, read_bytes, write_bytes
-- cost, executor, machine_type, cloud_zone, exit_status
-- derived: process_short, wait_ms, staging_ms
-
-**`metrics`** — per-process resource stats:
-
-- run_id, group, process
-- cpu/mem/vmem/time/reads/writes/cpuUsage/memUsage/timeUsage × {mean,min,q1,q2,q3,max}
-
-**`costs`** (optional, from AWS CUR parquet):
-
-- run_id, process, hash, cost, used_cost, unused_cost
-
-## Input Format
-
-CSV with optional `group` column:
+### Input CSV
 
 ```csv
-id,workspace,group
-4Bi5xBK6E2Nbhj,community/showcase,GroupA
-4LWT4uaXDaGcDY,community/showcase,GroupB
+id,workspace,group,logs
+4Bi5xBK6E2Nbhj,community/showcase,GroupA,
+1JI5B1avuj3o58,external,GroupB,/path/to/run_dumps.tar.gz
 ```
 
-## CLI
+### Published benchmark outputs
+
+```
+results/benchmark_report/
+  benchmark_report.html
+  report_data.json
+  jsonl_bundle/
+```
+
+## Local verification commands
+
+### Stage rebuild
 
 ```bash
-# Standard pipeline invocation
-nextflow run seqeralabs/nf-aggregate --input runs.csv --generate_benchmark_report
+uv run --with typer --with pyyaml --with pyarrow \
+  python bin/benchmark_report.py normalize-jsonl \
+  --data-dir /path/to/json_data --output-dir /tmp/jsonl_bundle
 
-# With AWS costs
-nextflow run seqeralabs/nf-aggregate --input runs.csv --generate_benchmark_report \
-  --benchmark_aws_cur_report aws_cur.parquet
+uv run --with typer --with pyyaml \
+  python bin/benchmark_report.py aggregate-report-data \
+  --jsonl-dir /tmp/jsonl_bundle --output /tmp/report_data.json
+
+uv run --with jinja2 --with typer --with pyyaml \
+  python bin/benchmark_report.py render-html \
+  --data /tmp/report_data.json --brand assets/brand.yml --output /tmp/report.html
 ```
 
-## Local Testing
+### Automated tests
 
 ```bash
-# Build DuckDB from JSON data
-uv run --with duckdb --with typer --with pyyaml --with pyarrow \
-  python bin/benchmark_report.py build-db \
-  --data-dir /path/to/json_data --output /tmp/benchmark.duckdb
+uv run --with typer --with pyyaml --with jinja2 --with pyarrow --with pytest --with httpx \
+  pytest -v \
+  modules/local/aggregate_benchmark_report_data/tests/test_aggregate.py \
+  modules/local/normalize_benchmark_jsonl/tests/test_normalize.py \
+  modules/local/render_benchmark_report/tests/test_render.py \
+  bin/test_benchmark_report_fetch.py
 
-# Render HTML report from DuckDB
-uv run --with duckdb --with jinja2 --with typer --with pyyaml \
-  python bin/benchmark_report.py report \
-  --db /tmp/benchmark.duckdb --brand assets/brand.yml --output /tmp/report.html
-
-# Fetch from Seqera API (standalone)
-uv run --with duckdb --with typer --with pyyaml --with httpx \
-  python bin/benchmark_report.py fetch \
-  --run-ids <id> --workspace org/name --output-dir /tmp/json_data
+nf-test test --profile=+docker --verbose
 ```
 
-## Running Tests
+## Notes
 
-```bash
-uv run --with duckdb --with jinja2 --with typer --with pyyaml --with pyarrow --with httpx --with pytest \
-  pytest bin/test_benchmark_report.py -v
-```
-
-## Project Structure
-
-```
-nf-agg/
-├── workflows/nf_aggregate/main.nf     # orchestrator
-├── modules/local/
-│   ├── benchmark_report/main.nf       # build-db + report (single process)
-│   ├── extract_tarball/main.nf        # extract external run tarballs
-├── lib/
-│   └── SeqeraApi.groovy               # API client (head job, Nextflow only)
-├── bin/
-│   ├── benchmark_report.py            # unified CLI (build-db, report, fetch)
-│   ├── benchmark_report_template.html # eCharts HTML template
-│   ├── test_benchmark_report.py       # tests
-└── nextflow.config
-```
-
-## Key Params
-
-| Param                       | Default                       | Purpose                           |
-| --------------------------- | ----------------------------- | --------------------------------- |
-| `generate_benchmark_report` | false                         | Enable benchmark report           |
-| `benchmark_aws_cur_report`  | null                          | AWS CUR parquet for cost analysis |
-| `seqera_api_endpoint`       | `https://api.cloud.seqera.io` | Platform API URL                  |
-
-## Plugins
-
-- `nf-schema@2.3.0` — param validation, samplesheet parsing
-- `nf-boost@0.6.0` — `request()`, `fromJson`/`toJson` for API calls
-
-## Env Requirements
-
-- `TOWER_ACCESS_TOKEN` — Seqera Platform API token
-
-## Dependencies
-
-**Nextflow plugins**: nf-boost (for `request`, `fromJson`, `toJson`)
-**Python**: duckdb, jinja2, typer, pyarrow (for parquet), pyyaml, httpx (fetch only)
-
-## Gotchas
-
-- Wave freeze strategy: `['conda', 'container', 'dockerfile']` — no `spack`
-- DuckDB `read_json_auto` needs file paths, not JSON strings — use temp files
-- CUR hash join: task hash contains '/' (e.g. `45/d87388`) — strip before comparing
-- CUR auto-detects format (MAP vs flattened) — no user config needed
+- JSONL is the primary handoff for streaming-friendly processing.
+- `report_data.json` is the explicit boundary between aggregation and rendering.
+- CUR join key uses `(run_id, process, hash_short)` to avoid collisions.

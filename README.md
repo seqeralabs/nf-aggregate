@@ -91,8 +91,9 @@ The results from the pipeline will be published in the path specified by the `--
 ```
 ./results
 ├── benchmark_report/
-│   ├── benchmark.duckdb
-│   └── benchmark_report.html                ## Benchmark report
+│   ├── benchmark_report.html                ## Benchmark report
+│   ├── report_data.json                     ## Aggregated report data boundary
+│   └── jsonl_bundle/                        ## Streaming stage handoff (runs/tasks/metrics[/costs].jsonl)
 └── pipeline_info/
 ```
 

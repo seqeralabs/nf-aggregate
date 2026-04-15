@@ -9,7 +9,7 @@ Covers mixed input routing when benchmark generation is disabled.
 ## Expected behavior
 - API rows should be skipped with a warning.
 - External tarball rows should still run through `EXTRACT_TARBALL`.
-- `BENCHMARK_REPORT` must not run.
+- Benchmark stages must not run (`NORMALIZE_BENCHMARK_JSONL`, `AGGREGATE_BENCHMARK_REPORT_DATA`, `RENDER_BENCHMARK_REPORT`).
 - No `benchmark_report/` output should exist.
 
 ## Edit guidance

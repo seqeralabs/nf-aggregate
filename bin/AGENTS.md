@@ -4,21 +4,34 @@ Python scripts executed inside Nextflow process containers. Placed in `bin/` so 
 
 ## benchmark_report.py
 
-Unified benchmark report CLI. Typer app with 3 subcommands:
+Thin Typer CLI wrapper around focused modules.
 
 | Subcommand | Purpose |
 |---|---|
-| `build-db` | JSON files (+ optional CUR parquet) → `benchmark.duckdb` with normalized tables (runs, tasks, metrics, costs) |
-| `report` | Opens `.duckdb` file → runs 9 SQL queries → renders self-contained HTML with eCharts |
-| `fetch` | Calls Seqera Platform API → writes run JSON files (standalone use, not used by Nextflow pipeline) |
+| `normalize-jsonl` | Raw run JSON (+ optional CUR parquet) → `jsonl_bundle/` (`runs.jsonl`, `tasks.jsonl`, `metrics.jsonl`, optional `costs.jsonl`) |
+| `aggregate-report-data` | `jsonl_bundle/` → `report_data.json` |
+| `render-html` | `report_data.json` + brand/logo assets → self-contained HTML |
+| `report` | Convenience wrapper (`aggregate-report-data` + `render-html`) |
+| `fetch` | Calls Seqera Platform API → writes run JSON files (standalone use) |
 
-### DuckDB Tables
+## Focused modules
 
-- `runs` — one row per workflow run (id, group, pipeline, status, duration, efficiency, etc.)
-- `tasks` — one row per task (hash, process, cost, cpus, memory, realtime, etc.)
-- `metrics` — per-process resource stats (cpu/mem/time mean/min/q1-q3/max)
-- `costs` — optional, from AWS CUR parquet (run_id, process, hash, cost, used_cost, unused_cost)
+- `benchmark_report_normalize.py` — normalization stage
+- `benchmark_report_aggregate.py` — report aggregation stage
+- `benchmark_report_render.py` — HTML rendering stage
+- `benchmark_report_fetch.py` — Seqera API fetch helpers
 
-### Dependencies
+### Test ownership
 
-`duckdb`, `jinja2`, `typer`, `pyyaml`, `pyarrow`, `httpx` (fetch only)
+Keep tests close to the stage they exercise:
+
+- module-stage tests live under `modules/local/*/tests/`
+- CLI- and fetch-specific tests stay in `bin/`
+- shared pytest fixtures live in repo-root `conftest.py`
+
+### Dependencies by stage
+
+- normalize: `typer`, `pyyaml`, `pyarrow` (optional CUR parquet)
+- aggregate: stdlib (+ Typer in wrapper)
+- render: `jinja2`, `pyyaml`
+- fetch: stdlib networking
