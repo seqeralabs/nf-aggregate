@@ -192,7 +192,6 @@
 </svg>
 
 <div class="side-nav" id="side-nav">
-  <a href="#benchmark-overview"><svg class="nav-icon"><use href="#ic-benchmark"/></svg> Benchmark overview</a>
   <a href="#run-overview"><svg class="nav-icon"><use href="#ic-run"/></svg> Run overview</a>
   <a href="#run-summary" class="l2"><svg class="nav-icon"><use href="#ic-table"/></svg> Run summary</a>
   <a href="#run-metrics" class="l2"><svg class="nav-icon"><use href="#ic-chart"/></svg> Run metrics</a>
@@ -210,30 +209,14 @@
     Published <strong>{{ generated_at }}</strong>
   </p>
 
-  <!-- 1. Benchmark overview -->
-  <div class="section" id="benchmark-overview">
-    <h1><svg class="h-icon"><use href="#ic-benchmark"/></svg> Benchmark overview</h1>
-    <div class="dl-row">
-      <dt>Failed task excluded</dt><dd>: Yes</dd>
-    </div>
-    <p class="section-desc">
-      <strong>Summary</strong><br>
-      This report summarizes the run, process, task, and, if applicable, cost metrics
-      for pipeline executions, which have been split into groups:
-      <span id="group-list" class="group-colors"></span><br>
-      Failed or cancelled runs are marked here first and excluded from downstream sections.
-    </p>
-    <div style="overflow-x: auto;">
-      <table class="gs-table" id="overview-matrix"></table>
-    </div>
-  </div>
-
-  <!-- 2. Run overview -->
+  <!-- 1. Run overview -->
   <div class="section" id="run-overview">
     <h1><svg class="h-icon"><use href="#ic-run"/></svg> Run overview</h1>
     <p class="section-desc">
       <strong>Summary</strong><br>
       This section provides a high-level overview of the pipeline run metrics.
+      Failed or cancelled runs stay visible in the summary table, but downstream process,
+      task, and cost sections only use included runs.
     </p>
 
     <h2 id="run-summary"><svg class="h-icon sm"><use href="#ic-table"/></svg> Run summary</h2>
@@ -404,45 +387,13 @@ const reportGroups = [...new Set((DATA.run_summary||[]).map(r => r.group))];
 const groupColor = {};
 overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
 
-document.getElementById('group-list').innerHTML = overviewGroups.map(g =>
-  `<span style="background:${groupColor[g]}"></span>${g}`
-).join(' &nbsp; ');
-
-// 1. Benchmark overview matrix
-(function() {
-  const runs = DATA.benchmark_overview || [];
-  const pipelines = [...new Set(runs.map(r => r.pipeline))];
-  const table = document.getElementById('overview-matrix');
-  let html = '<thead><tr><th style="text-align:left">Pipeline</th>';
-  overviewGroups.forEach(g => { html += `<th>${g}</th>`; });
-  html += '</tr></thead><tbody>';
-  pipelines.forEach(p => {
-    html += '<tr><td>' + p + '</td>';
-    overviewGroups.forEach(g => {
-      const match = runs.find(r => r.pipeline === p && r.group === g);
-      if (!match) {
-        html += '<td>\u2014</td>';
-        return;
-      }
-      const note = match.report_included ? 'Included in downstream sections' : 'Excluded from downstream sections';
-      html += '<td>' +
-        '<div>' + match.run_id + '</div>' +
-        `<span class="status-pill status-${match.status_category}">${match.status_label}</span>` +
-        `<span class="status-note">${note}</span>` +
-      '</td>';
-    });
-    html += '</tr>';
-  });
-  html += '</tbody>';
-  table.innerHTML = html;
-})();
-
 // 2.1 Run summary table (with cached tasks)
 (function() {
   const runs = DATA.run_summary || [];
   if (!runs.length) return;
   const cols = [
     ['Pipeline name','pipeline'], ['Group','group'], ['Run ID','run_id'],
+    ['Workflow outcome','status_label'], ['Included in report','report_included'],
     ['User name','username'], ['Pipeline version','Version'],
     ['Nextflow version','Nextflow_version'], ['Platform version','platform_version'],
     ['Tasks succeeded','succeedCount'], ['Tasks failed','failedCount'],
@@ -455,7 +406,13 @@ document.getElementById('group-list').innerHTML = overviewGroups.map(g =>
   runs.forEach((r,i) => {
     const bg = groupColor[r.group] || '{{ brand_border }}';
     html += `<tr style="background:${bg}22">`;
-    cols.forEach(c => { html += '<td>' + (r[c[1]] != null ? r[c[1]] : '\u2014') + '</td>'; });
+    cols.forEach(c => {
+      let value = r[c[1]];
+      if (c[1] === 'report_included') {
+        value = value ? 'Included in downstream sections' : 'Excluded from downstream sections';
+      }
+      html += '<td>' + (value != null ? value : '\u2014') + '</td>';
+    });
     html += '</tr>';
   });
   html += '</tbody>';
