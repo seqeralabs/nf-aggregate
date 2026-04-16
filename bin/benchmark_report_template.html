@@ -88,40 +88,35 @@
     padding: 12px;
   }
   .runtime-unified-chart {
-    border: 1px solid {{ brand_border }};
-    border-radius: 8px;
-    background: {{ brand_white }};
+    border: none;
+    border-radius: 0;
+    background: transparent;
     margin-bottom: 10px;
   }
-  .runtime-details-list { display: flex; flex-direction: column; gap: 12px; }
-  .runtime-detail-card {
-    border: 1px solid {{ brand_border }};
-    border-radius: 8px;
-    background: {{ brand_white }};
-    padding: 8px 10px;
+  .runtime-comparison-scroll {
+    margin-top: 6px;
+    overflow-x: auto;
   }
-  .runtime-detail-title {
-    color: {{ brand_heading }};
-    font-weight: 600;
-    font-size: 13px;
-    margin-bottom: 6px;
-  }
-  .runtime-detail-table {
+  .runtime-comparison-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
-    table-layout: fixed;
-    margin-bottom: 10px;
+    table-layout: auto;
+    min-width: 720px;
   }
-  .runtime-detail-table th {
+  .runtime-comparison-table th {
     text-align: left;
     background: {{ brand_neutral }};
     color: {{ brand_heading }};
     border-bottom: 1px solid {{ brand_border }};
     padding: 6px 8px;
     font-weight: 600;
+    white-space: nowrap;
   }
-  .runtime-detail-table td {
+  .runtime-comparison-table th.group {
+    text-align: center;
+  }
+  .runtime-comparison-table td {
     border-bottom: 1px solid {{ brand_border }};
     padding: 5px 8px;
     color: {{ brand_heading }};
@@ -129,7 +124,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .runtime-detail-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .runtime-comparison-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .runtime-swatch {
     display: inline-block;
     width: 10px;
@@ -159,7 +154,7 @@
     .side-nav { display: none; }
     .main-content { margin-left: 0; }
     .chart-row { grid-template-columns: 1fr; }
-    .runtime-detail-table { font-size: 11px; }
+    .runtime-comparison-table { font-size: 11px; }
   }
 
   .text-muted { color: {{ brand_border }}; }
@@ -817,25 +812,6 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
           .map((seg) => seg.segment_id)
       );
 
-      const legendBase = panel.legend && panel.legend.length ? panel.legend : segments;
-      const legendItems = [];
-      if (schedulingRuntime > 0) {
-        legendItems.push({
-          process: 'Scheduling',
-          runtime_ms: schedulingRuntime,
-          highlight: false,
-          is_scheduling: true,
-        });
-      }
-      legendBase.forEach((item) => {
-        legendItems.push({
-          process: String(item.process || 'unknown'),
-          runtime_ms: Number(item.runtime_ms || 0),
-          highlight: Boolean(item.highlight),
-          is_scheduling: false,
-        });
-      });
-
       return {
         panel,
         label: rowLabel(panel),
@@ -848,7 +824,6 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
         otherRuntimeMs: otherRuntime,
         segmentsForRow,
         topLabelIds,
-        legendItems,
       };
     })
     .filter(Boolean)
@@ -883,10 +858,44 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
   neutralProcesses.forEach((name, idx) => { processColor[name] = neutralColor(idx, neutralProcesses.length); });
 
   const schedulingColor = '#F59E0B';
-  const otherLegendColor = '#9AA1AB';
   const rowCount = rows.length;
   const maxTotalDurationMs = Math.max(...rows.map((row) => row.totalDurationMs), 1);
   const uniqueProcessCount = processTotals.size;
+
+  function measureTextWidth(text, font) {
+    const canvas = measureTextWidth.canvas || (measureTextWidth.canvas = document.createElement('canvas'));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return text.length * 7;
+    ctx.font = font || "600 12px Inter, Helvetica, sans-serif";
+    return ctx.measureText(text).width;
+  }
+
+  const rowMetaLines = rows.map((row) => `${fmtDurationCompact(row.totalDurationMs)} \u00b7 ${row.totalTasks} tasks`);
+  const maxLabelPx = Math.max(
+    0,
+    ...rows.map((row, idx) => {
+      const line1 = measureTextWidth(row.label);
+      const line2 = measureTextWidth(rowMetaLines[idx], "500 12px Inter, Helvetica, sans-serif");
+      return Math.max(line1, line2);
+    })
+  );
+  const axisLabelWidth = Math.max(170, Math.ceil(maxLabelPx + 8));
+  const gridLeft = Math.max(220, axisLabelWidth + 24);
+  const breakdownLineHeight = 16;
+  const pipelineBreakdowns = rows.map((row) => {
+    const schedulingPct = row.totalDurationMs > 0 ? (row.schedulingRuntimeMs / row.totalDurationMs) * 100.0 : 0.0;
+    const qcPct = row.totalDurationMs > 0 ? (row.qcRuntimeMs / row.totalDurationMs) * 100.0 : 0.0;
+    const otherPct = row.totalDurationMs > 0 ? (row.otherRuntimeMs / row.totalDurationMs) * 100.0 : 0.0;
+    return {
+      label: row.label,
+      values: [
+        { label: 'Scheduling', runtimeMs: row.schedulingRuntimeMs, pct: schedulingPct, color: schedulingColor },
+        { label: 'QC', runtimeMs: row.qcRuntimeMs, pct: qcPct, color: '#31C9AC' },
+        { label: 'Other', runtimeMs: row.otherRuntimeMs, pct: otherPct, color: '#CFD0D1' },
+      ],
+    };
+  });
+  const gridTop = 90 + (pipelineBreakdowns.length * breakdownLineHeight);
 
   const unifiedChartEl = document.createElement('div');
   unifiedChartEl.className = 'chart runtime-unified-chart';
@@ -951,6 +960,49 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       left: 'center',
       top: 8,
     },
+    graphic: (function() {
+      const elements = [];
+      pipelineBreakdowns.forEach((line, lineIdx) => {
+        const top = 56 + (lineIdx * breakdownLineHeight);
+        const labelText = `${line.label}:`;
+        elements.push({
+          type: 'text',
+          left: gridLeft,
+          top,
+          style: {
+            text: labelText,
+            fill: '{{ brand_heading }}',
+            font: "600 11px Inter, Helvetica, sans-serif",
+            textVerticalAlign: 'top',
+          },
+        });
+        let left = gridLeft + measureTextWidth(labelText, "600 11px Inter, Helvetica, sans-serif") + 10;
+        line.values.forEach((item) => {
+          const text = `${item.label} ${fmtDurationCompact(item.runtimeMs)} (${item.pct.toFixed(0)}%)`;
+          const textW = measureTextWidth(text, "500 11px Inter, Helvetica, sans-serif");
+          elements.push({
+            type: 'rect',
+            left,
+            top: top + 2,
+            shape: { x: 0, y: 0, width: 8, height: 8 },
+            style: { fill: item.color, stroke: item.color },
+          });
+          elements.push({
+            type: 'text',
+            left: left + 12,
+            top,
+            style: {
+              text,
+              fill: '{{ brand_heading }}',
+              font: "500 11px Inter, Helvetica, sans-serif",
+              textVerticalAlign: 'top',
+            },
+          });
+          left += textW + 28;
+        });
+      });
+      return elements;
+    })(),
     tooltip: {
       trigger: 'item',
       formatter: (p) => {
@@ -960,9 +1012,9 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       },
     },
     grid: {
-      top: 84,
+      top: gridTop,
       bottom: 20,
-      left: 250,
+      left: gridLeft,
       right: 18,
       containLabel: false,
     },
@@ -979,9 +1031,14 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       axisLine: { show: false },
       axisTick: { show: false },
       axisLabel: {
+        width: axisLabelWidth,
+        margin: 8,
+        overflow: 'truncate',
+        align: 'right',
+        verticalAlign: 'middle',
         color: '{{ brand_heading }}',
         fontWeight: 600,
-        lineHeight: 18,
+        lineHeight: 15,
         formatter: (value, idx) => {
           const row = rows[idx];
           if (!row) return value;
@@ -1013,65 +1070,75 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
 
   deferInit(() => initUnifiedRuntimeChart(false));
 
-  const detailsListEl = document.createElement('div');
-  detailsListEl.className = 'runtime-details-list';
-
   rows.forEach((row) => {
-    const detailCard = document.createElement('div');
-    detailCard.className = 'runtime-detail-card';
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'runtime-detail-title';
-    titleEl.textContent = `${row.label} \u00b7 ${fmtDurationCompact(row.totalDurationMs)} across ${row.totalTasks} tasks \u00b7 ${row.uniqueProcesses} unique processes`;
-    detailCard.appendChild(titleEl);
-
-    const table = document.createElement('table');
-    table.className = 'runtime-detail-table';
-    table.innerHTML = `
-      <thead>
-        <tr>
-          <th style="width:56%">Process</th>
-          <th style="width:22%;text-align:right">Duration</th>
-          <th style="width:22%;text-align:right">Percent</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${row.legendItems.map((item) => {
-          const fullName = String(item.process || 'unknown');
-          const fullNameEsc = escapeHtml(fullName);
-          const shortNameEsc = escapeHtml(item.is_scheduling ? 'Scheduling' : shortProcessName(fullName));
-          const runtimeMs = Number(item.runtime_ms || 0);
-          const pct = row.totalDurationMs > 0 ? ((runtimeMs / row.totalDurationMs) * 100.0) : 0.0;
-          let swatch = '#CFD0D1';
-          if (item.is_scheduling) swatch = schedulingColor;
-          else if (processColor[fullName]) swatch = processColor[fullName];
-          else if (fullName.startsWith('Other (')) swatch = otherLegendColor;
-          return `<tr title="${fullNameEsc}">
-            <td><span class="runtime-swatch" style="background:${swatch}"></span>${shortNameEsc}</td>
-            <td class="num">${fmtDurationCompact(runtimeMs)}</td>
-            <td class="num">${pct.toFixed(1)}%</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    `;
-    detailCard.appendChild(table);
-
-    const schedulingPct = row.totalDurationMs > 0 ? (row.schedulingRuntimeMs / row.totalDurationMs) * 100.0 : 0.0;
-    const qcPct = row.totalDurationMs > 0 ? (row.qcRuntimeMs / row.totalDurationMs) * 100.0 : 0.0;
-    const otherPct = row.totalDurationMs > 0 ? (row.otherRuntimeMs / row.totalDurationMs) * 100.0 : 0.0;
-    const summary = document.createElement('div');
-    summary.className = 'runtime-summary';
-    summary.innerHTML = `
-      <span class="runtime-summary-pill"><span class="runtime-swatch" style="background:${schedulingColor}"></span>Scheduling: ${fmtDurationCompact(row.schedulingRuntimeMs)} (${schedulingPct.toFixed(0)}%)</span>
-      <span class="runtime-summary-pill"><span class="runtime-swatch" style="background:#31C9AC"></span>QC: ${fmtDurationCompact(row.qcRuntimeMs)} (${qcPct.toFixed(0)}%)</span>
-      <span class="runtime-summary-pill"><span class="runtime-swatch" style="background:#CFD0D1"></span>Other: ${fmtDurationCompact(row.otherRuntimeMs)} (${otherPct.toFixed(0)}%)</span>
-    `;
-    detailCard.appendChild(summary);
-
-    detailsListEl.appendChild(detailCard);
+    const processRuntimeByKey = new Map();
+    row.segmentsForRow.forEach((seg) => {
+      const key = seg.is_scheduling ? '__SCHEDULING__' : seg.process;
+      processRuntimeByKey.set(key, Number(seg.runtime_ms || 0));
+    });
+    row.processRuntimeByKey = processRuntimeByKey;
   });
 
-  container.appendChild(detailsListEl);
+  const mergedProcessMap = new Map();
+  rows.forEach((row) => {
+    row.segmentsForRow.forEach((seg) => {
+      const key = seg.is_scheduling ? '__SCHEDULING__' : String(seg.process || 'unknown');
+      if (!mergedProcessMap.has(key)) {
+        mergedProcessMap.set(key, {
+          key,
+          fullName: seg.is_scheduling ? 'Scheduling' : String(seg.process || 'unknown'),
+          isScheduling: Boolean(seg.is_scheduling),
+          totalRuntimeMs: 0,
+        });
+      }
+      mergedProcessMap.get(key).totalRuntimeMs += Number(seg.runtime_ms || 0);
+    });
+  });
+
+  const mergedProcessRows = [...mergedProcessMap.values()].sort((a, b) => {
+    if (a.isScheduling && !b.isScheduling) return -1;
+    if (!a.isScheduling && b.isScheduling) return 1;
+    return b.totalRuntimeMs - a.totalRuntimeMs || a.fullName.localeCompare(b.fullName);
+  });
+
+  const comparisonScroll = document.createElement('div');
+  comparisonScroll.className = 'runtime-comparison-scroll';
+  const comparisonTable = document.createElement('table');
+  comparisonTable.className = 'runtime-comparison-table';
+
+  const headerTop = ['<tr><th rowspan="2" style="min-width:220px">Process</th>']
+    .concat(
+      rows.map((row) => {
+        const labelEsc = escapeHtml(row.label);
+        return `<th class="group" colspan="2" title="${labelEsc}">${labelEsc}</th>`;
+      })
+    )
+    .concat(['</tr>'])
+    .join('');
+
+  const headerBottom = '<tr>' +
+    rows.map(() => '<th style="text-align:right">Duration</th><th style="text-align:right">Percent</th>').join('') +
+    '</tr>';
+
+  const bodyRows = mergedProcessRows.map((procRow) => {
+    const fullNameEsc = escapeHtml(procRow.fullName);
+    const shortNameEsc = escapeHtml(procRow.isScheduling ? 'Scheduling' : shortProcessName(procRow.fullName));
+    const swatch = procRow.isScheduling ? schedulingColor : (processColor[procRow.fullName] || '#CFD0D1');
+    const cells = rows.map((row) => {
+      const runtimeMs = Number(row.processRuntimeByKey.get(procRow.key) || 0);
+      if (runtimeMs <= 0) return '<td class="num">-</td><td class="num">-</td>';
+      const pct = row.totalDurationMs > 0 ? (runtimeMs / row.totalDurationMs) * 100.0 : 0.0;
+      return `<td class="num">${fmtDurationCompact(runtimeMs)}</td><td class="num">${pct.toFixed(1)}%</td>`;
+    }).join('');
+    return `<tr title="${fullNameEsc}">
+      <td><span class="runtime-swatch" style="background:${swatch}"></span>${shortNameEsc}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  comparisonTable.innerHTML = `<thead>${headerTop}${headerBottom}</thead><tbody>${bodyRows}</tbody>`;
+  comparisonScroll.appendChild(comparisonTable);
+  container.appendChild(comparisonScroll);
 })();
 
 // 5.1 Task instance usage

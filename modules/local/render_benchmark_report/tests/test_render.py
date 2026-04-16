@@ -65,12 +65,16 @@ def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data)
     assert 'id="combined-runtime-panels"' in text
     assert "DATA.combined_task_runtime" in text
     assert "runtime-unified-chart" in text
+    assert "border: none;" in text
     assert "maxTotalDurationMs" in text
-    assert "Scheduling: " in text
-    assert "runtime-detail-table" in text
-    assert "runtime-summary-pill" in text
-    assert "table.className = 'runtime-detail-table';" in text
-    assert "detailsListEl.className = 'runtime-details-list';" in text
+    assert "const pipelineBreakdowns = rows.map((row) => {" in text
+    assert "gridTop = 90 + (pipelineBreakdowns.length * breakdownLineHeight)" in text
+    assert "labelText = `${line.label}:`;" in text
+    assert "graphic: (function()" in text
+    assert "runtime-comparison-table" in text
+    assert "runtime-comparison-scroll" in text
+    assert "comparisonTable.className = 'runtime-comparison-table';" in text
+    assert "comparisonScroll.className = 'runtime-comparison-scroll';" in text
     assert "scheduling_runtime_ms" in text
     assert "total_duration_ms" in text
     assert "const yData = rows.map((row) => row.label);" in text
@@ -81,6 +85,13 @@ def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data)
     assert "includes scheduling overhead" in text
     assert "chartEl.className = 'chart combined-runtime-chart';" not in text
     assert "panelEl.className = 'runtime-panel';" not in text
+    assert "runtime-summary-row-head" not in text
+    assert "summaryRowsEl.className = 'runtime-summary-rows';" not in text
+    assert "rowSummaryEl.className = 'runtime-summary-row';" not in text
+    assert "runtime-comparison-wrap" not in text
+    assert "globalSchedulingMs" not in text
+    assert "globalQcMs" not in text
+    assert "globalOtherMs" not in text
     assert "buildChipGraphic" not in text
     assert "selectedMode: false" not in text
 
@@ -131,6 +142,36 @@ def test_combined_runtime_chart_init_after_attach(tmp_path, minimal_report_data)
     assert "window.requestAnimationFrame" in text
     assert "unifiedChartEl.getBoundingClientRect()" in text
     assert "initUnifiedRuntimeChart(true)" in text
+
+
+def test_combined_runtime_fallback_without_duration_fields(tmp_path, minimal_report_data):
+    data = dict(minimal_report_data)
+    data["combined_task_runtime"] = [
+        {
+            "pipeline": "pipe",
+            "group": "cpu",
+            "panel_id": "pipe::cpu",
+            "total_runtime_ms": 180000,
+            "total_tasks": 2,
+            "unique_processes": 2,
+            "segments": [
+                {"process": "PIPE:MAIN", "runtime_ms": 120000, "pct": 66.67, "highlight": False},
+                {"process": "PIPE:QC", "runtime_ms": 60000, "pct": 33.33, "highlight": True},
+            ],
+            "legend": [
+                {"process": "PIPE:MAIN", "runtime_ms": 120000, "pct": 66.67, "highlight": False},
+                {"process": "PIPE:QC", "runtime_ms": 60000, "pct": 33.33, "highlight": True},
+            ],
+            "highlight_totals": {"qc_runtime_ms": 60000, "other_runtime_ms": 120000},
+        }
+    ]
+    out = tmp_path / "report.html"
+    render_html(data, out)
+    text = out.read_text()
+    assert "runtime-comparison-table" in text
+    assert "panel.total_duration_ms || (totalRuntime + schedulingRuntime) || totalRuntime" in text
+    assert "label: 'Scheduling'" in text
+    assert "graphic: (function()" in text
 
 
 def test_render_report_from_json(tmp_path, minimal_report_data):
