@@ -160,6 +160,13 @@
   .text-muted { color: {{ brand_border }}; }
   .group-colors span { display: inline-block; width: 12px; height: 12px; border-radius: 2px;
                         margin-right: 4px; vertical-align: middle; }
+  .status-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 8px;
+                 font-size: 11px; font-weight: 600; line-height: 1.3; }
+  .status-success { background: #dcfce7; color: #166534; }
+  .status-failed { background: #fee2e2; color: #991b1b; }
+  .status-cancelled { background: #fef3c7; color: #92400e; }
+  .status-other, .status-unknown { background: {{ brand_neutral }}; color: {{ brand_heading }}; }
+  .status-note { display: block; margin-top: 4px; font-size: 11px; white-space: normal; color: {{ brand_heading }}; }
 </style>
 </head>
 <body>
@@ -213,7 +220,8 @@
       <strong>Summary</strong><br>
       This report summarizes the run, process, task, and, if applicable, cost metrics
       for pipeline executions, which have been split into groups:
-      <span id="group-list" class="group-colors"></span>
+      <span id="group-list" class="group-colors"></span><br>
+      Failed or cancelled runs are marked here first and excluded from downstream sections.
     </p>
     <div style="overflow-x: auto;">
       <table class="gs-table" id="overview-matrix"></table>
@@ -391,11 +399,12 @@ function downloadCSV(tableId, filename) {
 }
 
 // Group colors
-const groups = [...new Set((DATA.run_summary||[]).map(r => r.group))];
+const overviewGroups = [...new Set((DATA.benchmark_overview||[]).map(r => r.group))];
+const reportGroups = [...new Set((DATA.run_summary||[]).map(r => r.group))];
 const groupColor = {};
-groups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
+overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
 
-document.getElementById('group-list').innerHTML = groups.map(g =>
+document.getElementById('group-list').innerHTML = overviewGroups.map(g =>
   `<span style="background:${groupColor[g]}"></span>${g}`
 ).join(' &nbsp; ');
 
@@ -405,13 +414,22 @@ document.getElementById('group-list').innerHTML = groups.map(g =>
   const pipelines = [...new Set(runs.map(r => r.pipeline))];
   const table = document.getElementById('overview-matrix');
   let html = '<thead><tr><th style="text-align:left">Pipeline</th>';
-  groups.forEach(g => { html += `<th>${g}</th>`; });
+  overviewGroups.forEach(g => { html += `<th>${g}</th>`; });
   html += '</tr></thead><tbody>';
   pipelines.forEach(p => {
     html += '<tr><td>' + p + '</td>';
-    groups.forEach(g => {
+    overviewGroups.forEach(g => {
       const match = runs.find(r => r.pipeline === p && r.group === g);
-      html += '<td>' + (match ? match.run_id : '\u2014') + '</td>';
+      if (!match) {
+        html += '<td>\u2014</td>';
+        return;
+      }
+      const note = match.report_included ? 'Included in downstream sections' : 'Excluded from downstream sections';
+      html += '<td>' +
+        '<div>' + match.run_id + '</div>' +
+        `<span class="status-pill status-${match.status_category}">${match.status_label}</span>` +
+        `<span class="status-note">${note}</span>` +
+      '</td>';
     });
     html += '</tr>';
   });
@@ -623,7 +641,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
     section.appendChild(rtEl);
     container.appendChild(section);
 
-    const series = groups.map((g, gi) => {
+    const series = reportGroups.map((g, gi) => {
       const gStats = pipelineStats.filter(s => s.group === g);
       return {
         name: g, type: 'scatter', symbolSize: 8,
@@ -632,7 +650,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
           const s = gStats.find(x => x.process_name === p);
           return s ? [s.avg_runtime_min, pi] : null;
         }).filter(Boolean),
-        markPoint: groups.length <= 3 ? {
+        markPoint: reportGroups.length <= 3 ? {
           data: [{ type: 'max', valueDim: 'x' }],
           label: { formatter: g, fontSize: 10, position: 'right', color: groupColor[g] },
           symbolSize: 0
@@ -640,7 +658,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       };
     });
 
-    const errorSeries = groups.map((g, gi) => {
+    const errorSeries = reportGroups.map((g, gi) => {
       const gStats = pipelineStats.filter(s => s.group === g);
       return {
         name: g + ' (\u00b1SD)', type: 'custom', silent: true,
@@ -674,13 +692,13 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
     costEl.style.height = Math.max(400, processes.length * 25 + 120) + 'px';
     section.appendChild(costEl);
 
-    const costSeries = groups.map((g, gi) => {
+    const costSeries = reportGroups.map((g, gi) => {
       const gStats = pipelineStats.filter(s => s.group === g);
       return {
         name: g, type: 'bar', stack: g,
         itemStyle: { color: groupColor[g], borderRadius: [0, 2, 2, 0] },
         emphasis: { focus: 'series' },
-        label: { show: groups.length <= 3, position: 'right', formatter: '{a}', fontSize: 10 },
+        label: { show: reportGroups.length <= 3, position: 'right', formatter: '{a}', fontSize: 10 },
         data: processes.map(p => {
           const s = gStats.find(x => x.process_name === p);
           return s ? +s.total_cost.toFixed(4) : 0;
@@ -703,7 +721,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
             return `<strong>${processes[p.data[1]]}</strong><br>${p.seriesName}: ${p.data[0].toFixed(1)} min`;
           }
         },
-        legend: { show: groups.length > 3, data: groups, bottom: 0 },
+        legend: { show: reportGroups.length > 3, data: reportGroups, bottom: 0 },
         grid: { top: 40, bottom: 40, containLabel: true },
         xAxis: { type: 'value', name: 'Run time (minutes)', nameLocation: 'center', nameGap: 25 },
         yAxis: { type: 'category', data: processes,
@@ -715,7 +733,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       echarts.init(costEl, 'seqera').setOption({
         title: { text: 'Total process cost ($)' },
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-        legend: { show: groups.length > 3, data: groups, bottom: 0 },
+        legend: { show: reportGroups.length > 3, data: reportGroups, bottom: 0 },
         grid: { top: 40, bottom: 40, containLabel: true },
         xAxis: { type: 'value', name: 'Cost ($)', nameLocation: 'center', nameGap: 25 },
         yAxis: { type: 'category', data: processes,
@@ -1150,7 +1168,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
   instanceTypes.forEach((t,i) => { instanceColors[t] = COLORS[i % COLORS.length]; });
 
   const el = document.getElementById('chart-instance-usage');
-  const height = Math.max(300, groups.length * 60 + 100);
+  const height = Math.max(300, reportGroups.length * 60 + 100);
   el.style.height = height + 'px';
 
   echarts.init(el, 'seqera').setOption({
@@ -1159,11 +1177,11 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
     legend: { data: instanceTypes, bottom: 0, type: 'scroll' },
     grid: { top: 40, bottom: 60, containLabel: true },
     xAxis: { type: 'value', name: 'Number of tasks', nameLocation: 'center', nameGap: 25 },
-    yAxis: { type: 'category', data: groups.slice().reverse() },
+    yAxis: { type: 'category', data: reportGroups.slice().reverse() },
     series: instanceTypes.map(t => ({
       name: t, type: 'bar', stack: 'total',
       emphasis: { focus: 'series' },
-      data: groups.slice().reverse().map(g => {
+      data: reportGroups.slice().reverse().map(g => {
         const match = usage.find(u => u.group === g && u.machine_type === t);
         return match ? match.count : 0;
       }),
@@ -1190,15 +1208,15 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       title: { text: 'Task real time vs staging time' },
       tooltip: { trigger: 'item',
         formatter: p => `<strong>${p.data[3]}</strong><br>Real time: ${p.data[0].toFixed(1)} min<br>Staging: ${p.data[1].toFixed(1)} min<br>Cost: $${p.data[2].toFixed(4)}` },
-      legend: { show: groups.length > 3, data: groups, bottom: 0 },
+      legend: { show: reportGroups.length > 3, data: reportGroups, bottom: 0 },
       grid: { top: 50, bottom: 60, containLabel: true },
       xAxis: { type: 'value', name: 'Task real time (minutes)', nameLocation: 'center', nameGap: 25 },
       yAxis: { type: 'value', name: 'Task staging time (minutes)', nameLocation: 'center', nameGap: 40 },
-      series: groups.map((g, i) => ({
+      series: reportGroups.map((g, i) => ({
         name: g, type: 'scatter', symbolSize: 6,
         data: tasks.filter(t => t.group === g).map(t => [t.realtime_min||0, t.staging_min||0, t.cost||0, t.process_short]),
         itemStyle: { color: groupColor[g] },
-        markPoint: groups.length <= 3 ? {
+        markPoint: reportGroups.length <= 3 ? {
           data: [{ type: 'max', valueDim: 'x' }],
           label: { formatter: g, fontSize: 10, position: 'top', color: groupColor[g] },
           symbolSize: 0
@@ -1216,7 +1234,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
     const processes = [...new Set(tasks.map(t => t.process_short))];
     const boxData = [];
     processes.forEach(p => {
-      const costs = groups.map(g => {
+      const costs = reportGroups.map(g => {
         return tasks.filter(t => t.group === g && t.process_short === p).map(t => t.cost || 0);
       });
       const all = costs.flat().sort((a,b) => a-b);

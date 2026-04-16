@@ -15,12 +15,18 @@ if str(BIN_DIR) not in sys.path:
 
 @pytest.fixture
 def make_run():
-    def _make_run(run_id: str = "run1", group: str = "cpu", tasks: list | None = None, cached_count: int = 0):
+    def _make_run(
+        run_id: str = "run1",
+        group: str = "cpu",
+        tasks: list | None = None,
+        cached_count: int = 0,
+        status: str = "SUCCEEDED",
+    ):
         task_list = tasks or []
         return {
             "workflow": {
                 "id": run_id,
-                "status": "SUCCEEDED",
+                "status": status,
                 "userName": "test",
                 "repository": "https://github.com/test/pipeline",
                 "revision": "main",
@@ -87,8 +93,18 @@ def write_run_json():
 @pytest.fixture
 def minimal_report_data():
     return {
-        "benchmark_overview": [{"pipeline": "pipeline", "group": "cpu", "run_id": "run1"}],
-        "run_summary": [{"group": "cpu", "run_id": "run1", "cachedCount": 1}],
+        "benchmark_overview": [
+            {
+                "pipeline": "pipeline",
+                "group": "cpu",
+                "run_id": "run1",
+                "status": "SUCCEEDED",
+                "status_label": "Succeeded",
+                "status_category": "success",
+                "report_included": True,
+            }
+        ],
+        "run_summary": [{"group": "cpu", "run_id": "run1", "cachedCount": 1, "status": "SUCCEEDED", "status_label": "Succeeded"}],
         "run_metrics": [{"group": "cpu", "run_id": "run1"}],
         "run_costs": [{"group": "cpu", "run_id": "run1", "cost": 1.0, "used_cost": 1.0, "unused_cost": 0.0}],
         "process_stats": [],

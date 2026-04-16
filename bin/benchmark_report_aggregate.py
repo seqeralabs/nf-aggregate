@@ -78,6 +78,19 @@ def _is_highlight_process(process: str) -> bool:
     return any(keyword in process_lc for keyword in _HIGHLIGHT_KEYWORDS)
 
 
+def _classify_workflow_status(status: str | None) -> tuple[str, str, bool]:
+    normalized = (status or "").strip().upper()
+    if normalized in {"FAILED", "ERROR", "FAILING"}:
+        return ("Failed", "failed", False)
+    if normalized in {"CANCELLED", "CANCELED", "ABORTED", "ABORT", "STOPPED"}:
+        return ("Cancelled", "cancelled", False)
+    if normalized in {"SUCCEEDED", "SUCCESS", "COMPLETED"}:
+        return ("Succeeded", "success", True)
+    if not normalized:
+        return ("Unknown", "unknown", True)
+    return (normalized.title(), "other", True)
+
+
 def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
     benchmark_overview: list[dict[str, Any]] = []
     run_summary: list[dict[str, Any]] = []
@@ -85,17 +98,39 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
 
     run_cost_acc: dict[tuple[str, str], dict[str, Any]] = {}
     run_pipeline: dict[str, str] = {}
+    included_run_ids: set[str] = set()
 
     for r in _iter_jsonl(jsonl_dir / "runs.jsonl"):
-        benchmark_overview.append({"pipeline": r.get("pipeline"), "group": r.get("group"), "run_id": r.get("run_id")})
-        run_pipeline[str(r.get("run_id", ""))] = str(r.get("pipeline") or "unknown")
+        run_id = str(r.get("run_id", ""))
+        group = str(r.get("group", ""))
+        run_pipeline[run_id] = str(r.get("pipeline") or "unknown")
+        status_label, status_category, report_included = _classify_workflow_status(r.get("status"))
+
+        benchmark_overview.append(
+            {
+                "pipeline": r.get("pipeline"),
+                "group": group,
+                "run_id": run_id,
+                "status": r.get("status"),
+                "status_label": status_label,
+                "status_category": status_category,
+                "report_included": report_included,
+            }
+        )
+
+        if not report_included:
+            continue
+
+        included_run_ids.add(run_id)
 
         run_summary.append(
             {
                 "pipeline": r.get("pipeline"),
-                "group": r.get("group"),
-                "run_id": r.get("run_id"),
+                "group": group,
+                "run_id": run_id,
                 "username": r.get("username"),
+                "status": r.get("status"),
+                "status_label": status_label,
                 "Version": r.get("pipeline_version"),
                 "Nextflow_version": r.get("nextflow_version"),
                 "platform_version": r.get("platform_version"),
@@ -113,8 +148,8 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
         run_metrics.append(
             {
                 "pipeline": r.get("pipeline"),
-                "group": r.get("group"),
-                "run_id": r.get("run_id"),
+                "group": group,
+                "run_id": run_id,
                 "duration": int(r.get("duration_ms") or 0),
                 "cpuTime": _round((float(r.get("cpu_time_ms") or 0) / 1000.0) / 3600.0, 1),
                 "pipeline_runtime": int(r.get("cpu_time_ms") or 0),
@@ -125,7 +160,7 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
             }
         )
 
-        key = (str(r.get("run_id", "")), str(r.get("group", "")))
+        key = (run_id, group)
         run_cost_acc[key] = {
             "run_id": key[0],
             "group": key[1],
@@ -181,6 +216,9 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
 
     for t in _iter_jsonl(jsonl_dir / "tasks.jsonl"):
         run_id = str(t.get("run_id", ""))
+        if run_id not in included_run_ids:
+            continue
+
         group = str(t.get("group", ""))
         process = str(t.get("process", ""))
         process_short = str(t.get("process_short", ""))

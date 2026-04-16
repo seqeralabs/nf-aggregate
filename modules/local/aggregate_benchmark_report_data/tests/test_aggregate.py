@@ -108,6 +108,36 @@ def test_task_table_includes_cached(tmp_path, make_run, flat_task, write_run_jso
     assert statuses == {"COMPLETED", "CACHED"}
 
 
+def test_failed_and_cancelled_runs_only_appear_in_overview(tmp_path, make_run, flat_task, write_run_json):
+    data_dir = tmp_path / "data"
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    write_run_json(
+        data_dir,
+        [
+            make_run(run_id="run-success", group="cpu", tasks=[flat_task()]),
+            make_run(run_id="run-failed", group="gpu", tasks=[flat_task()], status="FAILED"),
+            make_run(run_id="run-cancelled", group="spot", tasks=[flat_task()], status="CANCELLED"),
+        ],
+    )
+    normalize_jsonl(data_dir, jsonl_dir)
+
+    data = build_report_data(jsonl_dir)
+
+    overview = {row["run_id"]: row for row in data["benchmark_overview"]}
+    assert overview["run-success"]["report_included"] is True
+    assert overview["run-success"]["status_category"] == "success"
+    assert overview["run-failed"]["report_included"] is False
+    assert overview["run-failed"]["status_category"] == "failed"
+    assert overview["run-cancelled"]["report_included"] is False
+    assert overview["run-cancelled"]["status_category"] == "cancelled"
+
+    assert [row["run_id"] for row in data["run_summary"]] == ["run-success"]
+    assert [row["run_id"] for row in data["run_metrics"]] == ["run-success"]
+    assert [row["run_id"] for row in data["run_costs"]] == ["run-success"]
+    assert {row["Run ID"] for row in data["task_table"]} == {"run-success"}
+    assert {row["run_id"] for row in data["task_scatter"]} == {"run-success"}
+
+
 def test_iter_jsonl_is_lazy(tmp_path):
     path = tmp_path / "rows.jsonl"
     path.write_text('{"ok": 1}\nnot-json\n')

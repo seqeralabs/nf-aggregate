@@ -14,6 +14,8 @@ def test_render_html(tmp_path, minimal_report_data):
     text = out.read_text()
     assert "Pipeline benchmarking report" in text
     assert "run1" in text
+    assert "Excluded from downstream sections" in text
+    assert "Status" in text
 
 
 def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data):
