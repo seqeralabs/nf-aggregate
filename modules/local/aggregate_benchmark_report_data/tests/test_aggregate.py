@@ -277,6 +277,7 @@ def test_combined_task_runtime_splits_by_pipeline_and_group_and_uses_realtime(tm
             "process_short": "QC_STEP",
             "name": "PIPE:QC_STEP",
             "status": "COMPLETED",
+            "wait_ms": 10000,
             "staging_ms": 0,
             "realtime_ms": 60000,
             "duration_ms": 300000,
@@ -290,6 +291,7 @@ def test_combined_task_runtime_splits_by_pipeline_and_group_and_uses_realtime(tm
             "process_short": "MAIN",
             "name": "PIPE:MAIN",
             "status": "COMPLETED",
+            "wait_ms": 20000,
             "staging_ms": 0,
             "realtime_ms": 120000,
             "duration_ms": 999999,
@@ -303,6 +305,7 @@ def test_combined_task_runtime_splits_by_pipeline_and_group_and_uses_realtime(tm
             "process_short": "CACHED",
             "name": "PIPE:CACHED",
             "status": "CACHED",
+            "wait_ms": 600000,
             "staging_ms": 0,
             "realtime_ms": 500000,
             "duration_ms": 500000,
@@ -316,6 +319,7 @@ def test_combined_task_runtime_splits_by_pipeline_and_group_and_uses_realtime(tm
             "process_short": "ASSEMBLE",
             "name": "RUSTQC:ASSEMBLE",
             "status": "COMPLETED",
+            "wait_ms": 15000,
             "staging_ms": 0,
             "realtime_ms": 30000,
             "duration_ms": 400000,
@@ -329,6 +333,7 @@ def test_combined_task_runtime_splits_by_pipeline_and_group_and_uses_realtime(tm
             "process_short": "RSEQC_SUMMARY",
             "name": "PIPE:RSEQC_SUMMARY",
             "status": "COMPLETED",
+            "wait_ms": 5000,
             "staging_ms": 0,
             "realtime_ms": 40000,
             "duration_ms": 700000,
@@ -346,6 +351,8 @@ def test_combined_task_runtime_splits_by_pipeline_and_group_and_uses_realtime(tm
 
     p1 = panels["pipe_alpha::g1"]
     assert p1["total_runtime_ms"] == 180000
+    assert p1["scheduling_runtime_ms"] == 30000
+    assert p1["total_duration_ms"] == 210000
     assert p1["total_tasks"] == 2
     assert p1["unique_processes"] == 2
     assert p1["segments"][0]["process"] == "PIPE:MAIN"
@@ -358,10 +365,14 @@ def test_combined_task_runtime_splits_by_pipeline_and_group_and_uses_realtime(tm
     rustqc = panels["rustqc::g1"]
     assert rustqc["pipeline"] == "rustqc"
     assert rustqc["total_runtime_ms"] == 30000
+    assert rustqc["scheduling_runtime_ms"] == 15000
+    assert rustqc["total_duration_ms"] == 45000
 
     p2 = panels["pipe_alpha::g2"]
     assert p2["segments"][0]["highlight"] is True
     assert p2["highlight_totals"]["qc_runtime_ms"] == 40000
+    assert p2["scheduling_runtime_ms"] == 5000
+    assert p2["total_duration_ms"] == 45000
 
 
 def test_combined_task_runtime_legend_rollup(tmp_path):
@@ -405,6 +416,7 @@ def test_combined_task_runtime_legend_rollup(tmp_path):
                 "process_short": f"PROC_{i:02d}",
                 "name": f"PIPE:PROC_{i:02d}",
                 "status": "COMPLETED",
+                "wait_ms": i * 100,
                 "staging_ms": 0,
                 "realtime_ms": 22000 - i,
                 "duration_ms": 100000 + i,
@@ -420,5 +432,7 @@ def test_combined_task_runtime_legend_rollup(tmp_path):
 
     assert len(panel["segments"]) == 22
     assert len(panel["legend"]) == 21
+    assert panel["scheduling_runtime_ms"] == sum(i * 100 for i in range(22))
+    assert panel["total_duration_ms"] == panel["total_runtime_ms"] + panel["scheduling_runtime_ms"]
     assert panel["legend"][-1]["process"] == "Other (2 small processes)"
     assert panel["legend"][-1]["runtime_ms"] == panel["segments"][-1]["runtime_ms"] + panel["segments"][-2]["runtime_ms"]

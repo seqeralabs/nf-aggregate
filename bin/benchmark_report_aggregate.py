@@ -176,7 +176,7 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
         lambda: {"total_cost": 0.0, "used_cost": 0.0, "unused_cost": 0.0, "n_tasks": 0}
     )
     combined_runtime_acc: dict[tuple[str, str], dict[str, Any]] = defaultdict(
-        lambda: {"process_runtime_ms": defaultdict(int), "total_tasks": 0}
+        lambda: {"process_runtime_ms": defaultdict(int), "total_tasks": 0, "scheduling_runtime_ms": 0}
     )
 
     for t in _iter_jsonl(jsonl_dir / "tasks.jsonl"):
@@ -265,6 +265,7 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
         panel_acc = combined_runtime_acc[runtime_panel_key]
         process_name = process or process_short or "unknown"
         panel_acc["process_runtime_ms"][process_name] += int(t.get("realtime_ms") or 0)
+        panel_acc["scheduling_runtime_ms"] += int(t.get("wait_ms") or 0)
         panel_acc["total_tasks"] += 1
 
         process_key = (group, process, process_short)
@@ -364,6 +365,8 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
         total_runtime_ms = sum(runtime for _, runtime in sorted_processes)
         if total_runtime_ms <= 0:
             continue
+        scheduling_runtime_ms = int(panel_acc.get("scheduling_runtime_ms") or 0)
+        total_duration_ms = total_runtime_ms + scheduling_runtime_ms
 
         segments = []
         for process_name, runtime_ms in sorted_processes:
@@ -400,6 +403,8 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
                 "group": group,
                 "panel_id": f"{pipeline}::{group}",
                 "total_runtime_ms": total_runtime_ms,
+                "scheduling_runtime_ms": scheduling_runtime_ms,
+                "total_duration_ms": total_duration_ms,
                 "total_tasks": int(panel_acc["total_tasks"]),
                 "unique_processes": len(segments),
                 "segments": segments,
