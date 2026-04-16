@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from benchmark_report_render import REPORT_TEMPLATE, load_brand, render_html, render_report_from_json
 
 
@@ -60,6 +62,41 @@ def test_render_backwards_compatible_without_combined_runtime_key(tmp_path, mini
     assert "Combined task runtime" in text
     assert "combined-runtime-panels" in text
     assert "const panels = DATA.combined_task_runtime || [];" in text
+
+
+@pytest.mark.xfail(strict=True, reason="combined runtime chart initialized before panel is attached")
+def test_combined_runtime_chart_init_after_attach(tmp_path, minimal_report_data):
+    data = dict(minimal_report_data)
+    data["combined_task_runtime"] = [
+        {
+            "pipeline": "rustqc",
+            "group": "gpu",
+            "panel_id": "rustqc::gpu",
+            "total_runtime_ms": 180000,
+            "total_tasks": 2,
+            "unique_processes": 2,
+            "segments": [
+                {"process": "RUSTQC:ALIGN", "runtime_ms": 120000, "pct": 66.67, "highlight": False},
+                {"process": "RUSTQC:QUALIMAP", "runtime_ms": 60000, "pct": 33.33, "highlight": True},
+            ],
+            "legend": [
+                {"process": "RUSTQC:ALIGN", "runtime_ms": 120000, "pct": 66.67, "highlight": False},
+                {"process": "RUSTQC:QUALIMAP", "runtime_ms": 60000, "pct": 33.33, "highlight": True},
+            ],
+            "highlight_totals": {"qc_runtime_ms": 60000, "other_runtime_ms": 120000},
+        }
+    ]
+    out = tmp_path / "report.html"
+    render_html(data, out)
+    text = out.read_text()
+
+    append_idx = text.find("container.appendChild(panelEl);")
+    init_idx = text.find("echarts.init(chartEl, 'seqera').setOption({")
+    assert append_idx != -1
+    assert init_idx != -1
+    assert append_idx < init_idx
+    assert "requestAnimationFrame" in text
+    assert "chartEl.getBoundingClientRect()" in text
 
 
 def test_render_report_from_json(tmp_path, minimal_report_data):
