@@ -24,6 +24,8 @@ def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data)
             "group": "gpu",
             "panel_id": "rustqc::gpu",
             "total_runtime_ms": 180000,
+            "scheduling_runtime_ms": 30000,
+            "total_duration_ms": 210000,
             "total_tasks": 2,
             "unique_processes": 2,
             "segments": [
@@ -35,7 +37,26 @@ def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data)
                 {"process": "RUSTQC:QUALIMAP", "runtime_ms": 60000, "pct": 33.33, "highlight": True},
             ],
             "highlight_totals": {"qc_runtime_ms": 60000, "other_runtime_ms": 120000},
-        }
+        },
+        {
+            "pipeline": "nf-core/sarek",
+            "group": "cpu",
+            "panel_id": "nf-core/sarek::cpu",
+            "total_runtime_ms": 300000,
+            "scheduling_runtime_ms": 10000,
+            "total_duration_ms": 310000,
+            "total_tasks": 3,
+            "unique_processes": 2,
+            "segments": [
+                {"process": "SAREK:MAIN", "runtime_ms": 200000, "pct": 66.67, "highlight": False},
+                {"process": "SAREK:RSEQC", "runtime_ms": 100000, "pct": 33.33, "highlight": True},
+            ],
+            "legend": [
+                {"process": "SAREK:MAIN", "runtime_ms": 200000, "pct": 66.67, "highlight": False},
+                {"process": "SAREK:RSEQC", "runtime_ms": 100000, "pct": 33.33, "highlight": True},
+            ],
+            "highlight_totals": {"qc_runtime_ms": 100000, "other_runtime_ms": 200000},
+        },
     ]
     out = tmp_path / "report.html"
     render_html(data, out)
@@ -43,10 +64,23 @@ def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data)
     assert 'id="combined-task-runtime"' in text
     assert 'id="combined-runtime-panels"' in text
     assert "DATA.combined_task_runtime" in text
-    assert "combined-runtime-chart" in text
+    assert "runtime-unified-chart" in text
+    assert "maxTotalDurationMs" in text
+    assert "Scheduling: " in text
     assert "runtime-detail-table" in text
     assert "runtime-summary-pill" in text
     assert "table.className = 'runtime-detail-table';" in text
+    assert "detailsListEl.className = 'runtime-details-list';" in text
+    assert "scheduling_runtime_ms" in text
+    assert "total_duration_ms" in text
+    assert "const yData = rows.map((row) => row.label);" in text
+    assert "series.push({" in text
+    assert "stack: `runtime-${rowIdx}`" in text
+    assert "Combined Task Duration by Process" in text
+    assert "comparing ${rows.length} configurations" in text
+    assert "includes scheduling overhead" in text
+    assert "chartEl.className = 'chart combined-runtime-chart';" not in text
+    assert "panelEl.className = 'runtime-panel';" not in text
     assert "buildChipGraphic" not in text
     assert "selectedMode: false" not in text
 
@@ -70,6 +104,8 @@ def test_combined_runtime_chart_init_after_attach(tmp_path, minimal_report_data)
             "group": "gpu",
             "panel_id": "rustqc::gpu",
             "total_runtime_ms": 180000,
+            "scheduling_runtime_ms": 15000,
+            "total_duration_ms": 195000,
             "total_tasks": 2,
             "unique_processes": 2,
             "segments": [
@@ -87,14 +123,14 @@ def test_combined_runtime_chart_init_after_attach(tmp_path, minimal_report_data)
     render_html(data, out)
     text = out.read_text()
 
-    append_idx = text.find("container.appendChild(panelEl);")
-    init_idx = text.find("const chart = echarts.init(chartEl, 'seqera');")
+    append_idx = text.find("container.appendChild(unifiedChartEl);")
+    init_idx = text.find("const chart = echarts.init(unifiedChartEl, 'seqera');")
     assert append_idx != -1
     assert init_idx != -1
     assert append_idx < init_idx
     assert "window.requestAnimationFrame" in text
-    assert "chartEl.getBoundingClientRect()" in text
-    assert "initCombinedRuntimeChart(true)" in text
+    assert "unifiedChartEl.getBoundingClientRect()" in text
+    assert "initUnifiedRuntimeChart(true)" in text
 
 
 def test_render_report_from_json(tmp_path, minimal_report_data):

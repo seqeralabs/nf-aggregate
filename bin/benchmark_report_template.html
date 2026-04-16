@@ -87,11 +87,24 @@
     background: {{ brand_white }};
     padding: 12px;
   }
-  .combined-runtime-chart {
+  .runtime-unified-chart {
     border: 1px solid {{ brand_border }};
     border-radius: 8px;
     background: {{ brand_white }};
     margin-bottom: 10px;
+  }
+  .runtime-details-list { display: flex; flex-direction: column; gap: 12px; }
+  .runtime-detail-card {
+    border: 1px solid {{ brand_border }};
+    border-radius: 8px;
+    background: {{ brand_white }};
+    padding: 8px 10px;
+  }
+  .runtime-detail-title {
+    color: {{ brand_heading }};
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 6px;
   }
   .runtime-detail-table {
     width: 100%;
@@ -283,7 +296,7 @@
     <h1><svg class="h-icon"><use href="#ic-chart"/></svg> Combined task runtime</h1>
     <p class="section-desc">
       <strong>Summary</strong><br>
-      Combined task real-time by process, split per pipeline and group. Highlights emphasize QC-like processes.
+      Combined task duration by process, split per pipeline and group. Includes scheduling overhead (submit to start).
     </p>
     <div id="combined-runtime-panels" class="runtime-panels"></div>
   </div>
@@ -747,69 +760,270 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
     return parts[parts.length - 1] || String(name);
   }
 
-  panels.forEach(panel => {
-    const segments = panel.segments || [];
-    if (!segments.length) return;
+  function rowLabel(panel) {
+    const pipeline = String(panel.pipeline || 'unknown');
+    const group = String(panel.group || '');
+    return group ? `${pipeline} (${group})` : pipeline;
+  }
 
-    const highlightSegments = segments.filter(s => s.highlight);
-    const neutralSegments = segments.filter(s => !s.highlight);
-    const colorByProcess = {};
-    highlightSegments.forEach((s, i) => { colorByProcess[s.process] = highlightColor(i, highlightSegments.length); });
-    neutralSegments.forEach((s, i) => { colorByProcess[s.process] = neutralColor(i, neutralSegments.length); });
+  const rows = panels
+    .map((panel) => {
+      const segments = panel.segments || [];
+      if (!segments.length) return null;
 
-    const totalRuntime = Number(panel.total_runtime_ms || 0);
-    const totalTasks = Number(panel.total_tasks || 0);
-    const uniqueProcesses = Number(panel.unique_processes || segments.length);
-    const qcRuntime = Number(panel.highlight_totals?.qc_runtime_ms || 0);
-    const otherRuntime = Number(panel.highlight_totals?.other_runtime_ms || 0);
-    const qcPct = totalRuntime > 0 ? (qcRuntime / totalRuntime) * 100.0 : 0.0;
-    const otherPct = totalRuntime > 0 ? (otherRuntime / totalRuntime) * 100.0 : 0.0;
-    const panelTitle = `${panel.pipeline} \u2014 Combined Task Runtime by Process`;
-    const panelSubtitle = `${fmtDurationCompact(totalRuntime)} total compute across ${totalTasks} tasks \u00b7 ${uniqueProcesses} unique processes`;
+      const totalRuntime = Number(panel.total_runtime_ms || 0);
+      const schedulingRuntime = Math.max(0, Number(panel.scheduling_runtime_ms || 0));
+      const totalDuration = Math.max(
+        0,
+        Number(panel.total_duration_ms || (totalRuntime + schedulingRuntime) || totalRuntime)
+      );
+      if (totalDuration <= 0) return null;
 
-    const legendItems = panel.legend && panel.legend.length ? panel.legend : segments;
-    const segmentMap = {};
-    segments.forEach((seg) => { segmentMap[seg.process] = seg; });
+      const totalTasks = Number(panel.total_tasks || 0);
+      const uniqueProcesses = Number(panel.unique_processes || segments.length);
+      const qcRuntime = Number(panel.highlight_totals?.qc_runtime_ms || 0);
+      const otherRuntimeRaw = panel.highlight_totals?.other_runtime_ms;
+      const otherRuntime = Number(otherRuntimeRaw != null ? otherRuntimeRaw : Math.max(0, totalRuntime - qcRuntime));
+      const segmentsForRow = [];
 
-    const chartHeight = 220;
+      if (schedulingRuntime > 0) {
+        segmentsForRow.push({
+          segment_id: '__SCHEDULING__',
+          process: 'Scheduling',
+          runtime_ms: schedulingRuntime,
+          highlight: false,
+          is_scheduling: true,
+        });
+      }
 
-    const panelEl = document.createElement('div');
-    panelEl.className = 'runtime-panel';
-    const chartEl = document.createElement('div');
-    chartEl.className = 'chart combined-runtime-chart';
-    chartEl.style.height = chartHeight + 'px';
-    chartEl.setAttribute('data-panel-id', panel.panel_id || `${panel.pipeline}::${panel.group}`);
-    panelEl.appendChild(chartEl);
+      segments.forEach((seg, idx) => {
+        const runtimeMs = Number(seg.runtime_ms || 0);
+        if (runtimeMs <= 0) return;
+        const processName = String(seg.process || 'unknown');
+        segmentsForRow.push({
+          segment_id: `${idx}:${processName}`,
+          process: processName,
+          runtime_ms: runtimeMs,
+          highlight: Boolean(seg.highlight),
+          is_scheduling: false,
+        });
+      });
+      if (!segmentsForRow.length) return null;
 
-    const series = segments.map((seg, idx) => {
-      const pct = Number(seg.pct || 0);
-      const processName = String(seg.process || 'unknown');
-      const processShort = shortProcessName(processName);
+      const topLabelIds = new Set(
+        [...segmentsForRow]
+          .sort((a, b) => b.runtime_ms - a.runtime_ms || a.process.localeCompare(b.process))
+          .slice(0, 3)
+          .map((seg) => seg.segment_id)
+      );
+
+      const legendBase = panel.legend && panel.legend.length ? panel.legend : segments;
+      const legendItems = [];
+      if (schedulingRuntime > 0) {
+        legendItems.push({
+          process: 'Scheduling',
+          runtime_ms: schedulingRuntime,
+          highlight: false,
+          is_scheduling: true,
+        });
+      }
+      legendBase.forEach((item) => {
+        legendItems.push({
+          process: String(item.process || 'unknown'),
+          runtime_ms: Number(item.runtime_ms || 0),
+          highlight: Boolean(item.highlight),
+          is_scheduling: false,
+        });
+      });
+
       return {
-        name: processName,
+        panel,
+        label: rowLabel(panel),
+        totalRuntimeMs: totalRuntime,
+        schedulingRuntimeMs: schedulingRuntime,
+        totalDurationMs: totalDuration,
+        totalTasks,
+        uniqueProcesses,
+        qcRuntimeMs: qcRuntime,
+        otherRuntimeMs: otherRuntime,
+        segmentsForRow,
+        topLabelIds,
+        legendItems,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.totalDurationMs - a.totalDurationMs || a.label.localeCompare(b.label));
+
+  if (!rows.length) return;
+
+  const processTotals = new Map();
+  rows.forEach((row) => {
+    row.segmentsForRow.forEach((seg) => {
+      if (seg.is_scheduling) return;
+      if (!processTotals.has(seg.process)) {
+        processTotals.set(seg.process, { runtime_ms: 0, highlight: false });
+      }
+      const current = processTotals.get(seg.process);
+      current.runtime_ms += seg.runtime_ms;
+      current.highlight = current.highlight || seg.highlight;
+    });
+  });
+
+  const highlightProcesses = [...processTotals.entries()]
+    .filter(([, meta]) => meta.highlight)
+    .sort((a, b) => b[1].runtime_ms - a[1].runtime_ms || a[0].localeCompare(b[0]))
+    .map(([name]) => name);
+  const neutralProcesses = [...processTotals.entries()]
+    .filter(([, meta]) => !meta.highlight)
+    .sort((a, b) => b[1].runtime_ms - a[1].runtime_ms || a[0].localeCompare(b[0]))
+    .map(([name]) => name);
+
+  const processColor = {};
+  highlightProcesses.forEach((name, idx) => { processColor[name] = highlightColor(idx, highlightProcesses.length); });
+  neutralProcesses.forEach((name, idx) => { processColor[name] = neutralColor(idx, neutralProcesses.length); });
+
+  const schedulingColor = '#F59E0B';
+  const otherLegendColor = '#9AA1AB';
+  const rowCount = rows.length;
+  const maxTotalDurationMs = Math.max(...rows.map((row) => row.totalDurationMs), 1);
+  const uniqueProcessCount = processTotals.size;
+
+  const unifiedChartEl = document.createElement('div');
+  unifiedChartEl.className = 'chart runtime-unified-chart';
+  unifiedChartEl.style.height = Math.max(260, rowCount * 76 + 130) + 'px';
+  container.appendChild(unifiedChartEl);
+
+  const yData = rows.map((row) => row.label);
+  const series = [];
+  const seriesMeta = [];
+
+  rows.forEach((row, rowIdx) => {
+    const rowSegmentCount = row.segmentsForRow.length;
+    row.segmentsForRow.forEach((seg, segIdx) => {
+      const data = new Array(rowCount).fill(0);
+      data[rowIdx] = seg.runtime_ms;
+      const pct = row.totalDurationMs > 0 ? (seg.runtime_ms / row.totalDurationMs) * 100.0 : 0.0;
+      const color = seg.is_scheduling ? schedulingColor : (processColor[seg.process] || '#CFD0D1');
+
+      seriesMeta.push({
+        rowIdx,
+        rowLabel: row.label,
+        process: seg.process,
+        runtimeMs: seg.runtime_ms,
+        pct,
+      });
+
+      series.push({
+        name: seg.process,
         type: 'bar',
-        stack: 'runtime',
-        barWidth: 56,
-        data: [pct],
+        stack: `runtime-${rowIdx}`,
+        barWidth: 36,
+        data,
         itemStyle: {
-          color: colorByProcess[processName] || neutralColor(idx, segments.length),
+          color: color,
           borderColor: '#ffffff',
           borderWidth: 1,
-          borderRadius: idx === 0 ? [6, 0, 0, 6] : (idx === segments.length - 1 ? [0, 6, 6, 0] : 0),
+          borderRadius: segIdx === 0 ? [6, 0, 0, 6] : (segIdx === rowSegmentCount - 1 ? [0, 6, 6, 0] : 0),
         },
         emphasis: { focus: 'series' },
         label: {
-          show: idx < 3,
+          show: true,
           position: 'inside',
-          formatter: () => `${processShort}\n${fmtDurationCompact(seg.runtime_ms)} (${pct.toFixed(1)}%)`,
-          color: '#ffffff',
+          formatter: (p) => {
+            if (p.dataIndex !== rowIdx || Number(p.value || 0) <= 0 || !row.topLabelIds.has(seg.segment_id)) return '';
+            const labelName = seg.is_scheduling ? 'Scheduling' : shortProcessName(seg.process);
+            return `${labelName}\n${fmtDurationCompact(seg.runtime_ms)} (${pct.toFixed(1)}%)`;
+          },
+          color: seg.is_scheduling ? '#111827' : '#ffffff',
           fontSize: 11,
           fontWeight: 600,
           lineHeight: 13,
           overflow: 'truncate',
         },
-      };
+      });
     });
+  });
+
+  const chartOption = {
+    title: {
+      text: 'Combined Task Duration by Process',
+      subtext: `${uniqueProcessCount} unique processes \u00b7 comparing ${rows.length} configurations \u00b7 includes scheduling overhead`,
+      left: 'center',
+      top: 8,
+    },
+    tooltip: {
+      trigger: 'item',
+      formatter: (p) => {
+        const meta = seriesMeta[p.seriesIndex];
+        if (!meta) return '';
+        return `<strong>${escapeHtml(meta.rowLabel)}</strong><br>${escapeHtml(meta.process)}<br>${fmtDurationCompact(meta.runtimeMs)} (${meta.pct.toFixed(1)}%)`;
+      },
+    },
+    grid: {
+      top: 84,
+      bottom: 20,
+      left: 250,
+      right: 18,
+      containLabel: false,
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: maxTotalDurationMs,
+      show: false,
+    },
+    yAxis: {
+      type: 'category',
+      inverse: true,
+      data: yData,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        color: '{{ brand_heading }}',
+        fontWeight: 600,
+        lineHeight: 18,
+        formatter: (value, idx) => {
+          const row = rows[idx];
+          if (!row) return value;
+          return `${value}\n${fmtDurationCompact(row.totalDurationMs)} \u00b7 ${row.totalTasks} tasks`;
+        },
+      },
+    },
+    series: series,
+  };
+
+  const deferInit = (cb) => {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(cb);
+      return;
+    }
+    setTimeout(cb, 0);
+  };
+
+  function initUnifiedRuntimeChart(retry) {
+    const rect = unifiedChartEl.getBoundingClientRect();
+    if ((rect.width === 0 || rect.height === 0) && !retry) {
+      deferInit(() => initUnifiedRuntimeChart(true));
+      return;
+    }
+    const chart = echarts.init(unifiedChartEl, 'seqera');
+    chart.setOption(chartOption);
+    deferInit(() => chart.resize());
+  }
+
+  deferInit(() => initUnifiedRuntimeChart(false));
+
+  const detailsListEl = document.createElement('div');
+  detailsListEl.className = 'runtime-details-list';
+
+  rows.forEach((row) => {
+    const detailCard = document.createElement('div');
+    detailCard.className = 'runtime-detail-card';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'runtime-detail-title';
+    titleEl.textContent = `${row.label} \u00b7 ${fmtDurationCompact(row.totalDurationMs)} across ${row.totalTasks} tasks \u00b7 ${row.uniqueProcesses} unique processes`;
+    detailCard.appendChild(titleEl);
 
     const table = document.createElement('table');
     table.className = 'runtime-detail-table';
@@ -822,91 +1036,42 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
         </tr>
       </thead>
       <tbody>
-        ${legendItems.map((item) => {
+        ${row.legendItems.map((item) => {
           const fullName = String(item.process || 'unknown');
           const fullNameEsc = escapeHtml(fullName);
-          const shortNameEsc = escapeHtml(shortProcessName(fullName));
-          const pct = Number(item.pct || 0).toFixed(1);
-          const swatch = colorByProcess[fullName] || '#CFD0D1';
+          const shortNameEsc = escapeHtml(item.is_scheduling ? 'Scheduling' : shortProcessName(fullName));
+          const runtimeMs = Number(item.runtime_ms || 0);
+          const pct = row.totalDurationMs > 0 ? ((runtimeMs / row.totalDurationMs) * 100.0) : 0.0;
+          let swatch = '#CFD0D1';
+          if (item.is_scheduling) swatch = schedulingColor;
+          else if (processColor[fullName]) swatch = processColor[fullName];
+          else if (fullName.startsWith('Other (')) swatch = otherLegendColor;
           return `<tr title="${fullNameEsc}">
             <td><span class="runtime-swatch" style="background:${swatch}"></span>${shortNameEsc}</td>
-            <td class="num">${fmtDurationCompact(item.runtime_ms)}</td>
-            <td class="num">${pct}%</td>
+            <td class="num">${fmtDurationCompact(runtimeMs)}</td>
+            <td class="num">${pct.toFixed(1)}%</td>
           </tr>`;
         }).join('')}
       </tbody>
     `;
-    panelEl.appendChild(table);
+    detailCard.appendChild(table);
 
+    const schedulingPct = row.totalDurationMs > 0 ? (row.schedulingRuntimeMs / row.totalDurationMs) * 100.0 : 0.0;
+    const qcPct = row.totalDurationMs > 0 ? (row.qcRuntimeMs / row.totalDurationMs) * 100.0 : 0.0;
+    const otherPct = row.totalDurationMs > 0 ? (row.otherRuntimeMs / row.totalDurationMs) * 100.0 : 0.0;
     const summary = document.createElement('div');
     summary.className = 'runtime-summary';
     summary.innerHTML = `
-      <span class="runtime-summary-pill"><span class="runtime-swatch" style="background:#31C9AC"></span>QC: ${fmtDurationCompact(qcRuntime)} (${qcPct.toFixed(0)}%)</span>
-      <span class="runtime-summary-pill"><span class="runtime-swatch" style="background:#CFD0D1"></span>Other: ${fmtDurationCompact(otherRuntime)} (${otherPct.toFixed(0)}%)</span>
+      <span class="runtime-summary-pill"><span class="runtime-swatch" style="background:${schedulingColor}"></span>Scheduling: ${fmtDurationCompact(row.schedulingRuntimeMs)} (${schedulingPct.toFixed(0)}%)</span>
+      <span class="runtime-summary-pill"><span class="runtime-swatch" style="background:#31C9AC"></span>QC: ${fmtDurationCompact(row.qcRuntimeMs)} (${qcPct.toFixed(0)}%)</span>
+      <span class="runtime-summary-pill"><span class="runtime-swatch" style="background:#CFD0D1"></span>Other: ${fmtDurationCompact(row.otherRuntimeMs)} (${otherPct.toFixed(0)}%)</span>
     `;
-    panelEl.appendChild(summary);
+    detailCard.appendChild(summary);
 
-    container.appendChild(panelEl);
-
-    const chartOption = {
-      title: {
-        text: panelTitle,
-        subtext: panelSubtitle,
-        left: 'center',
-        top: 8,
-      },
-      tooltip: {
-        trigger: 'item',
-        formatter: (p) => {
-          const seg = segmentMap[p.seriesName];
-          if (!seg) return '';
-          return `<strong>${p.seriesName}</strong><br>${fmtDurationCompact(seg.runtime_ms)} (${Number(seg.pct || 0).toFixed(1)}%)`;
-        },
-      },
-      grid: {
-        top: 74,
-        bottom: 20,
-        left: 18,
-        right: 18,
-        containLabel: true,
-      },
-      xAxis: {
-        type: 'value',
-        min: 0,
-        max: 100,
-        show: false,
-      },
-      yAxis: {
-        type: 'category',
-        data: ['Combined runtime'],
-        axisLine: { show: false },
-        axisTick: { show: false },
-        axisLabel: { show: false },
-      },
-      series: series,
-    };
-
-    const deferInit = (cb) => {
-      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-        window.requestAnimationFrame(cb);
-        return;
-      }
-      setTimeout(cb, 0);
-    };
-
-    function initCombinedRuntimeChart(retry) {
-      const rect = chartEl.getBoundingClientRect();
-      if ((rect.width === 0 || rect.height === 0) && !retry) {
-        deferInit(() => initCombinedRuntimeChart(true));
-        return;
-      }
-      const chart = echarts.init(chartEl, 'seqera');
-      chart.setOption(chartOption);
-      deferInit(() => chart.resize());
-    }
-
-    deferInit(() => initCombinedRuntimeChart(false));
+    detailsListEl.appendChild(detailCard);
   });
+
+  container.appendChild(detailsListEl);
 })();
 
 // 5.1 Task instance usage
