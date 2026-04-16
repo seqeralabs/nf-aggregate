@@ -811,44 +811,6 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       };
     });
 
-    echarts.init(chartEl, 'seqera').setOption({
-      title: {
-        text: panelTitle,
-        subtext: panelSubtitle,
-        left: 'center',
-        top: 8,
-      },
-      tooltip: {
-        trigger: 'item',
-        formatter: (p) => {
-          const seg = segmentMap[p.seriesName];
-          if (!seg) return '';
-          return `<strong>${p.seriesName}</strong><br>${fmtDurationCompact(seg.runtime_ms)} (${Number(seg.pct || 0).toFixed(1)}%)`;
-        },
-      },
-      grid: {
-        top: 74,
-        bottom: 20,
-        left: 18,
-        right: 18,
-        containLabel: true,
-      },
-      xAxis: {
-        type: 'value',
-        min: 0,
-        max: 100,
-        show: false,
-      },
-      yAxis: {
-        type: 'category',
-        data: ['Combined runtime'],
-        axisLine: { show: false },
-        axisTick: { show: false },
-        axisLabel: { show: false },
-      },
-      series: series,
-    });
-
     const table = document.createElement('table');
     table.className = 'runtime-detail-table';
     table.innerHTML = `
@@ -885,6 +847,65 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
     panelEl.appendChild(summary);
 
     container.appendChild(panelEl);
+
+    const chartOption = {
+      title: {
+        text: panelTitle,
+        subtext: panelSubtitle,
+        left: 'center',
+        top: 8,
+      },
+      tooltip: {
+        trigger: 'item',
+        formatter: (p) => {
+          const seg = segmentMap[p.seriesName];
+          if (!seg) return '';
+          return `<strong>${p.seriesName}</strong><br>${fmtDurationCompact(seg.runtime_ms)} (${Number(seg.pct || 0).toFixed(1)}%)`;
+        },
+      },
+      grid: {
+        top: 74,
+        bottom: 20,
+        left: 18,
+        right: 18,
+        containLabel: true,
+      },
+      xAxis: {
+        type: 'value',
+        min: 0,
+        max: 100,
+        show: false,
+      },
+      yAxis: {
+        type: 'category',
+        data: ['Combined runtime'],
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { show: false },
+      },
+      series: series,
+    };
+
+    const deferInit = (cb) => {
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(cb);
+        return;
+      }
+      setTimeout(cb, 0);
+    };
+
+    function initCombinedRuntimeChart(retry) {
+      const rect = chartEl.getBoundingClientRect();
+      if ((rect.width === 0 || rect.height === 0) && !retry) {
+        deferInit(() => initCombinedRuntimeChart(true));
+        return;
+      }
+      const chart = echarts.init(chartEl, 'seqera');
+      chart.setOption(chartOption);
+      deferInit(() => chart.resize());
+    }
+
+    deferInit(() => initCombinedRuntimeChart(false));
   });
 })();
 

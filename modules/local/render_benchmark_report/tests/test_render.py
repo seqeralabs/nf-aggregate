@@ -1,7 +1,5 @@
 import json
 
-import pytest
-
 from benchmark_report_render import REPORT_TEMPLATE, load_brand, render_html, render_report_from_json
 
 
@@ -64,7 +62,6 @@ def test_render_backwards_compatible_without_combined_runtime_key(tmp_path, mini
     assert "const panels = DATA.combined_task_runtime || [];" in text
 
 
-@pytest.mark.xfail(strict=True, reason="combined runtime chart initialized before panel is attached")
 def test_combined_runtime_chart_init_after_attach(tmp_path, minimal_report_data):
     data = dict(minimal_report_data)
     data["combined_task_runtime"] = [
@@ -91,12 +88,13 @@ def test_combined_runtime_chart_init_after_attach(tmp_path, minimal_report_data)
     text = out.read_text()
 
     append_idx = text.find("container.appendChild(panelEl);")
-    init_idx = text.find("echarts.init(chartEl, 'seqera').setOption({")
+    init_idx = text.find("const chart = echarts.init(chartEl, 'seqera');")
     assert append_idx != -1
     assert init_idx != -1
     assert append_idx < init_idx
-    assert "requestAnimationFrame" in text
+    assert "window.requestAnimationFrame" in text
     assert "chartEl.getBoundingClientRect()" in text
+    assert "initCombinedRuntimeChart(true)" in text
 
 
 def test_render_report_from_json(tmp_path, minimal_report_data):
