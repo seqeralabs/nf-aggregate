@@ -43,6 +43,12 @@ def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data)
     assert 'id="combined-task-runtime"' in text
     assert 'id="combined-runtime-panels"' in text
     assert "DATA.combined_task_runtime" in text
+    assert "combined-runtime-chart" in text
+    assert "runtime-detail-table" in text
+    assert "runtime-summary-pill" in text
+    assert "table.className = 'runtime-detail-table';" in text
+    assert "buildChipGraphic" not in text
+    assert "selectedMode: false" not in text
 
 
 def test_render_backwards_compatible_without_combined_runtime_key(tmp_path, minimal_report_data):
@@ -53,6 +59,7 @@ def test_render_backwards_compatible_without_combined_runtime_key(tmp_path, mini
     text = out.read_text()
     assert "Combined task runtime" in text
     assert "combined-runtime-panels" in text
+    assert "const panels = DATA.combined_task_runtime || [];" in text
 
 
 def test_render_report_from_json(tmp_path, minimal_report_data):

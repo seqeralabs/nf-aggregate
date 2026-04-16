@@ -82,77 +82,71 @@
 
   .runtime-panels { display: flex; flex-direction: column; gap: 18px; }
   .runtime-panel {
-    background: #000000;
-    color: #e6edf3;
-    border: 1px solid #30363d;
+    border: 1px solid {{ brand_border }};
     border-radius: 10px;
-    padding: 16px;
+    background: {{ brand_white }};
+    padding: 12px;
   }
-  .runtime-panel-title { font-size: 18px; font-weight: 600; color: #e6edf3; margin-bottom: 4px; }
-  .runtime-panel-subtitle { font-size: 13px; color: #7d8590; margin-bottom: 12px; }
-  .runtime-bar-shell {
-    border: 1px solid #30363d;
-    border-radius: 9px;
-    overflow: hidden;
-    height: 60px;
-    display: flex;
+  .combined-runtime-chart {
+    border: 1px solid {{ brand_border }};
+    border-radius: 8px;
+    background: {{ brand_white }};
     margin-bottom: 10px;
-    background: #101010;
   }
-  .runtime-segment {
-    min-width: 1px;
-    height: 100%;
-    position: relative;
-    border-right: 1px solid rgba(0,0,0,.35);
+  .runtime-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    table-layout: fixed;
+    margin-bottom: 10px;
   }
-  .runtime-segment-label {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-    color: #000000;
-    font-size: 11px;
-    line-height: 1.2;
-    font-weight: 700;
-    pointer-events: none;
+  .runtime-detail-table th {
+    text-align: left;
+    background: {{ brand_neutral }};
+    color: {{ brand_heading }};
+    border-bottom: 1px solid {{ brand_border }};
+    padding: 6px 8px;
+    font-weight: 600;
+  }
+  .runtime-detail-table td {
+    border-bottom: 1px solid {{ brand_border }};
+    padding: 5px 8px;
+    color: {{ brand_heading }};
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .runtime-chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-  .runtime-chip {
+  .runtime-detail-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .runtime-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 6px;
+    vertical-align: -1px;
+  }
+  .runtime-summary {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .runtime-summary-pill {
+    border: 1px solid {{ brand_border }};
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: {{ brand_heading }};
+    background: {{ brand_neutral }};
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    border: 1px solid #30363d;
-    background: #0f1115;
-    border-radius: 999px;
-    font-size: 12px;
-    padding: 3px 10px;
-    color: #c9d1d9;
-  }
-  .runtime-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-  .runtime-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
-  .runtime-legend-item { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; }
-  .runtime-legend-name {
-    font-family: Menlo, Consolas, monospace;
-    font-size: 11px;
-    color: #b0b0b0;
-    line-height: 1.25;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .runtime-legend-val {
-    font-size: 11px;
-    color: #7d8590;
-    white-space: nowrap;
   }
 
   @media (max-width: 900px) {
     .side-nav { display: none; }
     .main-content { margin-left: 0; }
     .chart-row { grid-template-columns: 1fr; }
-    .runtime-legend { grid-template-columns: 1fr; }
+    .runtime-detail-table { font-size: 11px; }
   }
 
   .text-muted { color: {{ brand_border }}; }
@@ -734,18 +728,23 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
   if (!container) return;
 
   function neutralColor(idx, total) {
-    const start = 228;
-    const end = 96;
-    const scale = total > 1 ? idx / (total - 1) : 0;
-    const shade = Math.round(start - (start - end) * scale);
-    return `rgb(${shade}, ${shade}, ${shade})`;
-  }
-
-  function highlightColor(idx, total) {
-    const palette = ['#b3e5fc', '#9ad6f2', '#7bc0e3', '#5ea9d5', '#418ec0', '#2672a9', '#0f619f', '#01579b'];
+    const palette = ['#CFD0D1', '#B9BEC4', '#A5ACB4', '#919AA4', '#7E8895', '#6C7887'];
     if (total <= palette.length) return palette[idx % palette.length];
     const scaled = Math.floor((idx / (total - 1)) * (palette.length - 1));
     return palette[scaled];
+  }
+
+  function highlightColor(idx, total) {
+    const palette = ['#31C9AC', '#1DA18A', '#087F68', '#1F8F7E', '#45A1BF', '#3E86A9', '#2E6D93'];
+    if (total <= palette.length) return palette[idx % palette.length];
+    const scaled = Math.floor((idx / (total - 1)) * (palette.length - 1));
+    return palette[scaled];
+  }
+
+  function shortProcessName(name) {
+    if (!name) return 'unknown';
+    const parts = String(name).split(':');
+    return parts[parts.length - 1] || String(name);
   }
 
   panels.forEach(panel => {
@@ -768,41 +767,123 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
     const panelTitle = `${panel.pipeline} \u2014 Combined Task Runtime by Process`;
     const panelSubtitle = `${fmtDurationCompact(totalRuntime)} total compute across ${totalTasks} tasks \u00b7 ${uniqueProcesses} unique processes`;
 
-    const barHtml = segments.map(seg => {
-      const pct = Number(seg.pct || 0);
-      const processShort = String(seg.process || '').split(':').pop() || String(seg.process || '');
-      const label = pct >= 6
-        ? `<div class="runtime-segment-label">${escapeHtml(processShort)}<br>${fmtDurationCompact(seg.runtime_ms)} (${pct.toFixed(1)}%)</div>`
-        : '';
-      return `<div class="runtime-segment" style="width:${Math.max(pct, 0)}%;background:${colorByProcess[seg.process] || '#888'}" title="${escapeHtml(seg.process)}: ${fmtDurationCompact(seg.runtime_ms)} (${pct.toFixed(1)}%)">${label}</div>`;
-    }).join('');
+    const legendItems = panel.legend && panel.legend.length ? panel.legend : segments;
+    const segmentMap = {};
+    segments.forEach((seg) => { segmentMap[seg.process] = seg; });
 
-    const legend = panel.legend || [];
-    const legendHtml = legend.map(seg => {
-      const pct = Number(seg.pct || 0);
-      const labelColor = seg.highlight ? '#a0c4e8' : '#b0b0b0';
-      const swatch = colorByProcess[seg.process] || '#555555';
-      return `
-        <div class="runtime-legend-item">
-          <span class="runtime-dot" style="background:${swatch}"></span>
-          <span class="runtime-legend-name" style="color:${labelColor}" title="${escapeHtml(seg.process)}">${escapeHtml(seg.process)}</span>
-          <span class="runtime-legend-val">${fmtDurationCompact(seg.runtime_ms)} (${pct.toFixed(1)}%)</span>
-        </div>
-      `;
-    }).join('');
+    const chartHeight = 220;
 
     const panelEl = document.createElement('div');
     panelEl.className = 'runtime-panel';
-    panelEl.innerHTML = `
-      <div class="runtime-panel-title">${escapeHtml(panelTitle)}</div>
-      <div class="runtime-panel-subtitle">${escapeHtml(panelSubtitle)}</div>
-      <div class="runtime-bar-shell">${barHtml}</div>
-      <div class="runtime-chip-row">
-        <span class="runtime-chip"><span class="runtime-dot" style="background:#4FC3F7"></span>QC: ${fmtDurationCompact(qcRuntime)} (${qcPct.toFixed(0)}%)</span>
-        <span class="runtime-chip"><span class="runtime-dot" style="background:#9E9E9E"></span>Other: ${fmtDurationCompact(otherRuntime)} (${otherPct.toFixed(0)}%)</span>
-      </div>
-      <div class="runtime-legend">${legendHtml}</div>
+    const chartEl = document.createElement('div');
+    chartEl.className = 'chart combined-runtime-chart';
+    chartEl.style.height = chartHeight + 'px';
+    chartEl.setAttribute('data-panel-id', panel.panel_id || `${panel.pipeline}::${panel.group}`);
+    panelEl.appendChild(chartEl);
+
+    const series = segments.map((seg, idx) => {
+      const pct = Number(seg.pct || 0);
+      const processName = String(seg.process || 'unknown');
+      const processShort = shortProcessName(processName);
+      return {
+        name: processName,
+        type: 'bar',
+        stack: 'runtime',
+        barWidth: 56,
+        data: [pct],
+        itemStyle: {
+          color: colorByProcess[processName] || neutralColor(idx, segments.length),
+          borderColor: '#ffffff',
+          borderWidth: 1,
+          borderRadius: idx === 0 ? [6, 0, 0, 6] : (idx === segments.length - 1 ? [0, 6, 6, 0] : 0),
+        },
+        emphasis: { focus: 'series' },
+        label: {
+          show: idx < 3,
+          position: 'inside',
+          formatter: () => `${processShort}\n${fmtDurationCompact(seg.runtime_ms)} (${pct.toFixed(1)}%)`,
+          color: '#ffffff',
+          fontSize: 11,
+          fontWeight: 600,
+          lineHeight: 13,
+          overflow: 'truncate',
+        },
+      };
+    });
+
+    echarts.init(chartEl, 'seqera').setOption({
+      title: {
+        text: panelTitle,
+        subtext: panelSubtitle,
+        left: 'center',
+        top: 8,
+      },
+      tooltip: {
+        trigger: 'item',
+        formatter: (p) => {
+          const seg = segmentMap[p.seriesName];
+          if (!seg) return '';
+          return `<strong>${p.seriesName}</strong><br>${fmtDurationCompact(seg.runtime_ms)} (${Number(seg.pct || 0).toFixed(1)}%)`;
+        },
+      },
+      grid: {
+        top: 74,
+        bottom: 20,
+        left: 18,
+        right: 18,
+        containLabel: true,
+      },
+      xAxis: {
+        type: 'value',
+        min: 0,
+        max: 100,
+        show: false,
+      },
+      yAxis: {
+        type: 'category',
+        data: ['Combined runtime'],
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { show: false },
+      },
+      series: series,
+    });
+
+    const table = document.createElement('table');
+    table.className = 'runtime-detail-table';
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th style="width:56%">Process</th>
+          <th style="width:22%;text-align:right">Duration</th>
+          <th style="width:22%;text-align:right">Percent</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${legendItems.map((item) => {
+          const fullName = String(item.process || 'unknown');
+          const fullNameEsc = escapeHtml(fullName);
+          const shortNameEsc = escapeHtml(shortProcessName(fullName));
+          const pct = Number(item.pct || 0).toFixed(1);
+          const swatch = colorByProcess[fullName] || '#CFD0D1';
+          return `<tr title="${fullNameEsc}">
+            <td><span class="runtime-swatch" style="background:${swatch}"></span>${shortNameEsc}</td>
+            <td class="num">${fmtDurationCompact(item.runtime_ms)}</td>
+            <td class="num">${pct}%</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
     `;
+    panelEl.appendChild(table);
+
+    const summary = document.createElement('div');
+    summary.className = 'runtime-summary';
+    summary.innerHTML = `
+      <span class="runtime-summary-pill"><span class="runtime-swatch" style="background:#31C9AC"></span>QC: ${fmtDurationCompact(qcRuntime)} (${qcPct.toFixed(0)}%)</span>
+      <span class="runtime-summary-pill"><span class="runtime-swatch" style="background:#CFD0D1"></span>Other: ${fmtDurationCompact(otherRuntime)} (${otherPct.toFixed(0)}%)</span>
+    `;
+    panelEl.appendChild(summary);
+
     container.appendChild(panelEl);
   });
 })();
