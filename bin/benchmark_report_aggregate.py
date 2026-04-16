@@ -131,6 +131,7 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
                 "username": r.get("username"),
                 "status": r.get("status"),
                 "status_label": status_label,
+                "report_included": report_included,
                 "Version": r.get("pipeline_version"),
                 "Nextflow_version": r.get("nextflow_version"),
                 "platform_version": r.get("platform_version"),

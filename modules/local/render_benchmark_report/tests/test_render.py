@@ -14,15 +14,17 @@ def test_render_html(tmp_path, minimal_report_data):
     text = out.read_text()
     assert "Pipeline benchmarking report" in text
     assert "run1" in text
-    assert "Excluded from downstream sections" in text
     assert "Workflow status" in text
-    assert "Included in downstream sections" in text
     assert "Workflow outcome" in text
-    assert "Included in report" in text
+    assert "Included in report" not in text
+    assert "Included in downstream sections" not in text
+    assert "Excluded from downstream sections" not in text
     assert "Benchmark overview" not in text
     assert 'id="benchmark-overview"' not in text
     assert 'id="overview-matrix"' not in text
     assert 'href="#benchmark-overview"' not in text
+    assert "!r.report_included" in text
+    assert "rgba(220, 53, 69, 0.14)" in text
 
 
 def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data):

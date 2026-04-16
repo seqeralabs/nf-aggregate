@@ -393,24 +393,20 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
   if (!runs.length) return;
   const cols = [
     ['Pipeline name','pipeline'], ['Group','group'], ['Run ID','run_id'],
-    ['Workflow outcome','status_label'], ['Included in report','report_included'],
+    ['Workflow outcome','status_label'],
     ['User name','username'], ['Pipeline version','Version'],
     ['Nextflow version','Nextflow_version'], ['Platform version','platform_version'],
     ['Tasks succeeded','succeedCount'], ['Tasks failed','failedCount'],
-    ['Tasks cached','cachedCount'],
-    ['Executor','executor'], ['Region','region'],
+    ['Tasks cached','cachedCount'], ['Executor','executor'], ['Region','region'],
     ['Fusion enabled','fusion_enabled'], ['Wave enabled','wave_enabled'],
   ];
   const table = document.getElementById('run-summary-table');
   let html = '<thead><tr>' + cols.map(c => '<th>'+c[0]+'</th>').join('') + '</tr></thead><tbody>';
   runs.forEach((r,i) => {
-    const bg = groupColor[r.group] || '{{ brand_border }}';
-    html += `<tr style="background:${bg}22">`;
+    const bg = !r.report_included ? 'rgba(220, 53, 69, 0.14)' : (groupColor[r.group] || '{{ brand_border }}');
+    html += `<tr style="background:${bg}">`;
     cols.forEach(c => {
-      let value = r[c[1]];
-      if (c[1] === 'report_included') {
-        value = value ? 'Included in downstream sections' : 'Excluded from downstream sections';
-      }
+      const value = r[c[1]];
       html += '<td>' + (value != null ? value : '\u2014') + '</td>';
     });
     html += '</tr>';
