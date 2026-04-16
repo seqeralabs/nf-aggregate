@@ -104,7 +104,7 @@ def minimal_report_data():
                 "report_included": True,
             }
         ],
-        "run_summary": [{"group": "cpu", "run_id": "run1", "cachedCount": 1, "status": "SUCCEEDED", "status_label": "Succeeded"}],
+        "run_summary": [{"group": "cpu", "run_id": "run1", "cachedCount": 1, "status": "SUCCEEDED", "status_label": "Succeeded", "status_category": "success", "report_included": True}],
         "run_metrics": [{"group": "cpu", "run_id": "run1"}],
         "run_costs": [{"group": "cpu", "run_id": "run1", "cost": 1.0, "used_cost": 1.0, "unused_cost": 0.0}],
         "process_stats": [],

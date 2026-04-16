@@ -23,8 +23,11 @@ def test_render_html(tmp_path, minimal_report_data):
     assert 'id="benchmark-overview"' not in text
     assert 'id="overview-matrix"' not in text
     assert 'href="#benchmark-overview"' not in text
-    assert "!r.report_included" in text
-    assert "rgba(220, 53, 69, 0.14)" in text
+    assert "status-badge" in text
+    assert "badgeClass" in text
+    assert ".status-badge.success" in text
+    assert "<tr style=\"background:" not in text
+    assert "rgba(220, 53, 69, 0.14)' :" not in text
 
 
 def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data):

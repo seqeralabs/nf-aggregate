@@ -58,6 +58,13 @@
   .dl-row dt { font-weight: 600; color: {{ brand_heading }}; }
   .dl-row dd { color: {{ brand_heading }}; margin-right: 15px; }
 
+  .status-badge { display: inline-block; padding: 1px 8px; border-radius: 9999px; font-size: 11px;
+                   font-weight: 600; line-height: 1.6; white-space: nowrap; }
+  .status-badge.success { background: rgba(25, 135, 84, 0.12); color: #146c43; }
+  .status-badge.failed { background: rgba(220, 53, 69, 0.14); color: #b02a37; }
+  .status-badge.cancelled { background: rgba(255, 193, 7, 0.18); color: #997404; }
+  .status-badge.unknown { background: rgba(108, 117, 125, 0.14); color: #495057; }
+
   footer { border-top: 1px solid {{ brand_border }}; padding: 15px 0; margin-top: 40px;
            font-size: 12px; color: {{ brand_border }}; text-align: center; }
   footer a { color: {{ brand_accent }}; text-decoration: none; }
@@ -402,12 +409,22 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
   ];
   const table = document.getElementById('run-summary-table');
   let html = '<thead><tr>' + cols.map(c => '<th>'+c[0]+'</th>').join('') + '</tr></thead><tbody>';
+  const badgeClass = (r) => {
+    const cat = (r.status_category || '').toLowerCase();
+    if (cat === 'success') return 'success';
+    if (cat === 'failed') return 'failed';
+    if (cat === 'cancelled') return 'cancelled';
+    return 'unknown';
+  };
   runs.forEach((r,i) => {
-    const bg = !r.report_included ? 'rgba(220, 53, 69, 0.14)' : (groupColor[r.group] || '{{ brand_border }}');
-    html += `<tr style="background:${bg}">`;
+    html += '<tr>';
     cols.forEach(c => {
       const value = r[c[1]];
-      html += '<td>' + (value != null ? value : '\u2014') + '</td>';
+      if (c[1] === 'status_label') {
+        html += '<td><span class="status-badge ' + badgeClass(r) + '">' + (value || '\u2014') + '</span></td>';
+      } else {
+        html += '<td>' + (value != null ? value : '\u2014') + '</td>';
+      }
     });
     html += '</tr>';
   });
