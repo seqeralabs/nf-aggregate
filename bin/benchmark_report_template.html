@@ -80,10 +80,79 @@
              background: {{ brand_white }}; padding: 2px 10px; border-radius: 3px; text-decoration: none; }
   .csv-btn:hover { background: {{ brand_neutral }}; }
 
+  .runtime-panels { display: flex; flex-direction: column; gap: 18px; }
+  .runtime-panel {
+    background: #000000;
+    color: #e6edf3;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .runtime-panel-title { font-size: 18px; font-weight: 600; color: #e6edf3; margin-bottom: 4px; }
+  .runtime-panel-subtitle { font-size: 13px; color: #7d8590; margin-bottom: 12px; }
+  .runtime-bar-shell {
+    border: 1px solid #30363d;
+    border-radius: 9px;
+    overflow: hidden;
+    height: 60px;
+    display: flex;
+    margin-bottom: 10px;
+    background: #101010;
+  }
+  .runtime-segment {
+    min-width: 1px;
+    height: 100%;
+    position: relative;
+    border-right: 1px solid rgba(0,0,0,.35);
+  }
+  .runtime-segment-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: #000000;
+    font-size: 11px;
+    line-height: 1.2;
+    font-weight: 700;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .runtime-chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .runtime-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #30363d;
+    background: #0f1115;
+    border-radius: 999px;
+    font-size: 12px;
+    padding: 3px 10px;
+    color: #c9d1d9;
+  }
+  .runtime-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .runtime-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+  .runtime-legend-item { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; }
+  .runtime-legend-name {
+    font-family: Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: #b0b0b0;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .runtime-legend-val {
+    font-size: 11px;
+    color: #7d8590;
+    white-space: nowrap;
+  }
+
   @media (max-width: 900px) {
     .side-nav { display: none; }
     .main-content { margin-left: 0; }
     .chart-row { grid-template-columns: 1fr; }
+    .runtime-legend { grid-template-columns: 1fr; }
   }
 
   .text-muted { color: {{ brand_border }}; }
@@ -119,6 +188,7 @@
   <a href="#run-summary" class="l2"><svg class="nav-icon"><use href="#ic-table"/></svg> Run summary</a>
   <a href="#run-metrics" class="l2"><svg class="nav-icon"><use href="#ic-chart"/></svg> Run metrics</a>
   <a href="#process-overview"><svg class="nav-icon"><use href="#ic-process"/></svg> Process overview</a>
+  <a href="#combined-task-runtime" class="l2"><svg class="nav-icon"><use href="#ic-chart"/></svg> Combined task runtime</a>
   <a href="#task-overview"><svg class="nav-icon"><use href="#ic-task"/></svg> Task overview</a>
   <a href="#task-instance-usage" class="l2"><svg class="nav-icon"><use href="#ic-instance"/></svg> Instance usage</a>
   <a href="#task-metrics" class="l2"><svg class="nav-icon"><use href="#ic-scatter"/></svg> Task metrics</a>
@@ -214,7 +284,17 @@
     <div id="process-sections"></div>
   </div>
 
-  <!-- 4. Task overview -->
+  <!-- 4. Combined task runtime -->
+  <div class="section" id="combined-task-runtime">
+    <h1><svg class="h-icon"><use href="#ic-chart"/></svg> Combined task runtime</h1>
+    <p class="section-desc">
+      <strong>Summary</strong><br>
+      Combined task real-time by process, split per pipeline and group. Highlights emphasize QC-like processes.
+    </p>
+    <div id="combined-runtime-panels" class="runtime-panels"></div>
+  </div>
+
+  <!-- 5. Task overview -->
   <div class="section" id="task-overview">
     <h1><svg class="h-icon"><use href="#ic-task"/></svg> Task overview</h1>
     <p class="section-desc">
@@ -260,10 +340,27 @@ function fmtDuration(ms) {
   if (h > 0) return h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
   return m + ':' + String(s).padStart(2,'0');
 }
+function fmtDurationCompact(ms) {
+  if (ms == null || ms <= 0) return '0m';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
 function fmtCost(v) { return v != null ? '$' + Number(v).toFixed(2) : '\u2014'; }
 function fmtPct(v) { return v != null ? Number(v).toFixed(1) + '%' : '\u2014'; }
 function fmtGB(v) { return v != null ? Number(v).toLocaleString() : '\u2014'; }
 function fmtHours(v) { return v != null ? Number(v).toFixed(1) : '\u2014'; }
+function escapeHtml(v) {
+  return String(v)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
 
 function takeaway(labels, values, opts) {
   opts = opts || {};
@@ -628,7 +725,89 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
   });
 })();
 
-// 4.1 Task instance usage
+// 4. Combined task runtime by process
+(function() {
+  const panels = DATA.combined_task_runtime || [];
+  if (!panels.length) return;
+
+  const container = document.getElementById('combined-runtime-panels');
+  if (!container) return;
+
+  function neutralColor(idx, total) {
+    const start = 228;
+    const end = 96;
+    const scale = total > 1 ? idx / (total - 1) : 0;
+    const shade = Math.round(start - (start - end) * scale);
+    return `rgb(${shade}, ${shade}, ${shade})`;
+  }
+
+  function highlightColor(idx, total) {
+    const palette = ['#b3e5fc', '#9ad6f2', '#7bc0e3', '#5ea9d5', '#418ec0', '#2672a9', '#0f619f', '#01579b'];
+    if (total <= palette.length) return palette[idx % palette.length];
+    const scaled = Math.floor((idx / (total - 1)) * (palette.length - 1));
+    return palette[scaled];
+  }
+
+  panels.forEach(panel => {
+    const segments = panel.segments || [];
+    if (!segments.length) return;
+
+    const highlightSegments = segments.filter(s => s.highlight);
+    const neutralSegments = segments.filter(s => !s.highlight);
+    const colorByProcess = {};
+    highlightSegments.forEach((s, i) => { colorByProcess[s.process] = highlightColor(i, highlightSegments.length); });
+    neutralSegments.forEach((s, i) => { colorByProcess[s.process] = neutralColor(i, neutralSegments.length); });
+
+    const totalRuntime = Number(panel.total_runtime_ms || 0);
+    const totalTasks = Number(panel.total_tasks || 0);
+    const uniqueProcesses = Number(panel.unique_processes || segments.length);
+    const qcRuntime = Number(panel.highlight_totals?.qc_runtime_ms || 0);
+    const otherRuntime = Number(panel.highlight_totals?.other_runtime_ms || 0);
+    const qcPct = totalRuntime > 0 ? (qcRuntime / totalRuntime) * 100.0 : 0.0;
+    const otherPct = totalRuntime > 0 ? (otherRuntime / totalRuntime) * 100.0 : 0.0;
+    const panelTitle = `${panel.pipeline} \u2014 Combined Task Runtime by Process`;
+    const panelSubtitle = `${fmtDurationCompact(totalRuntime)} total compute across ${totalTasks} tasks \u00b7 ${uniqueProcesses} unique processes`;
+
+    const barHtml = segments.map(seg => {
+      const pct = Number(seg.pct || 0);
+      const processShort = String(seg.process || '').split(':').pop() || String(seg.process || '');
+      const label = pct >= 6
+        ? `<div class="runtime-segment-label">${escapeHtml(processShort)}<br>${fmtDurationCompact(seg.runtime_ms)} (${pct.toFixed(1)}%)</div>`
+        : '';
+      return `<div class="runtime-segment" style="width:${Math.max(pct, 0)}%;background:${colorByProcess[seg.process] || '#888'}" title="${escapeHtml(seg.process)}: ${fmtDurationCompact(seg.runtime_ms)} (${pct.toFixed(1)}%)">${label}</div>`;
+    }).join('');
+
+    const legend = panel.legend || [];
+    const legendHtml = legend.map(seg => {
+      const pct = Number(seg.pct || 0);
+      const labelColor = seg.highlight ? '#a0c4e8' : '#b0b0b0';
+      const swatch = colorByProcess[seg.process] || '#555555';
+      return `
+        <div class="runtime-legend-item">
+          <span class="runtime-dot" style="background:${swatch}"></span>
+          <span class="runtime-legend-name" style="color:${labelColor}" title="${escapeHtml(seg.process)}">${escapeHtml(seg.process)}</span>
+          <span class="runtime-legend-val">${fmtDurationCompact(seg.runtime_ms)} (${pct.toFixed(1)}%)</span>
+        </div>
+      `;
+    }).join('');
+
+    const panelEl = document.createElement('div');
+    panelEl.className = 'runtime-panel';
+    panelEl.innerHTML = `
+      <div class="runtime-panel-title">${escapeHtml(panelTitle)}</div>
+      <div class="runtime-panel-subtitle">${escapeHtml(panelSubtitle)}</div>
+      <div class="runtime-bar-shell">${barHtml}</div>
+      <div class="runtime-chip-row">
+        <span class="runtime-chip"><span class="runtime-dot" style="background:#4FC3F7"></span>QC: ${fmtDurationCompact(qcRuntime)} (${qcPct.toFixed(0)}%)</span>
+        <span class="runtime-chip"><span class="runtime-dot" style="background:#9E9E9E"></span>Other: ${fmtDurationCompact(otherRuntime)} (${otherPct.toFixed(0)}%)</span>
+      </div>
+      <div class="runtime-legend">${legendHtml}</div>
+    `;
+    container.appendChild(panelEl);
+  });
+})();
+
+// 5.1 Task instance usage
 (function() {
   const usage = DATA.task_instance_usage || [];
   if (!usage.length) return;
@@ -659,7 +838,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
   });
 })();
 
-// 4.2 Task metrics
+// 5.2 Task metrics
 (function() {
   const tasks = DATA.task_scatter || [];
   const taskTable = DATA.task_table || [];
