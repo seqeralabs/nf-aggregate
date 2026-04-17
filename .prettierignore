@@ -7,3 +7,7 @@ testing/
 testing*
 *.pyc
 bin/
+**/AGENTS.md
+docs/DESIGN.md
+renovate.json
+workflows/nf_aggregate/assets/log_dirs/
