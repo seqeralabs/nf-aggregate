@@ -6,10 +6,10 @@ description: >
   benchmark candidates, refreshing `.seqera/context`, or validating run-level
   differences before building a report.
 ---
-
 # Fetch and compare Platform runs
 
 Use this skill when the user wants to inspect one or more Seqera Platform runs
+
 before or instead of building a full benchmark report.
 
 ## Best workflow
@@ -37,8 +37,8 @@ Check:
 - commit/revision
 - number of tasks fetched
 - task states: completed / running / failed
-- submit->start wait time
-- start->complete runtime
+- submit-&gt;start wait time
+- start-&gt;complete runtime
 - instance / machine-type differences
 - per-task cost signals where available
 
@@ -66,7 +66,7 @@ For each run, extract:
 ## Repo-specific interpretation hints
 
 - Short-task variance often comes from Batch/spot provisioning and staging jitter.
-- Large submit->start gaps usually indicate scheduling overhead, not process-level code regressions.
+- Large submit-&gt;start gaps usually indicate scheduling overhead, not process-level code regressions.
 - The most meaningful report differences often appear later in heavier alignment/indexing phases, so early QC-only comparisons can be misleading.
 - If runs are still active, state that clearly and call out what phases have not yet been observed.
 
@@ -78,3 +78,4 @@ Build a full benchmark report when:
 - the user wants charts or HTML output
 - cost and aggregated process summaries matter more than raw run inspection
 - you need JSONL handoff artifacts for downstream debugging
+
