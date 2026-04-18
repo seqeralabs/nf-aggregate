@@ -1,28 +1,52 @@
 #!/usr/bin/env python3
-"""Module-local shim for direct `nextflow run modules/local/...` execution.
+"""Normalize raw benchmark run JSON files into JSONL datasets.
 
-This delegates to the repo-root benchmark_report.py so the shared CLI and
-assets/template lookup continue to work from the canonical implementation.
+This module-local entrypoint is the actual stage CLI used by
+`nextflow run modules/local/normalize_benchmark_jsonl/main.nf`.
 """
 
 from __future__ import annotations
 
-import runpy
+import argparse
 import sys
 from pathlib import Path
 
 
-def _find_repo_root() -> Path:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "bin" / "benchmark_report.py"
-        if candidate.exists() and candidate != here:
-            return parent
-    raise RuntimeError(f"Could not locate repo root from {here}")
+def _add_repo_bin_to_path() -> None:
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "bin" / "benchmark_report_normalize.py"
+        if candidate.exists():
+            sys.path.insert(0, str(parent / "bin"))
+            return
+    raise RuntimeError("Unable to locate the repository root for benchmark report helpers")
 
 
-REPO_ROOT = _find_repo_root()
-REPO_BIN = REPO_ROOT / "bin"
-sys.path.insert(0, str(REPO_BIN))
-sys.argv[0] = str(REPO_BIN / "benchmark_report.py")
-runpy.run_path(str(REPO_BIN / "benchmark_report.py"), run_name="__main__")
+_add_repo_bin_to_path()
+
+from benchmark_report_normalize import normalize_jsonl  # noqa: E402
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="benchmark_report.py", description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    p = subparsers.add_parser("normalize-jsonl", help="Normalize raw run JSON into JSONL files")
+    p.add_argument("--data-dir", type=Path, required=True, help="Directory containing run JSON files")
+    p.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("jsonl_bundle"),
+        help="Output JSONL bundle directory",
+    )
+    p.add_argument("--costs", type=Path, default=None, help="Optional AWS CUR parquet file")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = _build_parser().parse_args(argv)
+    if args.command == "normalize-jsonl":
+        normalize_jsonl(data_dir=args.data_dir, output_dir=args.output_dir, costs_parquet=args.costs)
+
+
+if __name__ == "__main__":
+    main()
