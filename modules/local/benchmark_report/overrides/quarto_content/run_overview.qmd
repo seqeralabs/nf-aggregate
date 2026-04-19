@@ -125,7 +125,7 @@ run_overview <- reactable(
 
 ## Run metrics
 
-This section provides a visual overview of the pipeline run metrics. Task-derived efficiencies are recomputed from the task logs, and optional scheduler/VM metrics are added when machine CSVs are available.
+This section provides a visual overview of the pipeline run metrics. When machine CSVs are available, the report also decomposes each run into four layers: user-requested resources, scheduler-booked resources, real task usage, and total VM capacity.
 
 ```{r run-metrics}
 library(RColorBrewer)
@@ -177,10 +177,23 @@ if (params$aws_cost != "NA") {
 }
 
 ## Select which columns to keep
+vm_layer_metric_cols <- c(
+  "nMachines", "vmCpuH", "vmMemGibH",
+  "requestedCpuH", "requestedMemGibH",
+  "requestedVmCpuEfficiency", "requestedVmMemEfficiency",
+  "schedAllocCpuEfficiency", "schedAllocMemEfficiency",
+  "schedulerBookedCpuH", "schedulerBookedMemGibH",
+  "schedulerRightsizedCpuH", "schedulerRightsizedMemGibH",
+  "schedulerOverbookCpuH", "schedulerOverbookMemGibH",
+  "vmPackingSlackCpuH", "vmPackingSlackMemGibH",
+  "realVmCpuEfficiency", "realVmMemEfficiency",
+  "realCpuH", "realMemGibH"
+)
+
 if(grepl("cost",profile) & params$aws_cost != "NA") {
-    merged_logs <- merged_logs %>% select(any_of(c("pipeline","group","run_id","Wall_time","duration","cpuTime","task_runtime_ms","cost","readBytes","writeBytes","cpuEfficiency","memoryEfficiency","pipeline_workdirSize_GB","pipeline_workdirSize_price","used_cost","unused_cost","nMachines","vmCpuH","vmMemGibH","schedAllocCpuEfficiency","schedAllocMemEfficiency","realVmCpuEfficiency","realVmMemEfficiency","realCpuH","realMemGibH","requestedCpuH","requestedMemGibH")))
+    merged_logs <- merged_logs %>% select(any_of(c("pipeline","group","run_id","Wall_time","duration","cpuTime","task_runtime_ms","cost","readBytes","writeBytes","cpuEfficiency","memoryEfficiency","pipeline_workdirSize_GB","pipeline_workdirSize_price","used_cost","unused_cost", vm_layer_metric_cols)))
 }else {
-  merged_logs <- merged_logs %>% select(any_of(c("pipeline","group","run_id","Wall_time","duration","cpuTime","task_runtime_ms","cost","readBytes","writeBytes","cpuEfficiency","memoryEfficiency","pipeline_workdirSize_GB","pipeline_workdirSize_price","nMachines","vmCpuH","vmMemGibH","schedAllocCpuEfficiency","schedAllocMemEfficiency","realVmCpuEfficiency","realVmMemEfficiency","realCpuH","realMemGibH","requestedCpuH","requestedMemGibH")))
+  merged_logs <- merged_logs %>% select(any_of(c("pipeline","group","run_id","Wall_time","duration","cpuTime","task_runtime_ms","cost","readBytes","writeBytes","cpuEfficiency","memoryEfficiency","pipeline_workdirSize_GB","pipeline_workdirSize_price", vm_layer_metric_cols)))
 }
 
 metrics_reactable <- merged_logs %>%
@@ -466,29 +479,34 @@ if(n_runs_max > 1){
 }
 ```
 
+## Scheduler VM metrics
+
 ```{r vm-metrics-table}
 #| echo: false
 #| results: asis
 
-vm_metrics_cols <- c("nMachines", "vmCpuH", "vmMemGibH", "schedAllocCpuEfficiency", "schedAllocMemEfficiency", "realVmCpuEfficiency", "realVmMemEfficiency", "realCpuH", "realMemGibH", "requestedCpuH", "requestedMemGibH")
+vm_metrics_cols <- c(
+  "nMachines", "vmCpuH", "vmMemGibH",
+  "requestedCpuH", "requestedMemGibH",
+  "requestedVmCpuEfficiency", "requestedVmMemEfficiency",
+  "schedulerBookedCpuH", "schedulerBookedMemGibH",
+  "schedAllocCpuEfficiency", "schedAllocMemEfficiency",
+  "realCpuH", "realMemGibH",
+  "realVmCpuEfficiency", "realVmMemEfficiency",
+  "schedulerRightsizedCpuH", "schedulerRightsizedMemGibH",
+  "schedulerOverbookCpuH", "schedulerOverbookMemGibH",
+  "vmPackingSlackCpuH", "vmPackingSlackMemGibH"
+)
 
-if (all(vm_metrics_cols %in% colnames(metrics_reactable)) && any(!is.na(metrics_reactable$vmCpuH))) {
-  cat("## Scheduler VM metrics\n\n")
-  cat("These values are computed from optional machine CSVs when they are provided alongside each run dump. Task efficiencies are derived from task logs, while VM efficiencies relate those task metrics back to total machine lifetime capacity.\n\n")
+has_vm_metrics <- all(vm_metrics_cols %in% colnames(metrics_reactable)) && any(!is.na(metrics_reactable$vmCpuH))
+
+if (has_vm_metrics) {
+  cat("These values separate the three scheduler layers the benchmark cares about: user-requested resources, scheduler-booked resources, and VM capacity. `*-Predv1` groups can show positive scheduler right-sizing, while `Batch-*` groups act as the AWS Batch baseline without Seqera scheduler right-sizing.\n\n")
 
   vm_metrics_table <- metrics_reactable %>%
     select(pipeline, group, run_id, all_of(vm_metrics_cols)) %>%
     mutate(
-      vmCpuH = round(vmCpuH, 2),
-      vmMemGibH = round(vmMemGibH, 2),
-      schedAllocCpuEfficiency = round(schedAllocCpuEfficiency, 2),
-      schedAllocMemEfficiency = round(schedAllocMemEfficiency, 2),
-      realVmCpuEfficiency = round(realVmCpuEfficiency, 2),
-      realVmMemEfficiency = round(realVmMemEfficiency, 2),
-      realCpuH = round(realCpuH, 2),
-      realMemGibH = round(realMemGibH, 2),
-      requestedCpuH = round(requestedCpuH, 2),
-      requestedMemGibH = round(requestedMemGibH, 2)
+      across(-c(pipeline, group, run_id), ~ round(.x, 2))
     )
 
   vm_metrics_reactable <- reactable(
@@ -502,14 +520,24 @@ if (all(vm_metrics_cols %in% colnames(metrics_reactable)) && any(!is.na(metrics_
       nMachines = colDef(name = "Machines"),
       vmCpuH = colDef(name = "VM CPU<br>hours", html = TRUE),
       vmMemGibH = colDef(name = "VM memory<br>GiB hours", html = TRUE),
-      schedAllocCpuEfficiency = colDef(name = "Scheduler CPU<br>efficiency (%)", html = TRUE),
-      schedAllocMemEfficiency = colDef(name = "Scheduler memory<br>efficiency (%)", html = TRUE),
-      realVmCpuEfficiency = colDef(name = "Real VM CPU<br>efficiency (%)", html = TRUE),
-      realVmMemEfficiency = colDef(name = "Real VM memory<br>efficiency (%)", html = TRUE),
-      realCpuH = colDef(name = "Real CPU<br>hours", html = TRUE),
-      realMemGibH = colDef(name = "Real memory<br>GiB hours", html = TRUE),
-      requestedCpuH = colDef(name = "Requested CPU<br>hours", html = TRUE),
-      requestedMemGibH = colDef(name = "Requested memory<br>GiB hours", html = TRUE)
+      requestedCpuH = colDef(name = "User requested<br>CPU hours", html = TRUE),
+      requestedMemGibH = colDef(name = "User requested<br>memory GiB hours", html = TRUE),
+      requestedVmCpuEfficiency = colDef(name = "User requested / VM<br>CPU (%)", html = TRUE),
+      requestedVmMemEfficiency = colDef(name = "User requested / VM<br>memory (%)", html = TRUE),
+      schedulerBookedCpuH = colDef(name = "Scheduler booked<br>CPU hours", html = TRUE),
+      schedulerBookedMemGibH = colDef(name = "Scheduler booked<br>memory GiB hours", html = TRUE),
+      schedAllocCpuEfficiency = colDef(name = "Scheduler booked / VM<br>CPU (%)", html = TRUE),
+      schedAllocMemEfficiency = colDef(name = "Scheduler booked / VM<br>memory (%)", html = TRUE),
+      realCpuH = colDef(name = "Real used<br>CPU hours", html = TRUE),
+      realMemGibH = colDef(name = "Real used<br>memory GiB hours", html = TRUE),
+      realVmCpuEfficiency = colDef(name = "Real used / VM<br>CPU (%)", html = TRUE),
+      realVmMemEfficiency = colDef(name = "Real used / VM<br>memory (%)", html = TRUE),
+      schedulerRightsizedCpuH = colDef(name = "Scheduler right-sized<br>CPU hours", html = TRUE),
+      schedulerRightsizedMemGibH = colDef(name = "Scheduler right-sized<br>memory GiB hours", html = TRUE),
+      schedulerOverbookCpuH = colDef(name = "Scheduler over-booked<br>CPU hours", html = TRUE),
+      schedulerOverbookMemGibH = colDef(name = "Scheduler over-booked<br>memory GiB hours", html = TRUE),
+      vmPackingSlackCpuH = colDef(name = "VM packing slack<br>CPU hours", html = TRUE),
+      vmPackingSlackMemGibH = colDef(name = "VM packing slack<br>memory GiB hours", html = TRUE)
     ),
     wrap = FALSE,
     resizable = TRUE,
@@ -521,5 +549,166 @@ if (all(vm_metrics_cols %in% colnames(metrics_reactable)) && any(!is.na(metrics_
   )
 
   print(vm_metrics_reactable)
+}
+```
+
+## Performance gains
+
+```{r performance-gains}
+#| echo: false
+#| results: asis
+#| fig-width: 12
+#| fig-height: 6
+
+if (has_vm_metrics) {
+  performance_layers <- metrics_reactable %>%
+    filter(!is.na(vmCpuH), vmCpuH > 0) %>%
+    mutate(
+      display_group = as.character(group),
+      display_label = if (dplyr::n_distinct(group) == n()) display_group else paste0(display_group, " / ", run_id)
+    ) %>%
+    arrange(vmCpuH)
+
+  cat("This section attributes paid VM capacity to the three scheduler responsibilities you called out: provisioning, packing, and task right-sizing. `User requested` comes from the Nextflow task directives, `scheduler booked` comes from machine-level scheduler allocation, `real used` comes from observed task usage, and `VM capacity` comes from total machine lifetime.\n\n")
+  cat("For `*-Predv1` runs, scheduler right-sizing is estimated from aggregate `/machines` utilization. When that aggregate is noisier than the right-sizing signal, the report clamps negative right-sizing to zero. That is an under-count, not evidence that right-sizing was absent.\n\n")
+}
+```
+
+```{r performance-gains-cpu-mix}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 12
+#| fig-height: 5
+
+if (has_vm_metrics) {
+  cpu_mix_data <- performance_layers %>%
+    transmute(
+      display_label,
+      `Used (real work)` = realCpuH,
+      `Scheduler over-booked` = schedulerOverbookCpuH,
+      `VM slack (packing)` = vmPackingSlackCpuH
+    ) %>%
+    pivot_longer(-display_label, names_to = "layer", values_to = "hours")
+
+  cpu_mix_plot <- ggplot(cpu_mix_data, aes(x = display_label, y = hours, fill = layer)) +
+    geom_col(color = "#160F26") +
+    coord_flip() +
+    scale_fill_manual(values = c(
+      "Used (real work)" = "#065647",
+      "Scheduler over-booked" = "#2b8cbe",
+      "VM slack (packing)" = "#cfd0d1"
+    )) +
+    labs(
+      title = "Performance gains: CPU capacity mix",
+      subtitle = "Total bar = VM CPU-hours paid for",
+      x = "",
+      y = "CPU-hours",
+      fill = ""
+    ) +
+    seqera_light_theme() +
+    theme(legend.position = "top")
+
+  print(cpu_mix_plot)
+}
+```
+
+```{r performance-gains-mem-mix}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 12
+#| fig-height: 5
+
+if (has_vm_metrics) {
+  mem_mix_data <- performance_layers %>%
+    transmute(
+      display_label,
+      `Used (real work)` = realMemGibH,
+      `Scheduler over-booked` = schedulerOverbookMemGibH,
+      `VM slack (packing)` = vmPackingSlackMemGibH
+    ) %>%
+    pivot_longer(-display_label, names_to = "layer", values_to = "hours")
+
+  mem_mix_plot <- ggplot(mem_mix_data, aes(x = display_label, y = hours, fill = layer)) +
+    geom_col(color = "#160F26") +
+    coord_flip() +
+    scale_fill_manual(values = c(
+      "Used (real work)" = "#065647",
+      "Scheduler over-booked" = "#2b8cbe",
+      "VM slack (packing)" = "#cfd0d1"
+    )) +
+    labs(
+      title = "Performance gains: Memory capacity mix",
+      subtitle = "Total bar = VM memory GiB-hours paid for",
+      x = "",
+      y = "GiB-hours",
+      fill = ""
+    ) +
+    seqera_light_theme() +
+    theme(legend.position = "top")
+
+  print(mem_mix_plot)
+}
+```
+
+```{r performance-gains-savings}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 12
+#| fig-height: 8
+
+if (has_vm_metrics) {
+  savings_cpu_data <- performance_layers %>%
+    transmute(
+      display_label,
+      `Scheduler right-sized (already saved)` = schedulerRightsizedCpuH,
+      `Scheduler over-booked (remaining)` = schedulerOverbookCpuH,
+      `VM packing slack` = vmPackingSlackCpuH
+    ) %>%
+    pivot_longer(-display_label, names_to = "layer", values_to = "hours")
+
+  savings_mem_data <- performance_layers %>%
+    transmute(
+      display_label,
+      `Scheduler right-sized (already saved)` = schedulerRightsizedMemGibH,
+      `Scheduler over-booked (remaining)` = schedulerOverbookMemGibH,
+      `VM packing slack` = vmPackingSlackMemGibH
+    ) %>%
+    pivot_longer(-display_label, names_to = "layer", values_to = "hours")
+
+  savings_palette <- c(
+    "Scheduler right-sized (already saved)" = "#43b48d",
+    "Scheduler over-booked (remaining)" = "#2b8cbe",
+    "VM packing slack" = "#cfd0d1"
+  )
+
+  cpu_savings_plot <- ggplot(savings_cpu_data, aes(x = display_label, y = hours, fill = layer)) +
+    geom_col(color = "#160F26") +
+    scale_fill_manual(values = savings_palette) +
+    labs(
+      title = "Potential savings by layer (CPU)",
+      x = "",
+      y = "CPU-hours",
+      fill = ""
+    ) +
+    seqera_light_theme() +
+    theme(legend.position = "top")
+
+  mem_savings_plot <- ggplot(savings_mem_data, aes(x = display_label, y = hours, fill = layer)) +
+    geom_col(color = "#160F26") +
+    scale_fill_manual(values = savings_palette) +
+    labs(
+      title = "Potential savings by layer (Memory)",
+      x = "",
+      y = "GiB-hours",
+      fill = ""
+    ) +
+    seqera_light_theme() +
+    theme(legend.position = "top")
+
+  print(cpu_savings_plot)
+  print(mem_savings_plot)
 }
 ```

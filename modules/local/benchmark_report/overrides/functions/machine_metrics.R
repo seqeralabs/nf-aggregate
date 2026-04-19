@@ -6,6 +6,25 @@ safe_weighted_mean <- function(values, weights) {
   sum(values[valid] * weights[valid]) / sum(weights[valid])
 }
 
+positive_gap <- function(upper, lower) {
+  dplyr::if_else(
+    is.na(upper) | is.na(lower),
+    NA_real_,
+    pmax(upper - lower, 0)
+  )
+}
+
+compute_scheduler_booked <- function(capacity, efficiency_pct, fallback = NA_real_) {
+  booked_from_capacity <- dplyr::if_else(
+    !is.na(capacity) & !is.na(efficiency_pct),
+    pmin(capacity, pmax(0, capacity * efficiency_pct / 100)),
+    NA_real_
+  )
+
+  fallback <- dplyr::if_else(is.na(fallback), NA_real_, pmax(fallback, 0))
+  dplyr::coalesce(booked_from_capacity, fallback)
+}
+
 parse_machine_percent <- function(x) {
   if (is.numeric(x)) {
     return(as.numeric(x))
@@ -111,6 +130,16 @@ summarise_machine_metrics <- function(machine_data, run_lookup, task_run_metrics
       by = c("run_id", "pipeline")
     ) %>%
     dplyr::mutate(
+      requestedVmCpuEfficiency = dplyr::if_else(vmCpuH > 0, requestedCpuH / vmCpuH * 100, NA_real_),
+      requestedVmMemEfficiency = dplyr::if_else(vmMemGibH > 0, requestedMemGibH / vmMemGibH * 100, NA_real_),
+      schedulerBookedCpuH = compute_scheduler_booked(vmCpuH, schedAllocCpuEfficiency, requestedCpuH),
+      schedulerBookedMemGibH = compute_scheduler_booked(vmMemGibH, schedAllocMemEfficiency, requestedMemGibH),
+      schedulerRightsizedCpuH = positive_gap(requestedCpuH, schedulerBookedCpuH),
+      schedulerRightsizedMemGibH = positive_gap(requestedMemGibH, schedulerBookedMemGibH),
+      schedulerOverbookCpuH = positive_gap(schedulerBookedCpuH, realCpuH),
+      schedulerOverbookMemGibH = positive_gap(schedulerBookedMemGibH, realMemGibH),
+      vmPackingSlackCpuH = positive_gap(vmCpuH, schedulerBookedCpuH),
+      vmPackingSlackMemGibH = positive_gap(vmMemGibH, schedulerBookedMemGibH),
       realVmCpuEfficiency = dplyr::if_else(vmCpuH > 0, realCpuH / vmCpuH * 100, NA_real_),
       realVmMemEfficiency = dplyr::if_else(vmMemGibH > 0, realMemGibH / vmMemGibH * 100, NA_real_)
     )
