@@ -100,8 +100,17 @@ summarise_machine_metrics <- function(machine_data, run_lookup, task_run_metrics
     dplyr::distinct(run_id, pipeline, group)
   run_profiles <- dplyr::bind_cols(run_profiles, detect_scheduler_profile(run_profiles$group))
 
-  if ("instance_id" %in% names(machine_data)) {
+  scheduler_summary <- data.frame()
+  batch_summary <- data.frame()
+
+  has_scheduler_rows <- "instance_id" %in% names(machine_data) &&
+    any(!is.na(machine_data$instance_id) & machine_data$instance_id != "")
+  has_batch_rows <- "ecs_instance_id" %in% names(machine_data) &&
+    any(!is.na(machine_data$ecs_instance_id) & machine_data$ecs_instance_id != "")
+
+  if (has_scheduler_rows) {
     scheduler_summary <- machine_data %>%
+      dplyr::filter(!is.na(instance_id), instance_id != "") %>%
       dplyr::mutate(
         machine_id = instance_id,
         vcpus = as.numeric(vcpus),
@@ -121,14 +130,23 @@ summarise_machine_metrics <- function(machine_data, run_lookup, task_run_metrics
         schedAllocMemEfficiency = safe_weighted_mean(avg_memory_utilization, memory_gib * machine_hours),
         .groups = "drop"
       )
-  } else if ("ecs_instance_id" %in% names(machine_data)) {
-    scheduler_summary <- machine_data %>%
+  }
+
+  if (has_batch_rows) {
+    batch_summary <- machine_data %>%
+      dplyr::filter(!is.na(ecs_instance_id), ecs_instance_id != "") %>%
       dplyr::mutate(
         machine_id = ecs_instance_id,
-        total_vcpu_hours = as.numeric(total_vcpu_hours),
-        total_memory_gib_hours = as.numeric(total_memory_gib_hours),
-        requested_vcpu_hours = dplyr::coalesce(as.numeric(total_requested_vcpu_hours), as.numeric(requested_vcpu_hours)),
-        requested_memory_gib_hours = dplyr::coalesce(as.numeric(total_requested_memory_gib_hours), as.numeric(requested_memory_gib_hours))
+        total_vcpu_hours = suppressWarnings(as.numeric(total_vcpu_hours)),
+        total_memory_gib_hours = suppressWarnings(as.numeric(total_memory_gib_hours)),
+        requested_vcpu_hours = dplyr::coalesce(
+          suppressWarnings(as.numeric(total_requested_vcpu_hours)),
+          suppressWarnings(as.numeric(requested_vcpu_hours))
+        ),
+        requested_memory_gib_hours = dplyr::coalesce(
+          suppressWarnings(as.numeric(total_requested_memory_gib_hours)),
+          suppressWarnings(as.numeric(requested_memory_gib_hours))
+        )
       ) %>%
       dplyr::group_by(run_id, pipeline) %>%
       dplyr::summarise(
@@ -143,7 +161,11 @@ summarise_machine_metrics <- function(machine_data, run_lookup, task_run_metrics
         schedAllocCpuEfficiency = dplyr::if_else(vmCpuH > 0, requestedVmCpuH / vmCpuH * 100, NA_real_),
         schedAllocMemEfficiency = dplyr::if_else(vmMemGibH > 0, requestedVmMemGibH / vmMemGibH * 100, NA_real_)
       )
-  } else {
+  }
+
+  scheduler_summary <- dplyr::bind_rows(scheduler_summary, batch_summary)
+
+  if (nrow(scheduler_summary) == 0) {
     warning("Machine metrics CSV detected, but its schema is not recognized. Skipping VM metrics.")
     return(data.frame())
   }

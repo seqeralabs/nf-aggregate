@@ -150,7 +150,7 @@
 
     <h2 id="methodology"><svg class="h-icon sm"><use href="#ic-table"/></svg> Methodology &mdash; what each utilization metric means</h2>
     <p class="section-desc">
-      The report exposes <strong>four different utilization metrics</strong>. They sound similar
+      The report exposes <strong>three utilization metric families</strong>. They sound similar
       but measure very different things, and in practice they disagree by 2&ndash;5&times;.
       Read this before comparing rows in the run-metrics table below.
     </p>
@@ -218,6 +218,14 @@
       <em>Real VM efficiency</em> is the end-to-end ground truth: what fraction of the VM-hours
       you paid for were actually spent doing work. Trace efficiency &times; Sched allocation
       &asymp; Real VM efficiency (modulo time-weighting).
+    </p>
+    <p class="section-desc" style="margin-top:8px">
+      <strong>CPU time columns in the run table:</strong>
+      <em>Total Trace CPU Time (Task)</em> is &Sigma;<sub>tasks</sub>(cpus<sub>req</sub> &middot; realtime), so it reflects
+      what tasks asked for, not what they actually used.
+      <em>Total VM CPU Time</em> is &Sigma;<sub>VMs</sub>(vCPU &middot; lifetime), the capacity you paid for.
+      Those two can be close while Trace CPU efficiency stays low, because Trace CPU efficiency compares
+      <em>used</em> CPU against <em>requested</em> CPU, not requested CPU against VM capacity.
     </p>
     <p class="section-desc">
       VM-level metrics require a <code>machines.jsonl</code> in the JSONL bundle
@@ -896,7 +904,8 @@ document.getElementById('group-list').innerHTML = groups.map(g =>
   const costs = DATA.run_costs || [];
   if (!metrics.length) return;
   const table = document.getElementById('run-metrics-table');
-  const cols = ['Pipeline name','Group','Run ID','Duration','CPU time (hours)',
+  const cols = ['Pipeline name','Group','Run ID','Duration','Total Trace CPU Time (Task)',
+                'Total VM CPU Time',
                 'Compute cost ($)','Read (GB)','Write (GB)',
                 'Trace CPU eff (task) %','Trace Mem eff (task) %',
                 'Sched alloc CPU (VM) %','Sched alloc Mem (VM) %',
@@ -916,6 +925,7 @@ document.getElementById('group-list').innerHTML = groups.map(g =>
     html += '<td>' + r.run_id + '</td>';
     html += '<td>' + fmtDuration(r.duration) + '</td>';
     html += '<td>' + fmtHours(r.cpuTime) + '</td>';
+    html += '<td>' + fmtHours(r.vmCpuH) + '</td>';
     html += '<td>' + fmtCost(c.cost) + '</td>';
     html += '<td>' + fmtGB(r.readBytes) + '</td>';
     html += '<td>' + fmtGB(r.writeBytes) + '</td>';
@@ -945,17 +955,13 @@ function hbarChart(elId, title, labels, values, opts) {
     itemStyle: opts.color ? { color: opts.color, borderRadius: [0, 2, 2, 0] }
                           : { borderRadius: [0, 2, 2, 0] },
     emphasis: { focus: 'series' } }];
-  if (seriesArray.length > 1 && seriesArray.length <= 3) {
-    seriesArray.forEach(s => {
-      s.label = { show: true, position: 'right', formatter: '{a}' };
-    });
-  }
   echarts.init(el, 'seqera').setOption({
     title: { text: title, subtext: opts.subtitle || '' },
+    legend: { show: seriesArray.length > 1, bottom: 0 },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
       formatter: opts.formatter || (p => p[0].name + ': ' + (opts.prefix||'') +
         p[0].value.toLocaleString(undefined, {maximumFractionDigits:2}) + (opts.suffix||'')) },
-    grid: { top: opts.subtitle ? 60 : 40, bottom: 30, containLabel: true },
+    grid: { top: opts.subtitle ? 60 : 40, bottom: seriesArray.length > 1 ? 55 : 30, containLabel: true },
     xAxis: { type: 'value', name: opts.xName || '', nameLocation: 'center',
       nameGap: 25, axisLabel: { hideOverlap: true } },
     yAxis: { type: 'category', data: labels.slice().reverse() },
@@ -996,9 +1002,36 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
   hbarChart('chart-wall-time', 'Wall time', labels, wallValues,
     { xName: 'Hours', suffix: ' h', subtitle: takeaway(labels, wallValues, { lowerBetter: true, adjective: 'faster', suffix: ' h' }) });
 
-  const cpuValues = metrics.map(r => +(r.cpuTime || 0));
-  hbarChart('chart-cpu-time', 'CPU time', labels, cpuValues,
-    { xName: 'CPU Hours', suffix: ' h', subtitle: takeaway(labels, cpuValues, { lowerBetter: true, adjective: 'lower', suffix: ' h' }) });
+  const traceCpuValues = metrics.map(r => +(r.cpuTime || 0));
+  const vmCpuValues = metrics.map(r => +(r.vmCpuH || 0));
+  hbarChart('chart-cpu-time', 'CPU time totals', labels, traceCpuValues,
+    {
+      xName: 'CPU Hours',
+      suffix: ' h',
+      subtitle: 'Task trace CPU-hours vs total VM CPU-hours provisioned',
+      series: [
+        {
+          name: 'Total Trace CPU Time (Task)',
+          type: 'bar',
+          data: traceCpuValues.slice().reverse(),
+          itemStyle: { color: '#065647', borderRadius: [0, 2, 2, 0] },
+          emphasis: { focus: 'series' }
+        },
+        {
+          name: 'Total VM CPU Time',
+          type: 'bar',
+          data: vmCpuValues.slice().reverse(),
+          itemStyle: { color: '#a9b6bf', borderRadius: [0, 2, 2, 0] },
+          emphasis: { focus: 'series' }
+        }
+      ],
+      formatter: function(points) {
+        const rows = points.map(p =>
+          p.marker + ' ' + p.seriesName + ': ' + Number(p.value).toLocaleString(undefined, {maximumFractionDigits: 2}) + ' h'
+        );
+        return points[0].name + '<br>' + rows.join('<br>');
+      }
+    });
 
   const costValues = metrics.map(r => { const c = costs.find(x => x.run_id === r.run_id); return c ? +c.cost : 0; });
   hbarChart('chart-est-cost', 'Compute cost', labels, costValues,
