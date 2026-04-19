@@ -6,6 +6,27 @@ safe_weighted_mean <- function(values, weights) {
   sum(values[valid] * weights[valid]) / sum(weights[valid])
 }
 
+detect_scheduler_profile <- function(group) {
+  group <- dplyr::coalesce(as.character(group), "")
+  is_batch <- grepl("^Batch", group, ignore.case = TRUE)
+  rightsizing_enabled <- grepl("Predv", group, ignore.case = TRUE)
+
+  provisioning_policy <- dplyr::case_when(
+    grepl("SpotFirst", group, ignore.case = TRUE) ~ "Spot first, then on-demand",
+    grepl("Spot", group, ignore.case = TRUE) ~ "Spot",
+    grepl("OnD", group, ignore.case = TRUE) ~ "On-demand",
+    TRUE ~ ""
+  )
+
+  dplyr::tibble(
+    scheduler_mode = dplyr::if_else(is_batch, "AWS Batch", "Seqera Scheduler"),
+    rightsizing_mode = dplyr::if_else(rightsizing_enabled, "Predv1", "None"),
+    rightsizing_enabled = rightsizing_enabled,
+    packing_enabled = !is_batch,
+    provisioning_policy = provisioning_policy
+  )
+}
+
 positive_gap <- function(upper, lower) {
   dplyr::if_else(
     is.na(upper) | is.na(lower),
@@ -75,6 +96,10 @@ summarise_machine_metrics <- function(machine_data, run_lookup, task_run_metrics
   machine_data <- machine_data %>%
     dplyr::left_join(run_lookup, by = "run_id")
 
+  run_profiles <- run_lookup %>%
+    dplyr::distinct(run_id, pipeline, group)
+  run_profiles <- dplyr::bind_cols(run_profiles, detect_scheduler_profile(run_profiles$group))
+
   if ("instance_id" %in% names(machine_data)) {
     scheduler_summary <- machine_data %>%
       dplyr::mutate(
@@ -124,6 +149,7 @@ summarise_machine_metrics <- function(machine_data, run_lookup, task_run_metrics
   }
 
   scheduler_summary %>%
+    dplyr::left_join(run_profiles %>% dplyr::select(-group), by = c("run_id", "pipeline")) %>%
     dplyr::left_join(
       task_run_metrics %>%
         dplyr::select(run_id, pipeline, realCpuH, realMemGibH, requestedCpuH, requestedMemGibH),
@@ -132,8 +158,16 @@ summarise_machine_metrics <- function(machine_data, run_lookup, task_run_metrics
     dplyr::mutate(
       requestedVmCpuEfficiency = dplyr::if_else(vmCpuH > 0, requestedCpuH / vmCpuH * 100, NA_real_),
       requestedVmMemEfficiency = dplyr::if_else(vmMemGibH > 0, requestedMemGibH / vmMemGibH * 100, NA_real_),
-      schedulerBookedCpuH = compute_scheduler_booked(vmCpuH, schedAllocCpuEfficiency, requestedCpuH),
-      schedulerBookedMemGibH = compute_scheduler_booked(vmMemGibH, schedAllocMemEfficiency, requestedMemGibH),
+      schedulerBookedCpuH = dplyr::if_else(
+        !is.na(rightsizing_enabled) & !rightsizing_enabled & !is.na(requestedCpuH),
+        pmax(requestedCpuH, 0),
+        compute_scheduler_booked(vmCpuH, schedAllocCpuEfficiency, requestedCpuH)
+      ),
+      schedulerBookedMemGibH = dplyr::if_else(
+        !is.na(rightsizing_enabled) & !rightsizing_enabled & !is.na(requestedMemGibH),
+        pmax(requestedMemGibH, 0),
+        compute_scheduler_booked(vmMemGibH, schedAllocMemEfficiency, requestedMemGibH)
+      ),
       schedulerRightsizedCpuH = positive_gap(requestedCpuH, schedulerBookedCpuH),
       schedulerRightsizedMemGibH = positive_gap(requestedMemGibH, schedulerBookedMemGibH),
       schedulerOverbookCpuH = positive_gap(schedulerBookedCpuH, realCpuH),

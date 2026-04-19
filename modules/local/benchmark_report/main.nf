@@ -14,18 +14,14 @@ process BENCHMARK_REPORT {
     path "versions.yml"          , emit: versions
 
     script:
-    def aws_cost_param = benchmark_aws_cur_report ? "--profile cost -P aws_cost:\$TASK_DIR/${benchmark_aws_cur_report}" : ""
+    def aws_cost_param = benchmark_aws_cur_report ? "--aws_cost \$TASK_DIR/${benchmark_aws_cur_report}" : ""
     def benchmark_samplesheet = "benchmark_samplesheet.csv"
-    def failed_tasks = remove_failed_tasks ? "-P remove_failed_tasks:True" : ""
+    def failed_tasks = remove_failed_tasks ? "--remove_failed_tasks" : ""
 
     """
     # Set up R environment from renv
     export R_LIBS_USER=/project/renv/library/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu
     TASK_DIR="\$PWD"
-
-    # Setup cache directories
-    export QUARTO_CACHE=/tmp/quarto/cache
-    export XDG_CACHE_HOME=/tmp/quarto
 
     # Copy the baseline report project from the container and overlay repo-managed fixes.
     cp -R /project report_project
@@ -43,12 +39,11 @@ process BENCHMARK_REPORT {
     }.join('\n')}
 
     cd report_project
-    quarto render main_benchmark_report.qmd \\
-        -P log_csv:"\$TASK_DIR/"${benchmark_samplesheet} \\
+    Rscript render_benchmark_report.R \\
+        --log_csv "\$TASK_DIR/"${benchmark_samplesheet} \\
+        --output benchmark_report.html \\
         $aws_cost_param \\
-        $failed_tasks \\
-        --output-dir .\\
-        --output benchmark_report.html
+        $failed_tasks
 
     cp benchmark_report.html "\$TASK_DIR/"
     cd "\$TASK_DIR/"

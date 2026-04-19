@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pipeline benchmarking report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', Helvetica, sans-serif;
+         background: #ffffff; color: #201637; line-height: 1.6; font-size: 14px; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 15px; }
+
+  .navbar { background: #ffffff; border-bottom: 1px solid #CFD0D1; padding: 12px 0; margin-bottom: 30px; }
+  .navbar .container { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .navbar-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #000000; }
+  .navbar-brand svg { height: 28px; display: block; }
+  .navbar-right { color: #000000; font-size: 13px; font-weight: 500; }
+
+  .section { margin-bottom: 40px; }
+  .section h1 { font-size: 26px; font-weight: 600; color: #201637; margin-bottom: 5px;
+                 padding-bottom: 8px; border-bottom: 1px solid #CFD0D1; }
+  .section h2 { font-size: 20px; font-weight: 500; color: #201637; margin: 25px 0 8px;
+                 padding-bottom: 5px; border-bottom: 1px solid #CFD0D1; }
+  .section h3 { font-size: 17px; font-weight: 500; color: #201637; margin: 20px 0 8px; }
+  .section-desc { color: #201637; font-size: 13px; margin-bottom: 15px; line-height: 1.5; }
+  .section-desc strong { color: #201637; font-weight: 600; }
+
+  .gs-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 20px; }
+  .gs-table th { background: #F7F7F7; padding: 6px 10px; text-align: center; font-weight: 600;
+                  border-bottom: 2px solid #CFD0D1; white-space: nowrap; }
+  .gs-table th:first-child { text-align: left; }
+  .gs-table td { padding: 5px 10px; border-bottom: 1px solid #CFD0D1; text-align: center; white-space: nowrap; }
+  .gs-table td:first-child { text-align: left; font-weight: 600; }
+  .gs-table tr:hover td { background: #E2F7F3; }
+  .gs-table a { color: #087F68; text-decoration: none; }
+
+  .chart { width: 100%; height: 400px; margin-bottom: 24px; }
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 24px; }
+
+  .info-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .info-table th { background: #F7F7F7; padding: 6px 10px; text-align: left; font-weight: 600;
+                    border-bottom: 2px solid #CFD0D1; }
+  .info-table td { padding: 5px 10px; border-bottom: 1px solid #CFD0D1; }
+  .info-table tr:hover td { background: #E2F7F3; }
+
+  .callout { border: 1px solid #CFD0D1; border-radius: 4px; margin-bottom: 15px; }
+  .callout-header { background: #F7F7F7; padding: 8px 12px; cursor: pointer; font-size: 13px;
+                     font-weight: 600; color: #201637; border-bottom: 1px solid #CFD0D1; }
+  .callout-header:hover { background: #E2F7F3; }
+  .callout-body { padding: 12px; display: none; }
+  .callout-body.show { display: block; }
+
+  .dl-row { display: flex; gap: 20px; font-size: 13px; margin-bottom: 8px; flex-wrap: wrap; }
+  .dl-row dt { font-weight: 600; color: #201637; }
+  .dl-row dd { color: #201637; margin-right: 15px; }
+
+  footer { border-top: 1px solid #CFD0D1; padding: 15px 0; margin-top: 40px;
+           font-size: 12px; color: #CFD0D1; text-align: center; }
+  footer a { color: #087F68; text-decoration: none; }
+
+  .side-nav { position: fixed; top: 53px; left: 0; width: 228px; padding: 12px 8px;
+              background: #ffffff; border-right: 1px solid #CFD0D1; height: calc(100vh - 53px);
+              overflow-y: auto; font-size: 12px; z-index: 100; }
+  .nav-icon { width: 14px; height: 14px; vertical-align: -2px; margin-right: 6px; flex-shrink: 0; color: #000000; }
+  .h-icon { width: 24px; height: 24px; vertical-align: -4px; margin-right: 6px; color: #087F68; }
+  .h-icon.sm { width: 20px; height: 20px; vertical-align: -3px; margin-right: 5px; }
+  .side-nav a { display: flex; align-items: center; padding: 8px 10px; margin-bottom: 2px; color: #000000; text-decoration: none;
+                border-radius: 6px; transition: background 0.15s ease; }
+  .side-nav a:hover { background: #F7F7F7; color: #000000; }
+  .side-nav a.active { background: #E2F7F3; color: #000000; font-weight: 600; }
+  .side-nav a.l2 { padding-left: 18px; color: #000000; font-size: 12px; }
+  .side-nav a.l3 { padding-left: 28px; color: #000000; font-size: 12px; }
+  .main-content { margin-left: 228px; }
+
+  .csv-btn { float: right; font-size: 13px; color: #087F68; cursor: pointer; border: 1px solid #CFD0D1;
+             background: #ffffff; padding: 2px 10px; border-radius: 3px; text-decoration: none; }
+  .csv-btn:hover { background: #F7F7F7; }
+
+  @media (max-width: 900px) {
+    .side-nav { display: none; }
+    .main-content { margin-left: 0; }
+    .chart-row { grid-template-columns: 1fr; }
+  }
+
+  .text-muted { color: #CFD0D1; }
+  .group-colors span { display: inline-block; width: 12px; height: 12px; border-radius: 2px;
+                        margin-right: 4px; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="container">
+    <a class="navbar-brand" href="https://seqera.io">
+      <span style="font-size:20px;font-weight:300">seqera</span>
+    </a>
+    <div class="navbar-right">Pipeline benchmarking report</div>
+  </div>
+</nav>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="ic-benchmark" viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1" fill="currentColor" opacity=".85"/><rect x="11" y="2" width="7" height="7" rx="1" fill="currentColor" opacity=".55"/><rect x="2" y="11" width="7" height="7" rx="1" fill="currentColor" opacity=".55"/><rect x="11" y="11" width="7" height="7" rx="1" fill="currentColor" opacity=".85"/></symbol>
+  <symbol id="ic-run" viewBox="0 0 20 20"><path d="M6 3.5v13l10-6.5z" fill="currentColor"/></symbol>
+  <symbol id="ic-table" viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="2" rx="1" fill="currentColor"/><rect x="3" y="9" width="14" height="2" rx="1" fill="currentColor"/><rect x="3" y="14" width="14" height="2" rx="1" fill="currentColor"/></symbol>
+  <symbol id="ic-chart" viewBox="0 0 20 20"><rect x="2" y="10" width="4" height="8" rx="1" fill="currentColor"/><rect x="8" y="5" width="4" height="13" rx="1" fill="currentColor"/><rect x="14" y="2" width="4" height="16" rx="1" fill="currentColor"/></symbol>
+  <symbol id="ic-process" viewBox="0 0 20 20"><circle cx="5" cy="10" r="3" fill="currentColor"/><circle cx="15" cy="5" r="2.5" fill="currentColor" opacity=".7"/><circle cx="15" cy="15" r="2.5" fill="currentColor" opacity=".7"/><line x1="7.5" y1="9" x2="12.5" y2="5.5" stroke="currentColor" stroke-width="1.5"/><line x1="7.5" y1="11" x2="12.5" y2="14.5" stroke="currentColor" stroke-width="1.5"/></symbol>
+  <symbol id="ic-task" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 10l2.5 2.5L14 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ic-instance" viewBox="0 0 20 20"><rect x="3" y="2" width="14" height="5" rx="1.5" fill="currentColor"/><rect x="3" y="9" width="14" height="5" rx="1.5" fill="currentColor" opacity=".65"/><circle cx="6" cy="4.5" r="1" fill="#fff"/><circle cx="6" cy="11.5" r="1" fill="#fff"/></symbol>
+  <symbol id="ic-scatter" viewBox="0 0 20 20"><circle cx="5" cy="14" r="1.8" fill="currentColor"/><circle cx="9" cy="8" r="1.8" fill="currentColor" opacity=".75"/><circle cx="14" cy="11" r="1.8" fill="currentColor" opacity=".6"/><circle cx="16" cy="5" r="1.8" fill="currentColor" opacity=".45"/></symbol>
+</svg>
+
+<div class="side-nav" id="side-nav">
+  <a href="#benchmark-overview"><svg class="nav-icon"><use href="#ic-benchmark"/></svg> Benchmark overview</a>
+  <a href="#run-overview"><svg class="nav-icon"><use href="#ic-run"/></svg> Run overview</a>
+  <a href="#run-summary" class="l2"><svg class="nav-icon"><use href="#ic-table"/></svg> Run summary</a>
+  <a href="#run-metrics" class="l2"><svg class="nav-icon"><use href="#ic-chart"/></svg> Run metrics</a>
+  <a href="#process-overview"><svg class="nav-icon"><use href="#ic-process"/></svg> Process overview</a>
+  <a href="#task-overview"><svg class="nav-icon"><use href="#ic-task"/></svg> Task overview</a>
+  <a href="#task-instance-usage" class="l2"><svg class="nav-icon"><use href="#ic-instance"/></svg> Instance usage</a>
+  <a href="#task-metrics" class="l2"><svg class="nav-icon"><use href="#ic-scatter"/></svg> Task metrics</a>
+  <a href="#performance-gains"><svg class="nav-icon"><use href="#ic-benchmark"/></svg> Performance gains</a>
+</div>
+
+<div class="main-content">
+<div class="container">
+
+  <p class="" style="margin-bottom: 25px;">
+    Published <strong>__PUBLISHED_AT__</strong>
+  </p>
+
+  <!-- 1. Benchmark overview -->
+  <div class="section" id="benchmark-overview">
+    <h1><svg class="h-icon"><use href="#ic-benchmark"/></svg> Benchmark overview</h1>
+    <div class="dl-row">
+      <dt>Failed task excluded</dt><dd>: __FAILED_TASK_EXCLUDED__</dd>
+    </div>
+    <p class="section-desc">
+      <strong>Summary</strong><br>
+      This report summarizes the run, process, task, and, if applicable, cost metrics
+      for pipeline executions, which have been split into groups:
+      <span id="group-list" class="group-colors"></span>
+    </p>
+    <div style="overflow-x: auto;">
+      <table class="gs-table" id="overview-matrix"></table>
+    </div>
+
+    <h2 id="methodology"><svg class="h-icon sm"><use href="#ic-table"/></svg> Methodology &mdash; what each utilization metric means</h2>
+    <p class="section-desc">
+      The report exposes <strong>four different utilization metrics</strong>. They sound similar
+      but measure very different things, and in practice they disagree by 2&ndash;5&times;.
+      Read this before comparing rows in the run-metrics table below.
+    </p>
+    <table class="info-table" id="methodology-table">
+      <thead>
+        <tr>
+          <th style="width:22%">Metric</th>
+          <th style="width:8%">Level</th>
+          <th style="width:8%">Resource</th>
+          <th>Numerator</th>
+          <th>Denominator</th>
+          <th style="width:26%">What it captures</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td rowspan="2"><strong>Trace efficiency (task)</strong><br><span class="text-muted">cpuEfficiency / memoryEfficiency</span></td>
+          <td rowspan="2">Task</td>
+          <td><strong>CPU</strong></td>
+          <td>&Sigma;<sub>tasks</sub>&nbsp;(pcpu / 100 &middot; realtime)</td>
+          <td>&Sigma;<sub>tasks</sub>&nbsp;(cpus<sub>req</sub> &middot; realtime)</td>
+          <td rowspan="2">How close each task came to using what it asked for. Ignores VM packing and VM idle time.</td>
+        </tr>
+        <tr>
+          <td><strong>Memory</strong></td>
+          <td>&Sigma;<sub>tasks</sub>&nbsp;(peakRss &middot; realtime)</td>
+          <td>&Sigma;<sub>tasks</sub>&nbsp;(memory<sub>req</sub> &middot; realtime)</td>
+        </tr>
+        <tr>
+          <td rowspan="2"><strong>Sched allocation (VM)</strong><br><span class="text-muted">schedAllocCpuEfficiency / schedAllocMemEfficiency</span></td>
+          <td rowspan="2">VM</td>
+          <td><strong>CPU</strong></td>
+          <td>&Sigma;<sub>VMs</sub>&nbsp;(avg_cpu_util &middot; vCPU &middot; lifetime)</td>
+          <td>&Sigma;<sub>VMs</sub>&nbsp;(vCPU &middot; lifetime)</td>
+          <td rowspan="2">
+            How <em>booked</em> each VM was. Per-VM <code>avg_util</code> =
+            &Sigma;(request<sub>task</sub> &middot; task_duration) / (capacity<sub>VM</sub> &middot; vm_lifetime).
+            Drops when a VM sits idle between tasks or when small tasks run on large instances.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Memory</strong></td>
+          <td>&Sigma;<sub>VMs</sub>&nbsp;(avg_mem_util &middot; memory<sub>VM</sub> &middot; lifetime)</td>
+          <td>&Sigma;<sub>VMs</sub>&nbsp;(memory<sub>VM</sub> &middot; lifetime)</td>
+        </tr>
+        <tr>
+          <td rowspan="2"><strong>Real VM efficiency (VM)</strong><br><span class="text-muted">realVmCpuEfficiency / realVmMemEfficiency</span></td>
+          <td rowspan="2">VM</td>
+          <td><strong>CPU</strong></td>
+          <td>&Sigma;<sub>tasks</sub>&nbsp;(pcpu / 100 &middot; realtime)</td>
+          <td>&Sigma;<sub>VMs</sub>&nbsp;(vCPU &middot; lifetime)</td>
+          <td rowspan="2">Ground truth: what fraction of the VM-hours you paid for was actually spent doing work.</td>
+        </tr>
+        <tr>
+          <td><strong>Memory</strong></td>
+          <td>&Sigma;<sub>tasks</sub>&nbsp;(peakRss &middot; realtime)</td>
+          <td>&Sigma;<sub>VMs</sub>&nbsp;(memory<sub>VM</sub> &middot; lifetime)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="section-desc" style="margin-top:8px">
+      <strong>How to read them:</strong>
+      <em>Trace efficiency</em> tells you whether users are requesting too much CPU/memory per task.
+      <em>Sched allocation</em> tells you how well the scheduler packs and reuses VMs.
+      <em>Real VM efficiency</em> is the end-to-end ground truth: what fraction of the VM-hours
+      you paid for were actually spent doing work. Trace efficiency &times; Sched allocation
+      &asymp; Real VM efficiency (modulo time-weighting).
+    </p>
+    <p class="section-desc">
+      VM-level metrics require a <code>machines.jsonl</code> in the JSONL bundle
+      (built from a per-run machine CSV &mdash; sched UI <code>/machines</code> export or the
+      <code>instance_summary.csv</code> produced by <code>analyze_idle_periods.py</code>).
+      Runs without machine data show &mdash; for those columns.
+    </p>
+  </div>
+
+  <!-- 2. Run overview -->
+  <div class="section" id="run-overview">
+    <h1><svg class="h-icon"><use href="#ic-run"/></svg> Run overview</h1>
+    <p class="section-desc">
+      <strong>Summary</strong><br>
+      This section provides a high-level overview of the pipeline run metrics.
+    </p>
+
+    <h2 id="run-summary"><svg class="h-icon sm"><use href="#ic-table"/></svg> Run summary</h2>
+    <p class="section-desc">Summary of pipeline execution and infrastructure settings.</p>
+    <div class="callout">
+      <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+        &#9654; Click to display table
+      </div>
+      <div class="callout-body show" style="overflow-x:auto">
+        <table class="gs-table" id="run-summary-table"></table>
+      </div>
+    </div>
+
+    <h2 id="run-metrics"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Run metrics</h2>
+    <p class="section-desc">This section provides a visual overview of the pipeline run metrics.</p>
+    <div class="callout">
+      <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+        &#9654; Click to display table
+      </div>
+      <div class="callout-body" style="overflow-x:auto">
+        <button class="csv-btn" onclick="downloadCSV('run-metrics-table','run_overview.csv')">Download as CSV</button>
+        <table class="gs-table" id="run-metrics-table"></table>
+      </div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart" id="chart-wall-time"></div>
+      <div class="chart" id="chart-cpu-time"></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart" id="chart-est-cost"></div>
+      <div class="chart" id="chart-workflow-status"></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart" id="chart-cpu-eff"></div>
+      <div class="chart" id="chart-mem-eff"></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart" id="chart-vm-alloc-cpu"></div>
+      <div class="chart" id="chart-vm-alloc-mem"></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart" id="chart-vm-real-cpu"></div>
+      <div class="chart" id="chart-vm-real-mem"></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart" id="chart-read-io"></div>
+      <div class="chart" id="chart-write-io"></div>
+    </div>
+  </div>
+
+  <!-- 3. Process overview -->
+  <div class="section" id="process-overview">
+    <h1><svg class="h-icon"><use href="#ic-process"/></svg> Process overview</h1>
+    <p class="section-desc">
+      <strong>Summary</strong><br>
+      This section provides a comparison of the process-level metrics for each pipeline
+      across the groups. The plots show the run time distribution per process.
+      Dots represent mean values per process across all tasks.
+      Error bars indicate mean &plusmn; 1 standard deviation.
+      A single point indicates that a single task was executed for the process.
+    </p>
+    <p class="section-desc">
+      <strong>Task duration</strong> = Staging time + real time
+    </p>
+    <div id="process-sections"></div>
+  </div>
+
+  <!-- 4. Task overview -->
+  <div class="section" id="task-overview">
+    <h1><svg class="h-icon"><use href="#ic-task"/></svg> Task overview</h1>
+    <p class="section-desc">
+      <strong>Summary</strong><br>
+      This section provides an overview of task-level metrics for instance usage and runtime metrics.
+    </p>
+
+    <h2 id="task-instance-usage"><svg class="h-icon sm"><use href="#ic-instance"/></svg> Task instance usage</h2>
+    <p class="section-desc">Number of tasks per instance type, grouped by pipeline run group.</p>
+    <div class="chart" id="chart-instance-usage" style="height:500px"></div>
+
+    <h2 id="task-metrics"><svg class="h-icon sm"><use href="#ic-scatter"/></svg> Task metrics</h2>
+    <p class="section-desc">
+      This section provides a comparison between staging and run times for tasks.<br>
+      <strong>Wait time</strong>: time from submission to task start.<br>
+      <strong>Staging time</strong>: time to stage/unstage before and after execution.<br>
+      <strong>Real time</strong>: time to execute the task.
+    </p>
+    <div id="task-sections"></div>
+  </div>
+
+  <!-- 5. Performance gains -->
+  <div class="section" id="performance-gains">
+    <h1><svg class="h-icon"><use href="#ic-benchmark"/></svg> Performance gains</h1>
+    <p class="section-desc">
+      <strong>Summary</strong><br>
+      Decomposes the VM capacity-hours you paid for into <em>used</em> vs <em>wasted</em>,
+      and attributes the waste to the three responsibilities the Seqera scheduler
+      owns: <strong>VM provisioning</strong> (choosing instance types), <strong>packing</strong>
+      (which task on which VM and when), and <strong>task rightsizing</strong>
+      (trimming user-requested CPU/Memory before submitting to ECS, when prediction
+      is enabled).
+    </p>
+    <p class="section-desc">
+      <strong>Four quantities, per run</strong><br>
+      <em>VM capacity</em>: &Sigma;<sub>VMs</sub>&nbsp;(vCPU &middot; lifetime). What you paid for.<br>
+      <em>User requested</em>: &Sigma;<sub>tasks</sub>&nbsp;(cpus<sub>config</sub> &middot; realtime). Nextflow-directive request per task &times; active time.<br>
+      <em>Scheduler booked</em>: schedAllocCpuEfficiency &middot; VM capacity. What actually went to ECS as <code>cpuShares</code> (reflects Predv1 rightsizing when on).<br>
+      <em>Used</em>: &Sigma;<sub>tasks</sub>&nbsp;(pcpu/100 &middot; realtime). Actual work done.<br>
+      Memory analogues use <code>memory<sub>config</sub></code>, <code>schedAllocMemEfficiency</code>, and <code>peakRss</code>.
+    </p>
+    <p class="section-desc">
+      <strong>How the scheduler's three jobs show up</strong><br>
+      &nbsp;&nbsp;&nbsp;&mdash; <em>Rightsizing</em> shrinks <code>scheduler booked</code> below <code>user requested</code>. Visible as the green &ldquo;already saved&rdquo; bar in the savings chart.<br>
+      &nbsp;&nbsp;&nbsp;&mdash; <em>Packing</em> shrinks the gap between <code>scheduler booked</code> and <code>VM capacity</code>. Visible as &ldquo;VM slack&rdquo; in the capacity mix.<br>
+      &nbsp;&nbsp;&nbsp;&mdash; <em>Provisioning</em> shrinks <code>VM capacity</code> itself (picking smaller/cheaper instances). Visible as a shorter total bar.<br>
+      Rightsizing does <em>not</em> directly raise Real VM efficiency &mdash; it only frees VM headroom for packing/provisioning to consume.
+    </p>
+    <div class="callout">
+      <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+        &#9654; Scheduler strategy by run group
+      </div>
+      <div class="callout-body show" style="overflow-x:auto">
+        <table class="gs-table" id="strategy-table"></table>
+      </div>
+    </div>
+    <p class="section-desc">
+      <strong>Note on Predv1 visibility.</strong> The per-task <code>cpus</code> value in the Nextflow trace is always the Nextflow <em>config</em> request, not the scheduler-submitted value. Rightsizing savings are therefore derived from aggregate <code>/machines</code> utilization, which is lossy: when Predv1&rsquo;s rightsizing is small relative to scheduler-side overhead (ramp-up, handoff between tasks on the same VM, concurrent-task edge cases), the aggregate can show <code>scheduler booked &geq; user requested</code> and the rightsize layer clamps to 0. This is an under-count, not a correctness bug &mdash; per-task scheduler-booked CPU / memory from a <code>/v1a1/compute/tasks/{id}</code> response would make it exact. A staging/retry layer using <code>duration</code> is intentionally omitted &mdash; on spot runs it silently bundles staging with interrupted-VM and retry-queue time.
+    </p>
+
+    <h2 id="pg-cpu-mix"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Capacity mix (CPU)</h2>
+    <p class="section-desc">Each bar spans the total VM vCPU-hours paid for. Segments show how those hours were spent.</p>
+    <div class="chart" id="chart-pg-cpu-mix"></div>
+
+    <h2 id="pg-mem-mix"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Capacity mix (Memory)</h2>
+    <p class="section-desc">Each bar spans the total VM memory GiB-hours paid for.</p>
+    <div class="chart" id="chart-pg-mem-mix"></div>
+
+    <h2 id="pg-cpu-savings"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Savings attribution (CPU)</h2>
+    <p class="section-desc">
+      vCPU-hours attributable to each layer.<br>
+      <em>Scheduler rightsize</em> (green): max(0, &Sigma;cpus<sub>config</sub>&middot;realtime &minus; scheduler booked). Savings Predv1 has <em>already</em> realized. &asymp;0 for no-prediction runs and AWS Batch.<br>
+      <em>Task overbook</em> (blue): scheduler booked &minus; &Sigma;(pcpu/100 &middot; realtime). Scheduler still booked more CPU than tasks used.<br>
+      <em>VM packing slack</em> (grey): VM capacity &minus; scheduler booked. VM capacity not booked to any task.
+    </p>
+    <div class="chart" id="chart-pg-cpu-savings"></div>
+
+    <h2 id="pg-mem-savings"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Savings attribution (Memory)</h2>
+    <div class="chart" id="chart-pg-mem-savings"></div>
+  </div>
+
+</div>
+</div>
+
+<footer>
+  <div class="container">
+    Generated by <a href="https://github.com/seqeralabs/nf-aggregate">seqeralabs/nf-aggregate</a> &mdash;
+    Powered by <a href="https://seqera.io">Seqera</a>
+  </div>
+</footer>
+
+<script>
+echarts.registerTheme('seqera', {
+    "color": [
+        "#087F68",
+        "#45a1bf",
+        "#201637",
+        "#f4b548",
+        "#31C9AC",
+        "#8f3d56",
+        "#85c7c6",
+        "#a5cdee",
+        "#d2c6ac",
+        "#46a485"
+    ],
+    "backgroundColor": "#ffffff",
+    "textStyle": {
+        "color": "#201637",
+        "fontFamily": "'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+        "fontSize": 12
+    },
+    "title": {
+        "textStyle": {
+            "color": "#201637",
+            "fontSize": 14,
+            "fontWeight": 500
+        },
+        "subtextStyle": {
+            "color": "#087F68",
+            "fontSize": 12
+        },
+        "padding": 0,
+        "itemGap": 7,
+        "top": "1px",
+        "left": "center"
+    },
+    "grid": {
+        "left": "1%",
+        "right": "4%",
+        "bottom": "0%",
+        "top": "15%",
+        "containLabel": true
+    },
+    "legend": {
+        "textStyle": {
+            "color": "#666",
+            "fontSize": 11
+        },
+        "icon": "circle",
+        "padding": [0, 0, 0, -7],
+        "animationDurationUpdate": 300
+    },
+    "tooltip": {
+        "borderRadius": 4,
+        "borderWidth": 1,
+        "borderColor": "#CFD0D1",
+        "textStyle": {
+            "fontSize": 12,
+            "fontWeight": 400,
+            "color": "#201637"
+        },
+        "padding": [6, 8],
+        "backgroundColor": "rgba(255,255,255,0.96)",
+        "axisPointer": {
+            "lineStyle": {
+                "color": "#CFD0D1",
+                "width": 1
+            },
+            "crossStyle": {
+                "color": "#CFD0D1",
+                "width": 1
+            },
+            "label": {
+                "color": "#ffffff",
+                "backgroundColor": "#201637"
+            }
+        }
+    },
+    "toolbox": {
+        "iconStyle": {
+            "borderColor": "#087F68"
+        },
+        "emphasis": {
+            "iconStyle": {
+                "borderColor": "#31C9AC"
+            }
+        }
+    },
+    "animationDuration": 500,
+    "animationDurationUpdate": 500,
+    "dataZoom": {
+        "borderColor": "#CFD0D1",
+        "textStyle": {
+            "color": "#201637"
+        },
+        "brushStyle": {
+            "color": "rgba(8,127,104,0.15)"
+        },
+        "handleStyle": {
+            "color": "#087F68",
+            "borderColor": "#CFD0D1"
+        },
+        "moveHandleStyle": {
+            "color": "#31C9AC",
+            "opacity": 0.5
+        },
+        "fillerColor": "rgba(49,201,172,0.15)",
+        "emphasis": {
+            "handleStyle": {
+                "borderColor": "#087F68",
+                "color": "#31C9AC"
+            },
+            "moveHandleStyle": {
+                "color": "#087F68",
+                "opacity": 0.7
+            }
+        },
+        "dataBackground": {
+            "lineStyle": {
+                "color": "#CFD0D1",
+                "width": 1
+            },
+            "areaStyle": {
+                "color": "#E2F7F3"
+            }
+        },
+        "selectedDataBackground": {
+            "lineStyle": {
+                "color": "#087F68"
+            },
+            "areaStyle": {
+                "color": "#31C9AC"
+            }
+        }
+    },
+    "visualMap": {
+        "textStyle": {
+            "color": "#201637"
+        },
+        "inRange": {
+            "color": ["#E2F7F3", "#31C9AC", "#087F68"]
+        }
+    },
+    "timeline": {
+        "lineStyle": {
+            "color": "#CFD0D1"
+        },
+        "itemStyle": {
+            "color": "#31C9AC",
+            "borderColor": "#087F68"
+        },
+        "label": {
+            "color": "#201637"
+        },
+        "controlStyle": {
+            "color": "#087F68",
+            "borderColor": "#087F68"
+        },
+        "emphasis": {
+            "itemStyle": {
+                "color": "#087F68"
+            },
+            "controlStyle": {
+                "color": "#087F68",
+                "borderColor": "#087F68"
+            }
+        }
+    },
+    "calendar": {
+        "itemStyle": {
+            "color": "#ffffff",
+            "borderColor": "#CFD0D1"
+        },
+        "dayLabel": {
+            "color": "#201637"
+        },
+        "monthLabel": {
+            "color": "#201637"
+        },
+        "yearLabel": {
+            "color": "#201637"
+        }
+    },
+    "categoryAxis": {
+        "axisLine": {
+            "show": true,
+            "lineStyle": {
+                "color": "#CFD0D1"
+            }
+        },
+        "axisTick": {
+            "show": false
+        },
+        "axisLabel": {
+            "color": "#666",
+            "fontSize": 11
+        },
+        "splitLine": {
+            "show": false,
+            "lineStyle": {
+                "color": ["#CFD0D1"]
+            }
+        },
+        "splitArea": {
+            "areaStyle": {
+                "color": ["#ffffff", "#F7F7F7"]
+            }
+        }
+    },
+    "valueAxis": {
+        "axisLine": {
+            "show": false
+        },
+        "axisTick": {
+            "show": false
+        },
+        "axisLabel": {
+            "color": "#666",
+            "fontSize": 11
+        },
+        "splitLine": {
+            "show": true,
+            "lineStyle": {
+                "color": "#E8E8E8",
+                "width": 1
+            }
+        },
+        "splitArea": {
+            "areaStyle": {
+                "color": ["#ffffff", "#F7F7F7"]
+            }
+        },
+        "nameTextStyle": {
+            "color": "#666",
+            "fontSize": 11
+        }
+    },
+    "logAxis": {
+        "axisLine": {
+            "show": false
+        },
+        "axisTick": {
+            "show": false
+        },
+        "axisLabel": {
+            "color": "#666"
+        },
+        "splitLine": {
+            "show": true,
+            "lineStyle": {
+                "color": "#E8E8E8",
+                "width": 1
+            }
+        }
+    },
+    "timeAxis": {
+        "axisLine": {
+            "show": true,
+            "lineStyle": {
+                "color": "#CFD0D1"
+            }
+        },
+        "axisTick": {
+            "show": false
+        },
+        "axisLabel": {
+            "color": "#666"
+        },
+        "splitLine": {
+            "show": true,
+            "lineStyle": {
+                "color": "#E8E8E8",
+                "width": 1
+            }
+        }
+    },
+    "line": {
+        "itemStyle": {
+            "borderWidth": 2
+        },
+        "lineStyle": {
+            "width": 2
+        },
+        "symbolSize": 6,
+        "symbol": "circle",
+        "smooth": false
+    },
+    "bar": {
+        "itemStyle": {
+            "barBorderWidth": 0,
+            "barBorderColor": "#ffffff",
+            "borderRadius": [2, 2, 2, 2]
+        },
+        "barMaxWidth": 60,
+        "emphasis": {
+            "focus": "series"
+        },
+        "labelLayout": {
+            "hideOverlap": true
+        }
+    },
+    "pie": {
+        "itemStyle": {
+            "borderWidth": 1,
+            "borderColor": "#ffffff"
+        }
+    },
+    "scatter": {
+        "itemStyle": {
+            "borderWidth": 0
+        },
+        "symbolSize": 8,
+        "emphasis": {
+            "focus": "series"
+        }
+    },
+    "boxplot": {
+        "itemStyle": {
+            "color": "#E2F7F3",
+            "borderColor": "#087F68",
+            "borderWidth": 1.5
+        }
+    },
+    "graph": {
+        "itemStyle": {
+            "borderWidth": 0
+        },
+        "lineStyle": {
+            "width": 1,
+            "color": "#CFD0D1"
+        },
+        "label": {
+            "color": "#201637"
+        }
+    },
+    "gauge": {
+        "title": {
+            "color": "#201637"
+        },
+        "itemStyle": {
+            "color": "#31C9AC",
+            "borderColor": "#087F68"
+        },
+        "axisLine": {
+            "lineStyle": {
+                "color": [
+                    [0.2, "#31C9AC"],
+                    [0.8, "#087F68"],
+                    [1, "#201637"]
+                ]
+            }
+        },
+        "detail": {
+            "color": "#087F68"
+        }
+    },
+    "candlestick": {
+        "itemStyle": {
+            "color": "#31C9AC",
+            "color0": "#201637",
+            "borderColor": "#087F68",
+            "borderColor0": "#201637"
+        }
+    }
+}
+);
+
+const DATA = __REPORT_DATA__;
+const COLORS = ["#065647", "#45a1bf", "#201637", "#f4b548", "#31C9AC", "#8f3d56", "#85c7c6", "#a5cdee", "#d2c6ac", "#46a485"];
+
+function fmtDuration(ms) {
+  if (ms == null || ms === 0) return '\u2014';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  if (h > 0) return h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  return m + ':' + String(s).padStart(2,'0');
+}
+function fmtCost(v) { return v != null ? '$' + Number(v).toFixed(2) : '\u2014'; }
+function fmtPct(v) { return v != null ? Number(v).toFixed(1) + '%' : '\u2014'; }
+function fmtGB(v) { return v != null ? Number(v).toLocaleString() : '\u2014'; }
+function fmtHours(v) { return v != null ? Number(v).toFixed(1) : '\u2014'; }
+
+function takeaway(labels, values, opts) {
+  opts = opts || {};
+  if (values.length < 2) return '';
+  const pairs = labels.map((l, i) => ({ label: l, value: values[i] })).filter(p => p.value != null);
+  if (pairs.length < 2) return '';
+  pairs.sort((a, b) => a.value - b.value);
+  const lo = pairs[0], hi = pairs[pairs.length - 1];
+  if (hi.value === 0) return '';
+  const ratio = (hi.value / lo.value).toFixed(1);
+  const prefix = opts.prefix || '';
+  const suffix = opts.suffix || '';
+  if (opts.lowerBetter) {
+    return lo.label + ' was ' + ratio + '\u00d7 ' + (opts.adjective || 'lower') + ' (' + prefix + lo.value.toLocaleString(undefined, {maximumFractionDigits: 1}) + suffix + ' vs ' + prefix + hi.value.toLocaleString(undefined, {maximumFractionDigits: 1}) + suffix + ')';
+  }
+  return hi.label + ' was ' + ratio + '\u00d7 ' + (opts.adjective || 'higher') + ' (' + prefix + hi.value.toLocaleString(undefined, {maximumFractionDigits: 1}) + suffix + ' vs ' + prefix + lo.value.toLocaleString(undefined, {maximumFractionDigits: 1}) + suffix + ')';
+}
+
+function downloadCSV(tableId, filename) {
+  const table = document.getElementById(tableId);
+  const rows = [...table.querySelectorAll('tr')];
+  const csv = rows.map(r => [...r.querySelectorAll('th,td')].map(c => '"'+c.textContent.trim()+'"').join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = filename; a.click();
+}
+
+// Group colors
+const groups = [...new Set((DATA.run_summary||[]).map(r => r.group))];
+const groupColor = {};
+groups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
+
+document.getElementById('group-list').innerHTML = groups.map(g =>
+  `<span style="background:${groupColor[g]}"></span>${g}`
+).join(' &nbsp; ');
+
+// Scheduler strategy matrix
+(function() {
+  const runs = DATA.run_summary || [];
+  const table = document.getElementById('strategy-table');
+  if (!runs.length || !table) return;
+  const rows = runs
+    .map(r => ({
+      group: r.group,
+      scheduler_mode: r.scheduler_mode || '\u2014',
+      task_rightsizing: r.task_rightsizing || '\u2014',
+      packing: r.packing || '\u2014',
+      vm_provisioning: r.vm_provisioning || '\u2014',
+    }))
+    .filter((row, idx, arr) => idx === arr.findIndex(x => x.group === row.group));
+
+  let html = '<thead><tr><th>Group</th><th>Control plane</th><th>Task rightsizing</th><th>Packing</th><th>VM provisioning</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    html += '<tr>';
+    html += '<td>' + r.group + '</td>';
+    html += '<td>' + r.scheduler_mode + '</td>';
+    html += '<td>' + r.task_rightsizing + '</td>';
+    html += '<td>' + r.packing + '</td>';
+    html += '<td>' + r.vm_provisioning + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+})();
+
+// 1. Benchmark overview matrix
+(function() {
+  const runs = DATA.benchmark_overview || [];
+  const pipelines = [...new Set(runs.map(r => r.pipeline))];
+  const table = document.getElementById('overview-matrix');
+  let html = '<thead><tr><th style="text-align:left">Pipeline</th>';
+  groups.forEach(g => { html += `<th>${g}</th>`; });
+  html += '</tr></thead><tbody>';
+  pipelines.forEach(p => {
+    html += '<tr><td>' + p + '</td>';
+    groups.forEach(g => {
+      const match = runs.find(r => r.pipeline === p && r.group === g);
+      let cell = '\u2014';
+      if (match) {
+        cell = match.platform_url
+          ? `<a href="${match.platform_url}" target="_blank" rel="noopener">${match.run_id}</a>`
+          : match.run_id;
+      }
+      html += '<td>' + cell + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+})();
+
+// 2.1 Run summary table (with cached tasks)
+(function() {
+  const runs = DATA.run_summary || [];
+  if (!runs.length) return;
+  const cols = [
+    ['Pipeline name','pipeline'], ['Group','group'], ['Run ID','run_id'],
+    ['User name','username'], ['Pipeline version','Version'],
+    ['Nextflow version','Nextflow_version'], ['Platform version','platform_version'],
+    ['Tasks succeeded','succeedCount'], ['Tasks failed','failedCount'],
+    ['Tasks cached','cachedCount'],
+    ['Executor','executor'], ['Region','region'],
+    ['Fusion enabled','fusion_enabled'], ['Wave enabled','wave_enabled'],
+  ];
+  const table = document.getElementById('run-summary-table');
+  let html = '<thead><tr>' + cols.map(c => '<th>'+c[0]+'</th>').join('') + '</tr></thead><tbody>';
+  runs.forEach((r,i) => {
+    const bg = groupColor[r.group] || '#CFD0D1';
+    html += `<tr style="background:${bg}22">`;
+    cols.forEach(c => { html += '<td>' + (r[c[1]] != null ? r[c[1]] : '\u2014') + '</td>'; });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+})();
+
+// 2.2 Run metrics table
+(function() {
+  const metrics = DATA.run_metrics || [];
+  const costs = DATA.run_costs || [];
+  if (!metrics.length) return;
+  const table = document.getElementById('run-metrics-table');
+  const cols = ['Pipeline name','Group','Run ID','Duration','CPU time (hours)',
+                'Compute cost ($)','Read (GB)','Write (GB)',
+                'Trace CPU eff (task) %','Trace Mem eff (task) %',
+                'Sched alloc CPU (VM) %','Sched alloc Mem (VM) %',
+                'Real VM CPU eff %','Real VM Mem eff %',
+                'Used cost ($)','Unused cost ($)','Total task runtime'];
+  let html = '<thead><tr>' + cols.map(c => '<th>'+c+'</th>').join('') + '</tr></thead><tbody>';
+  metrics.forEach(r => {
+    const c = costs.find(x => x.run_id === r.run_id) || {};
+    const pipelineRuntimeMs = r.task_runtime_ms || r.pipeline_runtime || 0;
+    const prtH = Math.floor(pipelineRuntimeMs / 3600000);
+    const prtM = Math.floor((pipelineRuntimeMs % 3600000) / 60000);
+    const prtS = Math.floor((pipelineRuntimeMs % 60000) / 1000);
+    const prtFmt = prtH + ':' + String(prtM).padStart(2,'0') + ':' + String(prtS).padStart(2,'0');
+    html += '<tr>';
+    html += '<td>' + r.pipeline + '</td>';
+    html += '<td>' + r.group + '</td>';
+    html += '<td>' + r.run_id + '</td>';
+    html += '<td>' + fmtDuration(r.duration) + '</td>';
+    html += '<td>' + fmtHours(r.cpuTime) + '</td>';
+    html += '<td>' + fmtCost(c.cost) + '</td>';
+    html += '<td>' + fmtGB(r.readBytes) + '</td>';
+    html += '<td>' + fmtGB(r.writeBytes) + '</td>';
+    html += '<td>' + fmtPct(r.cpuEfficiency) + '</td>';
+    html += '<td>' + fmtPct(r.memoryEfficiency) + '</td>';
+    html += '<td>' + fmtPct(r.schedAllocCpuEfficiency) + '</td>';
+    html += '<td>' + fmtPct(r.schedAllocMemEfficiency) + '</td>';
+    html += '<td>' + fmtPct(r.realVmCpuEfficiency) + '</td>';
+    html += '<td>' + fmtPct(r.realVmMemEfficiency) + '</td>';
+    html += '<td>' + fmtCost(c.used_cost) + '</td>';
+    html += '<td>' + fmtCost(c.unused_cost) + '</td>';
+    html += '<td>' + prtFmt + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+})();
+
+// Chart helpers
+function hbarChart(elId, title, labels, values, opts) {
+  opts = opts || {};
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const height = Math.max(250, labels.length * 45 + 80);
+  el.style.height = height + 'px';
+  const seriesArray = opts.series || [{ type: 'bar', data: values.slice().reverse(),
+    itemStyle: opts.color ? { color: opts.color, borderRadius: [0, 2, 2, 0] }
+                          : { borderRadius: [0, 2, 2, 0] },
+    emphasis: { focus: 'series' } }];
+  if (seriesArray.length > 1 && seriesArray.length <= 3) {
+    seriesArray.forEach(s => {
+      s.label = { show: true, position: 'right', formatter: '{a}' };
+    });
+  }
+  echarts.init(el, 'seqera').setOption({
+    title: { text: title, subtext: opts.subtitle || '' },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: opts.formatter || (p => p[0].name + ': ' + (opts.prefix||'') +
+        p[0].value.toLocaleString(undefined, {maximumFractionDigits:2}) + (opts.suffix||'')) },
+    grid: { top: opts.subtitle ? 60 : 40, bottom: 30, containLabel: true },
+    xAxis: { type: 'value', name: opts.xName || '', nameLocation: 'center',
+      nameGap: 25, axisLabel: { hideOverlap: true } },
+    yAxis: { type: 'category', data: labels.slice().reverse() },
+    series: seriesArray,
+  });
+}
+
+function hbarStacked(elId, title, labels, seriesDefs, opts) {
+  opts = opts || {};
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const height = Math.max(250, labels.length * 45 + 80);
+  el.style.height = height + 'px';
+  echarts.init(el, 'seqera').setOption({
+    title: { text: title, subtext: opts.subtitle || '' },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: { show: seriesDefs.length > 3, bottom: 0 },
+    grid: { top: opts.subtitle ? 60 : 40, bottom: 40, containLabel: true },
+    xAxis: { type: 'value', name: opts.xName || '', nameLocation: 'center', nameGap: 25, axisLabel: { hideOverlap: true } },
+    yAxis: { type: 'category', data: labels.slice().reverse() },
+    series: seriesDefs.map((s, i, arr) => ({
+      name: s.name, type: 'bar', stack: 'total',
+      data: s.data.slice().reverse(), itemStyle: { color: s.color,
+        borderRadius: i === arr.length - 1 ? [0, 2, 2, 0] : 0 },
+      emphasis: { focus: 'series' },
+      label: { show: true, position: 'inside', overflow: 'truncate', formatter: function(p) { return p.value > 5 ? p.seriesName : ''; }, fontSize: 11, color: '#fff' },
+    })),
+  });
+}
+
+// 2.2 Run metrics charts
+(function() {
+  const metrics = DATA.run_metrics || [];
+  const costs = DATA.run_costs || [];
+  const labels = metrics.map(r => r.group);
+
+  const wallValues = metrics.map(r => +(r.duration / 3600000).toFixed(2));
+  hbarChart('chart-wall-time', 'Wall time', labels, wallValues,
+    { xName: 'Hours', suffix: ' h', subtitle: takeaway(labels, wallValues, { lowerBetter: true, adjective: 'faster', suffix: ' h' }) });
+
+  const cpuValues = metrics.map(r => +(r.cpuTime || 0));
+  hbarChart('chart-cpu-time', 'CPU time', labels, cpuValues,
+    { xName: 'CPU Hours', suffix: ' h', subtitle: takeaway(labels, cpuValues, { lowerBetter: true, adjective: 'lower', suffix: ' h' }) });
+
+  const costValues = metrics.map(r => { const c = costs.find(x => x.run_id === r.run_id); return c ? +c.cost : 0; });
+  hbarChart('chart-est-cost', 'Compute cost', labels, costValues,
+    { xName: '$', prefix: '$', subtitle: takeaway(labels, costValues, { lowerBetter: true, adjective: 'cheaper', prefix: '$' }) });
+
+  // Workflow status — succeeded/failed/cached stacked bars
+  const summaryRuns = DATA.run_summary || [];
+  const totalSucc = summaryRuns.reduce((s,r) => s + (r.succeedCount||0), 0);
+  const totalFail = summaryRuns.reduce((s,r) => s + (r.failedCount||0), 0);
+  const totalCached = summaryRuns.reduce((s,r) => s + (r.cachedCount||0), 0);
+  let statusSubtitle = '';
+  if (totalFail === 0 && totalCached === 0) {
+    statusSubtitle = 'All tasks succeeded';
+  } else {
+    const parts = [];
+    if (totalFail > 0) parts.push(totalFail + ' task' + (totalFail > 1 ? 's' : '') + ' failed');
+    if (totalCached > 0) parts.push(totalCached + ' task' + (totalCached > 1 ? 's' : '') + ' cached');
+    statusSubtitle = parts.join(', ') + ' across all runs';
+  }
+  const statusSeries = [
+    { name: 'Succeeded', data: summaryRuns.map(r => r.succeedCount || 0), color: '#16a34a' },
+    { name: 'Failed', data: summaryRuns.map(r => r.failedCount || 0), color: '#dc2626' },
+  ];
+  if (totalCached > 0) {
+    statusSeries.push(
+      { name: 'Cached', data: summaryRuns.map(r => r.cachedCount || 0), color: '#f59e0b' }
+    );
+  }
+  hbarStacked('chart-workflow-status', 'Workflow status', labels, statusSeries,
+    { xName: 'Tasks', subtitle: statusSubtitle });
+
+  const cpuEffValues = metrics.map(r => +(r.cpuEfficiency || 0));
+  hbarChart('chart-cpu-eff', 'Trace CPU efficiency (task)', labels, cpuEffValues,
+    { xName: '%', suffix: '%', subtitle: takeaway(labels, cpuEffValues, { adjective: 'more efficient', suffix: '%' }) });
+  const memEffValues = metrics.map(r => +(r.memoryEfficiency || 0));
+  hbarChart('chart-mem-eff', 'Trace Memory efficiency (task)', labels, memEffValues,
+    { xName: '%', suffix: '%', subtitle: takeaway(labels, memEffValues, { adjective: 'more efficient', suffix: '%' }) });
+
+  const hasVmMetrics = metrics.some(r => r.schedAllocCpuEfficiency != null || r.realVmCpuEfficiency != null);
+  if (hasVmMetrics) {
+    const allocCpu = metrics.map(r => +(r.schedAllocCpuEfficiency || 0));
+    hbarChart('chart-vm-alloc-cpu', 'Sched allocation CPU (VM booking)', labels, allocCpu,
+      { xName: '%', suffix: '%', subtitle: takeaway(labels, allocCpu, { adjective: 'better packed', suffix: '%' }) });
+    const allocMem = metrics.map(r => +(r.schedAllocMemEfficiency || 0));
+    hbarChart('chart-vm-alloc-mem', 'Sched allocation Memory (VM booking)', labels, allocMem,
+      { xName: '%', suffix: '%', subtitle: takeaway(labels, allocMem, { adjective: 'better packed', suffix: '%' }) });
+    const realCpu = metrics.map(r => +(r.realVmCpuEfficiency || 0));
+    hbarChart('chart-vm-real-cpu', 'Real VM CPU efficiency', labels, realCpu,
+      { xName: '%', suffix: '%', subtitle: takeaway(labels, realCpu, { adjective: 'more VM-efficient', suffix: '%' }) });
+    const realMem = metrics.map(r => +(r.realVmMemEfficiency || 0));
+    hbarChart('chart-vm-real-mem', 'Real VM Memory efficiency', labels, realMem,
+      { xName: '%', suffix: '%', subtitle: takeaway(labels, realMem, { adjective: 'more VM-efficient', suffix: '%' }) });
+  } else {
+    ['chart-vm-alloc-cpu','chart-vm-alloc-mem','chart-vm-real-cpu','chart-vm-real-mem'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+  }
+
+  const readValues = metrics.map(r => +(r.readBytes || 0));
+  hbarChart('chart-read-io', 'Data read', labels, readValues,
+    { xName: 'GB', suffix: ' GB', subtitle: takeaway(labels, readValues, { lowerBetter: true, adjective: 'less I/O', suffix: ' GB' }) });
+  const writeValues = metrics.map(r => +(r.writeBytes || 0));
+  hbarChart('chart-write-io', 'Data written', labels, writeValues,
+    { xName: 'GB', suffix: ' GB', subtitle: takeaway(labels, writeValues, { lowerBetter: true, adjective: 'less I/O', suffix: ' GB' }) });
+})();
+
+// 5. Performance gains — capacity mix + savings attribution
+(function() {
+  const metrics = (DATA.run_metrics || []).filter(r => (r.vmCpuH || 0) > 0);
+  ['chart-pg-cpu-mix','chart-pg-mem-mix','chart-pg-cpu-savings','chart-pg-mem-savings'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !metrics.length) el.style.display = 'none';
+  });
+  if (!metrics.length) return;
+
+  const labels = metrics.map(r => r.group);
+
+  const C_USED = '#065647';
+  const C_BOOKED = '#2b8cbe';
+  const C_VM   = '#cfd0d1';
+
+  function mix(field) {
+    const used = [], schedExcess = [], vmSl = [];
+    metrics.forEach(r => {
+      const vm = Math.max(0, +r['vm' + field] || 0);
+      const usedKey = field === 'CpuH' ? 'realCpuH' : 'realMemGibH';
+      const overbookKey = field === 'CpuH' ? 'schedulerOverbookCpuH' : 'schedulerOverbookMemGibH';
+      const slackKey = field === 'CpuH' ? 'vmPackingSlackCpuH' : 'vmPackingSlackMemGibH';
+      const u = Math.max(0, +r[usedKey] || 0);
+      const ex = Math.max(0, +r[overbookKey] || 0);
+      const sl = Math.max(0, +r[slackKey] || 0);
+      const total = u + ex + sl;
+      const scale = total > vm && vm > 0 ? vm / total : 1;
+      used.push(+(u * scale).toFixed(2));
+      schedExcess.push(+(ex * scale).toFixed(2));
+      vmSl.push(+(sl * scale).toFixed(2));
+    });
+    return [
+      { name: 'Used (real work)', data: used, color: C_USED },
+      { name: 'Scheduler over-booked (vs used)', data: schedExcess, color: C_BOOKED },
+      { name: 'VM slack (packing)', data: vmSl, color: C_VM },
+    ];
+  }
+
+  const cpuMix = mix('CpuH');
+  hbarStacked('chart-pg-cpu-mix', 'CPU capacity mix', labels, cpuMix,
+    { xName: 'vCPU-hours', subtitle: 'Total bar = VM vCPU-hours paid for' });
+
+  const memMix = mix('MemGibH');
+  hbarStacked('chart-pg-mem-mix', 'Memory capacity mix', labels, memMix,
+    { xName: 'GiB-hours', subtitle: 'Total bar = VM memory GiB-hours paid for' });
+
+  // Savings vertical bars — three layers, per run:
+  //   schedRightsize = max(0, user_req − sched_booked)
+  //                    Saved *already* by Predv1 prediction (≈0 for no-pred).
+  //   taskOverbook   = max(0, sched_booked − used)
+  //                    Scheduler booked more than the task actually used (still wasted).
+  //   vmPacking      = max(0, vm_cap − sched_booked)
+  //                    VM capacity not booked by any task.
+  const C_RS    = '#43b48d';   // green — already saved
+  const C_OVERB = C_BOOKED;    // blue — still wasted at task level
+  const C_PACK  = C_VM;        // grey — still wasted at VM level
+
+  function savingsChart(elId, title, field, yName) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const schedRightsize = [], taskOverbook = [], vmPacking = [];
+    metrics.forEach(r => {
+      const rightsizeKey = field === 'CpuH' ? 'schedulerRightsizedCpuH' : 'schedulerRightsizedMemGibH';
+      const overbookKey = field === 'CpuH' ? 'schedulerOverbookCpuH' : 'schedulerOverbookMemGibH';
+      const slackKey = field === 'CpuH' ? 'vmPackingSlackCpuH' : 'vmPackingSlackMemGibH';
+      schedRightsize.push(+Math.max(0, +r[rightsizeKey] || 0).toFixed(2));
+      taskOverbook.push(+Math.max(0, +r[overbookKey] || 0).toFixed(2));
+      vmPacking.push(+Math.max(0, +r[slackKey] || 0).toFixed(2));
+    });
+    el.style.height = Math.max(300, labels.length * 55 + 100) + 'px';
+    echarts.init(el, 'seqera').setOption({
+      title: { text: title },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { bottom: 0 },
+      grid: { top: 40, bottom: 60, containLabel: true },
+      xAxis: { type: 'category', data: labels },
+      yAxis: { type: 'value', name: yName, nameLocation: 'center', nameGap: 45 },
+      series: [
+        { name: 'Scheduler rightsize (already saved)', type: 'bar', stack: 'waste', data: schedRightsize, itemStyle: { color: C_RS } },
+        { name: 'Task overbook (remaining)',           type: 'bar', stack: 'waste', data: taskOverbook,   itemStyle: { color: C_OVERB } },
+        { name: 'VM packing slack',                    type: 'bar', stack: 'waste', data: vmPacking,      itemStyle: { color: C_PACK } },
+      ],
+    });
+  }
+  savingsChart('chart-pg-cpu-savings', 'Savings attribution (CPU) by layer', 'CpuH', 'vCPU-hours');
+  savingsChart('chart-pg-mem-savings', 'Savings attribution (Memory) by layer', 'MemGibH', 'GiB-hours');
+})();
+
+// 3. Process overview
+(function() {
+  const stats = DATA.process_stats || [];
+  if (!stats.length) return;
+
+  const pipelines = [...new Set(stats.map(s => {
+    const parts = s.process_name.split(':');
+    return parts.length > 1 ? parts[0].replace('NFCORE_','').toLowerCase() : 'default';
+  }))];
+
+  const container = document.getElementById('process-sections');
+
+  pipelines.forEach(pipeline => {
+    const pipelineStats = stats.filter(s => {
+      const parts = s.process_name.split(':');
+      const p = parts.length > 1 ? parts[0].replace('NFCORE_','').toLowerCase() : 'default';
+      return p === pipeline;
+    });
+
+    const processes = [...new Set(pipelineStats.map(s => s.process_name))];
+
+    const section = document.createElement('div');
+    section.innerHTML = `<h3>${pipeline}</h3>`;
+
+    const rtEl = document.createElement('div');
+    rtEl.className = 'chart';
+    rtEl.style.height = Math.max(400, processes.length * 25 + 120) + 'px';
+    section.appendChild(rtEl);
+    container.appendChild(section);
+
+    const series = groups.map((g, gi) => {
+      const gStats = pipelineStats.filter(s => s.group === g);
+      return {
+        name: g, type: 'scatter', symbolSize: 8,
+        itemStyle: { color: groupColor[g] },
+        data: processes.map((p, pi) => {
+          const s = gStats.find(x => x.process_name === p);
+          return s ? [s.avg_runtime_min, pi] : null;
+        }).filter(Boolean),
+        markPoint: groups.length <= 3 ? {
+          data: [{ type: 'max', valueDim: 'x' }],
+          label: { formatter: g, fontSize: 10, position: 'right', color: groupColor[g] },
+          symbolSize: 0
+        } : undefined,
+      };
+    });
+
+    const errorSeries = groups.map((g, gi) => {
+      const gStats = pipelineStats.filter(s => s.group === g);
+      return {
+        name: g + ' (\u00b1SD)', type: 'custom', silent: true,
+        renderItem: function(params, api) {
+          const yVal = api.value(1);
+          const xVal = api.value(0);
+          const sd = api.value(2);
+          const point = api.coord([xVal, yVal]);
+          const lo = api.coord([Math.max(0, xVal - sd), yVal]);
+          const hi = api.coord([xVal + sd, yVal]);
+          return { type: 'group', children: [
+            { type: 'line', shape: { x1: lo[0], y1: point[1], x2: hi[0], y2: point[1] },
+              style: { stroke: groupColor[g], lineWidth: 1.5 } },
+            { type: 'line', shape: { x1: lo[0], y1: point[1]-4, x2: lo[0], y2: point[1]+4 },
+              style: { stroke: groupColor[g], lineWidth: 1.5 } },
+            { type: 'line', shape: { x1: hi[0], y1: point[1]-4, x2: hi[0], y2: point[1]+4 },
+              style: { stroke: groupColor[g], lineWidth: 1.5 } },
+          ]};
+        },
+        data: processes.map((p, pi) => {
+          const s = gStats.find(x => x.process_name === p);
+          return s ? [s.avg_runtime_min, pi, s.sd_runtime_min || 0] : null;
+        }).filter(Boolean),
+        encode: { x: 0, y: 1 },
+        z: -1,
+      };
+    });
+
+    const costEl = document.createElement('div');
+    costEl.className = 'chart';
+    costEl.style.height = Math.max(400, processes.length * 25 + 120) + 'px';
+    section.appendChild(costEl);
+
+    const costSeries = groups.map((g, gi) => {
+      const gStats = pipelineStats.filter(s => s.group === g);
+      return {
+        name: g, type: 'bar', stack: g,
+        itemStyle: { color: groupColor[g], borderRadius: [0, 2, 2, 0] },
+        emphasis: { focus: 'series' },
+        label: { show: groups.length <= 3, position: 'right', formatter: '{a}', fontSize: 10 },
+        data: processes.map(p => {
+          const s = gStats.find(x => x.process_name === p);
+          return s ? +s.total_cost.toFixed(4) : 0;
+        }),
+        markLine: gi === 0 ? {
+          silent: true,
+          data: [{ type: 'max', name: 'Most expensive' }],
+          label: { formatter: 'Most expensive', position: 'middle', fontSize: 10 },
+          lineStyle: { type: 'dashed', color: '#999' }
+        } : undefined
+      };
+    });
+
+    setTimeout(() => {
+      echarts.init(rtEl, 'seqera').setOption({
+        title: { text: 'Run time per process' },
+        tooltip: { trigger: 'item',
+          formatter: p => {
+            if (p.seriesType === 'custom') return '';
+            return `<strong>${processes[p.data[1]]}</strong><br>${p.seriesName}: ${p.data[0].toFixed(1)} min`;
+          }
+        },
+        legend: { show: groups.length > 3, data: groups, bottom: 0 },
+        grid: { top: 40, bottom: 40, containLabel: true },
+        xAxis: { type: 'value', name: 'Run time (minutes)', nameLocation: 'center', nameGap: 25 },
+        yAxis: { type: 'category', data: processes,
+                 axisLabel: { width: 280, overflow: 'truncate' },
+                 inverse: true },
+        series: [...series, ...errorSeries],
+      });
+
+      echarts.init(costEl, 'seqera').setOption({
+        title: { text: 'Total process cost ($)' },
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        legend: { show: groups.length > 3, data: groups, bottom: 0 },
+        grid: { top: 40, bottom: 40, containLabel: true },
+        xAxis: { type: 'value', name: 'Cost ($)', nameLocation: 'center', nameGap: 25 },
+        yAxis: { type: 'category', data: processes,
+                 axisLabel: { width: 280, overflow: 'truncate' },
+                 inverse: true },
+        series: costSeries,
+      });
+    }, 50);
+  });
+})();
+
+// 4.1 Task instance usage
+(function() {
+  const usage = DATA.task_instance_usage || [];
+  if (!usage.length) return;
+  const instanceTypes = [...new Set(usage.map(u => u.machine_type))];
+  const instanceColors = {};
+  instanceTypes.forEach((t,i) => { instanceColors[t] = COLORS[i % COLORS.length]; });
+
+  const el = document.getElementById('chart-instance-usage');
+  const height = Math.max(300, groups.length * 60 + 100);
+  el.style.height = height + 'px';
+
+  echarts.init(el, 'seqera').setOption({
+    title: { text: 'Instance type usage' },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: { data: instanceTypes, bottom: 0, type: 'scroll' },
+    grid: { top: 40, bottom: 60, containLabel: true },
+    xAxis: { type: 'value', name: 'Number of tasks', nameLocation: 'center', nameGap: 25 },
+    yAxis: { type: 'category', data: groups.slice().reverse() },
+    series: instanceTypes.map(t => ({
+      name: t, type: 'bar', stack: 'total',
+      emphasis: { focus: 'series' },
+      data: groups.slice().reverse().map(g => {
+        const match = usage.find(u => u.group === g && u.machine_type === t);
+        return match ? match.count : 0;
+      }),
+      itemStyle: { color: instanceColors[t] },
+    })),
+  });
+})();
+
+// 4.2 Task metrics
+(function() {
+  const tasks = DATA.task_scatter || [];
+  const taskTable = DATA.task_table || [];
+  if (!tasks.length) return;
+
+  const container = document.getElementById('task-sections');
+
+  const scatterEl = document.createElement('div');
+  scatterEl.className = 'chart';
+  scatterEl.style.height = '500px';
+  container.appendChild(scatterEl);
+
+  setTimeout(() => {
+    echarts.init(scatterEl, 'seqera').setOption({
+      title: { text: 'Task real time vs staging time' },
+      tooltip: { trigger: 'item',
+        formatter: p => `<strong>${p.data[3]}</strong><br>Real time: ${p.data[0].toFixed(1)} min<br>Staging: ${p.data[1].toFixed(1)} min<br>Cost: $${p.data[2].toFixed(4)}` },
+      legend: { show: groups.length > 3, data: groups, bottom: 0 },
+      grid: { top: 50, bottom: 60, containLabel: true },
+      xAxis: { type: 'value', name: 'Task real time (minutes)', nameLocation: 'center', nameGap: 25 },
+      yAxis: { type: 'value', name: 'Task staging time (minutes)', nameLocation: 'center', nameGap: 40 },
+      series: groups.map((g, i) => ({
+        name: g, type: 'scatter', symbolSize: 6,
+        data: tasks.filter(t => t.group === g).map(t => [t.realtime_min||0, t.staging_min||0, t.cost||0, t.process_short]),
+        itemStyle: { color: groupColor[g] },
+        markPoint: groups.length <= 3 ? {
+          data: [{ type: 'max', valueDim: 'x' }],
+          label: { formatter: g, fontSize: 10, position: 'top', color: groupColor[g] },
+          symbolSize: 0
+        } : undefined,
+      })),
+      dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 25, height: 20 }],
+    });
+  }, 100);
+
+  const costScatterEl = document.createElement('div');
+  costScatterEl.className = 'chart';
+  container.appendChild(costScatterEl);
+
+  setTimeout(() => {
+    const processes = [...new Set(tasks.map(t => t.process_short))];
+    const offsets = groups.length <= 1
+      ? { [groups[0]]: 0 }
+      : Object.fromEntries(groups.map((g, idx) => [g, ((idx / (groups.length - 1)) - 0.5) * 0.6]));
+
+    costScatterEl.style.height = Math.max(500, processes.length * 28 + 70) + 'px';
+    echarts.init(costScatterEl, 'seqera').setOption({
+      title: { text: 'Task cost ($) per process and group' },
+      tooltip: {
+        trigger: 'item',
+        formatter: p => `<strong>${p.data.process}</strong><br>${p.seriesName}<br>Cost: $${Number(p.data.value[0]).toFixed(6)}`
+      },
+      legend: { show: groups.length > 1, data: groups, bottom: 0 },
+      grid: { top: 40, bottom: 45, containLabel: true },
+      xAxis: { type: 'value', name: 'Cost ($)', nameLocation: 'center', nameGap: 25 },
+      yAxis: {
+        type: 'value',
+        min: -0.75,
+        max: Math.max(0, processes.length - 1) + 0.75,
+        axisLabel: {
+          formatter: v => {
+            const idx = Math.round(v);
+            return Number.isInteger(idx) && idx >= 0 && idx < processes.length ? processes[idx] : '';
+          }
+        },
+        splitLine: { show: false }
+      },
+      series: groups.map(g => ({
+        name: g,
+        type: 'scatter',
+        symbolSize: 7,
+        itemStyle: { color: groupColor[g] },
+        data: tasks
+          .filter(t => t.group === g && t.cost != null)
+          .map(t => ({
+            process: t.process_short,
+            value: [t.cost, processes.indexOf(t.process_short) + (offsets[g] || 0)]
+          }))
+      })),
+      dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 25, height: 16 }],
+    });
+  }, 150);
+
+  if (taskTable.length) {
+    const tableDiv = document.createElement('div');
+    tableDiv.innerHTML = `
+      <div class="callout" style="margin-top:20px">
+        <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+          &#9654; Click to display task table (${taskTable.length} tasks)
+        </div>
+        <div class="callout-body" style="overflow-x:auto;max-height:600px;overflow-y:auto">
+          <button class="csv-btn" onclick="downloadCSV('task-data-table','task_table.csv')">Download as CSV</button>
+          <table class="gs-table" id="task-data-table"></table>
+        </div>
+      </div>`;
+    container.appendChild(tableDiv);
+
+    setTimeout(() => {
+      const cols = ['Group','Run ID','Taskhash','Task name short','Executor','Cloudzone',
+                    'Instance type','Realtime (min)','Cost','Requested CPUs','Requested memory (GiB)',
+                    'Observed CPU (%)','Observed memory (%)','Peak RSS (GiB)','Read bytes','Write bytes','Task name','Status'];
+      const keys = ['Group','Run ID','Taskhash','Task name short','Executor','Cloudzone',
+                    'Instance type','Realtime_min','Cost','RequestedCPU','RequestedMemory_GiB',
+                    'ObservedCPU_pct','ObservedMemory_pct','PeakRSS_GiB','Readbytes','Writebytes','Task name','Status'];
+      const table = document.getElementById('task-data-table');
+      let html = '<thead><tr>' + cols.map(c => '<th>'+c+'</th>').join('') + '</tr></thead><tbody>';
+      taskTable.slice(0, 500).forEach(r => {
+        html += '<tr>';
+        keys.forEach(k => {
+          let v = r[k];
+          if (k === 'Realtime_min') v = v != null ? Number(v).toFixed(1) : '\u2014';
+          else if (k === 'Cost') v = v != null ? '$' + Number(v).toFixed(6) : '\u2014';
+          else if (k === 'RequestedMemory_GiB' || k === 'PeakRSS_GiB') v = v != null ? Number(v).toFixed(2) : '\u2014';
+          else if (k === 'ObservedCPU_pct' || k === 'ObservedMemory_pct') v = v != null ? Number(v).toFixed(1) : '\u2014';
+          else if (v == null) v = '\u2014';
+          html += '<td>' + v + '</td>';
+        });
+        html += '</tr>';
+      });
+      if (taskTable.length > 500) html += '<tr><td colspan="'+cols.length+'" style="text-align:center;color:#CFD0D1">... and '+(taskTable.length-500)+' more rows</td></tr>';
+      html += '</tbody>';
+      table.innerHTML = html;
+    }, 200);
+  }
+})();
+
+// Side nav: highlight link for section in view
+(function () {
+  const nav = document.getElementById('side-nav');
+  if (!nav) return;
+  const links = [...nav.querySelectorAll('a[href^="#"]')];
+  const sections = links
+    .map((a) => document.getElementById(a.getAttribute('href').slice(1)))
+    .filter(Boolean);
+  if (!sections.length) return;
+
+  function updateActive() {
+    const margin = 100;
+    let current = sections[0];
+    for (const sec of sections) {
+      const top = sec.getBoundingClientRect().top;
+      if (top <= margin) current = sec;
+      else break;
+    }
+    const id = current.id;
+    links.forEach((l) => {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + id);
+    });
+  }
+
+  window.addEventListener('scroll', updateActive, { passive: true });
+  window.addEventListener('resize', updateActive);
+  updateActive();
+})();
+
+// Resize
+window.addEventListener('resize', () => {
+  document.querySelectorAll('.chart').forEach(el => {
+    const inst = echarts.getInstanceByDom(el);
+    if (inst) inst.resize();
+  });
+});
+</script>
+</body>
+</html>
