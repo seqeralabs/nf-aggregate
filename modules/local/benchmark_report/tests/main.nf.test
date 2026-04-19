@@ -25,9 +25,10 @@ nextflow_process {
             process {
                 """
                 input[0] = SEQERA_RUNS_DUMP.out.run_dump.collect{it[1]}
-                input[1] = SEQERA_RUNS_DUMP.out.run_dump.collect{it[0].group}
+                input[1] = SEQERA_RUNS_DUMP.out.run_dump.collect{ [group: it[0].group, file_name: new File(it[1].toString()).name, machines_name: ''] }
                 input[2] = []
-                input[3] = true
+                input[3] = []
+                input[4] = true
                 """
             }
         }

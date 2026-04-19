@@ -28,11 +28,11 @@ workflow NF_AGGREGATE {
     ids
     .branch {meta ->
         external: meta.workspace == 'external'
-            if (meta.logs =~ /workflows\/nf_aggregate\/assets\/logs\//) {
-                return [meta, projectDir + meta.logs]
-            } else {
-                return [meta, meta.logs]
-            }
+            def resolvedLogs = meta.logs =~ /workflows\/nf_aggregate\/assets\/logs\// ? projectDir + meta.logs : meta.logs
+            def resolvedMachines = meta.machines ? (
+                meta.machines =~ /workflows\/nf_aggregate\/assets\// ? projectDir + meta.machines : meta.machines
+            ) : null
+            return [meta + [machines: resolvedMachines], resolvedLogs]
         fetch_run_dumps: true
     }
     .set { ids_split }
@@ -77,10 +77,21 @@ workflow NF_AGGREGATE {
     if (params.generate_benchmark_report) {
         // Check if cur report is specified
         aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
+        benchmark_machine_files = ch_all_runs
+            .map { meta, _run_dir -> meta.machines ? file(meta.machines, checkIfExists: true) : null }
+            .filter { it != null }
+            .collect()
 
         BENCHMARK_REPORT(
             ch_all_runs.collect { it[1] },
-            ch_all_runs.collect { it[0].group },
+            ch_all_runs.collect { meta, run_dir ->
+                [
+                    group        : meta.group ?: '',
+                    file_name    : run_dir.getFileName().toString(),
+                    machines_name: meta.machines ? file(meta.machines).getFileName().toString() : ''
+                ]
+            },
+            benchmark_machine_files,
             aws_cur_report,
             params.remove_failed_tasks,
         )

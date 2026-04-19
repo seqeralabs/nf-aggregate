@@ -1,0 +1,226 @@
+# Process overview
+
+::: {.callout-note .benchmark_callouts title="Summary"}
+This section provides a comparison of the process-level metrics for each pipeline across the groups: `r groups_string`. 
+:::
+
+The plots in this section show the task-duration distribution per process in each Nextflow pipeline. Dots represent mean values per process across all tasks. Error bars indicate mean +- 1 standard deviation. A single point indicates that a single task was executed for the process.
+
+- **Task duration** = Staging time + real time
+
+::: {.callout-tip .benchmark_callouts title="Plot interaction" collapse="true"}
+ - Hover over points to see the process name and average run time / total process cost.
+ - Zoom in to focus on specific processes.
+ - Click on the legend to hide or show groups.
+:::
+
+```{r, results='asis'}
+#| label: process-level-plots
+#| fig-width: 12
+#| fig-height: 12
+
+#### Process cost if cost profile is activated
+for(pipe in unique(task_data$pipeline)){
+  cat(paste0("### ",pipe, " \n"))
+  
+  pipe_parsed <- gsub("/","_",pipe)
+  pipe_crosstalk <- paste(pipe,"_process-cost")
+  
+  if(grepl("cost",profile)){
+    
+    cost_table_pipe <- subset(cost_table,pipeline == pipe)
+    
+    ## Calculate per process total cost and standard deviation per process
+    cost_per_process <- cost_table_pipe %>%
+      group_by(process, group, run_id) %>%
+      summarise(
+        process_cost = sum(cost),
+        average_cost = round(mean(cost),4),
+        n_tasks = n()
+      ) %>%
+      ungroup()
+    
+      ## Calculate the difference in cost per process between groups
+      cost_per_process$group <- factor(cost_per_process$group,
+                                       levels = unique(seqera_platform_logs@group))
+      
+      cost_diff <- cost_per_process %>%
+        select(-c(run_id,average_cost,n_tasks)) %>%
+        group_by(process) %>%
+        summarise(sd_group_cost = sd(process_cost)) %>%
+        ungroup() %>%
+        arrange(desc(sd_group_cost))
+        
+      ## Sort processes based on cost difference
+      cost_per_process$process <- factor(cost_per_process$process,
+                                         levels = unique(cost_diff$process))
+      
+      shared_data_cost_diff <- SharedData$new(cost_per_process, key = ~process, group = pipe_crosstalk)
+      
+      cost_diff_lolliplot <- ggplot(shared_data_cost_diff,aes(x = process, y = process_cost,
+                                             text = paste("Process name: ",process,"\n",
+                                                          "Cost difference: ",round(process_cost,4),"$ \n",
+                                                          sep=""))) +
+        # geom_segment(aes(xend = process, yend = 0),color = "black", linewidth = 0.5) +
+        # geom_point(aes(color = group_color), size = 2.5) +
+        geom_bar(stat = "identity", position = "dodge", 
+                 aes(fill = group)) +
+        seqera_light_theme() +
+        scale_fill_manual(values = groups_color_palette,
+                           labels = gsub("_"," ",names(groups_color_palette))) +
+        labs(x = "Processes",
+             y = "Total Process cost ($)",
+             title = "Process cost per group",
+             color = "group") +
+        theme(axis.text.x = element_blank(),
+              axis.ticks.x = element_blank(),
+              axis.line.x = element_blank(), 
+              legend.title = element_text(face = "bold"),
+              # Hide facet box and labels
+              strip.background = element_blank(),
+              strip.text = element_blank(),
+              plot.title = element_text(size = plot_title_size)
+        )
+      
+        print(htmltools::tagList(
+      ggplotly(cost_diff_lolliplot, tooltip = "text") %>%
+        set_ggplotly_font() %>%
+        highlight(on = "plotly_click", off = "plotly_doubleclick", opacityDim = 0.05)
+      )
+    )
+    
+    ##### Cost Table
+    ## For each run_id, calculate how much cost each process contributes to the total cost
+    process_contribution <- cost_per_process %>%
+      group_by(run_id) %>%
+      mutate(total_cost = sum(process_cost)) %>%
+      ungroup() %>%
+      mutate(process_cost_perc = round(process_cost / total_cost * 100,2)) %>%
+      select(group,run_id,process,process_cost,process_cost_perc,average_cost,n_tasks) %>%
+      mutate("process_cost" = round(process_cost,4)) %>%
+      ungroup()
+    process_contribution$group <- factor(process_contribution$group)
+    
+      font.size <- "12"
+       row_alpha_value <- 0.15
+       point_alpha <- 1
+       point_size <- 2
+    
+      shared_data_process_contribution <- SharedData$new(process_contribution, key = ~process, group = pipe_crosstalk)
+      rgba_colors <- sapply(groups_color_palette, hex_to_rgba, alpha = row_alpha_value)[1:length(unique(process_contribution$group))]
+      process_cost_table <- div(class = "scrollable-table",
+                             datatable(shared_data_process_contribution,
+                                   class = 'nowrap',
+                                   escape = FALSE,
+                                   colnames = c("Group" = "group",
+                                                "Run ID" = "run_id", 
+                                                "Process" = "process",
+                                                "Process Cost ($)" = "process_cost",
+                                                "Run Cost (%)" = "process_cost_perc",
+                                                "Average process cost" = "average_cost",
+                                                "Nr. of tasks" = "n_tasks"),
+                                   selection="none",
+                                   rownames= FALSE,
+                                   options = list(autoWidth = FALSE,
+                                                  language = list(search = 'Filter:'),
+                                                  pageLength = 10,
+                                                  order = list(list(2, 'asc')),
+                                                  initComplete = JS(
+                                                    "function(settings, json) {",
+                                                    "$('table').css({'font-size': '17px'});",
+                                                    "}"
+                                                  ))
+                                   ) %>%
+        formatStyle(
+          'Group',
+          target = 'row',
+          backgroundColor = styleEqual(
+            names(rgba_colors),
+            rgba_colors
+            )
+        )
+      )
+      
+      print(htmltools::tagList(
+        tags$style(HTML("
+      .dataTable thead th {
+        background-color: #160f26 !important;
+        color: white !important;
+        text-align: left !important;
+        white-space: nowrap;
+      }
+      .dataTable tbody td {
+        text-align: left !important;
+        white-space: nowrap;
+      }
+      .scrollable-table {
+        width: 100%;
+        overflow-x: auto;
+      }
+    ")
+        ),
+      process_cost_table))
+      
+    cat("\n\n")
+    cat(sprintf('<div style="margin-bottom: 40px;"></div>'))
+    
+  } # end of cost block
+  
+  ## Process runtime plot
+  task_data_pipe <- subset(task_data,pipeline == pipe)
+  
+  summary_data <- task_data_pipe %>%
+    group_by(process, group) %>%
+    summarise(
+      mean_runtime = mean(runtime_mins, na.rm = TRUE),
+      sd_value = sd(runtime_mins, na.rm = TRUE)
+    )
+
+  # Step 2: Add lower and upper bounds for the error bars
+  summary_data <- summary_data %>%
+    mutate(
+      value_lower = mean_runtime - sd_value,
+      value_upper = mean_runtime + sd_value
+    ) %>%
+    ungroup() %>%
+    arrange(desc(mean_runtime))
+  
+  ## Set order of processes based on average run time difference
+  summary_data$process <- factor(summary_data$process, 
+                                 levels = unique(summary_data$process))
+  
+  shared_data_summary_data <- SharedData$new(summary_data, key = ~process, group = pipe_crosstalk)
+    
+  
+  process_ggplot <- ggplot(shared_data_summary_data,aes(x = process, y = mean_runtime,
+                                            text = paste(process,"\n","Average run time (min): ",round(mean_runtime,2),sep=""))) +
+    geom_pointrange(
+      aes(ymin = mean_runtime-sd_value, ymax = mean_runtime+sd_value, color = group),
+      position = position_dodge(0.9)
+    ) +
+    seqera_light_theme() +
+    scale_color_manual(values = groups_color_palette) +
+    labs(x = "Processes",
+         y = "Task duration (minutes)",
+         title = "Task-duration distribution per process") +
+    # Hide y-axis text and ticks and line
+    theme(axis.text.x = element_blank(),
+          legend.title = element_text(face = "bold"),
+          # Hide facet box and labels
+          strip.background = element_blank(),
+          strip.text = element_blank(),
+          plot.title = element_text(size = plot_title_size)
+    )
+  
+  print(htmltools::tagList(
+    ggplotly(process_ggplot, tooltip = "text") %>%
+    highlight(on = "plotly_click", off = "plotly_doubleclick", opacityDim = 0.05) %>%
+    set_ggplotly_font()
+    )
+  )
+  
+  cat("\n\n")
+  cat(sprintf('<div style="margin-bottom: 40px;"></div>'))
+  
+}
+```

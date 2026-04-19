@@ -63,6 +63,8 @@ If you are using a Seqera Platform Enterprise instance that is secured with a pr
 
 If you want to generate a benchmark report comparing multiple runs, you can include a `group` column in your `run_ids.csv` file. This allows you to organize and analyze runs based on custom groupings in the final report.
 
+If you also have per-run machine CSVs, you can provide them with an optional `machines` column. When present, the benchmark report adds scheduler and VM capacity metrics such as total machine-hours, scheduler allocation efficiency, and real VM efficiency derived from the task logs.
+
 ```
 id,workspace,group
 3VcLMAI8wyy0Ld,community/showcase,group1
@@ -71,15 +73,15 @@ id,workspace,group
 
 ## Use logs from an external Seqera Platform deployment
 
-Sometimes we want to compile benchmark reports from runs from two different Seqera platform deployments, for example a dev and a production environment to compare performance. External logs in nf-aggregate can be used by specifying the workspace as `external` and providing some additional optional columns that point to the log folder and specify whether these external logs contain fusion logs (did you export them with the `--add-fusion-logs` flag in your `tw run dumps`. If they do contain fusion logs, you can generate a gannt plot for them, as for runs supplied only via id.)
+Sometimes we want to compile benchmark reports from runs from two different Seqera platform deployments, for example a dev and a production environment to compare performance. External logs in nf-aggregate can be used by specifying the workspace as `external` and providing some additional optional columns that point to the log folder and specify whether these external logs contain fusion logs (did you export them with the `--add-fusion-logs` flag in your `tw run dumps`. If they do contain fusion logs, you can generate a gannt plot for them, as for runs supplied only via id.) You can also optionally provide a `machines` column that points to a machine metrics CSV for the same run.
 
 Here is an example of using a mix of run ids for which we want to extract logs from our platform deployment and some run logs from another deployment we want to compare. In the example below, `1JI5B1avuj3o58` is a run that contains fusion logs, while `1vsww7GjKBsVNa` does not contain fusion logs.
 
 ```
-id,workspace,group,logs,fusion
-3VcLMAI8wyy0Ld,community/showcase,group1,
-1JI5B1avuj3o58,external,group2,/path/to/my/run_dumps_tarball.tar.gz,true
-1vsww7GjKBsVNa,external,group2,/path/to/my/run_dumps_folder,false
+id,workspace,group,logs,fusion,machines
+3VcLMAI8wyy0Ld,community/showcase,group1,,,
+1JI5B1avuj3o58,external,group2,/path/to/my/run_dumps_tarball.tar.gz,true,/path/to/my/machines.csv
+1vsww7GjKBsVNa,external,group2,/path/to/my/run_dumps_folder,false,
 ```
 
 ## Incorporate AWS split cost allocation data

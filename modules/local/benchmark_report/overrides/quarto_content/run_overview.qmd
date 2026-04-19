@@ -1,0 +1,525 @@
+# Run overview
+
+::: {.callout-note .benchmark_callouts title="Summary"}
+This section provides a high-level overview of the pipeline run metrics.
+:::
+
+## Run summary
+
+Summary of pipeline execution and infrastructure settings.
+
+```{r}
+#| label: run-overview-table
+#| echo: false
+#| include: false
+#| results: hide
+#| 
+# Function to apply alpha to a hex color
+apply_alpha <- function(color, alpha) {
+  rgb <- col2rgb(color) / 255
+  sprintf("rgba(%d, %d, %d, %.2f)", rgb[1] * 255, rgb[2] * 255, rgb[3] * 255, alpha)
+}
+
+calculate_min_width <- function(column_data) {
+  max(nchar(as.character(column_data))) * 8  # Approximate width in pixels (adjust the multiplier as needed)
+}
+
+table_row_alpha_value <- 0.15
+
+
+view_table <- merged_logs %>%
+  mutate(
+    userName = if("userName" %in% colnames(.)) userName else NA,
+    workflow_revision = if("workflow_revision" %in% colnames(.)) workflow_revision else NA,
+    "nextflow.version" = if("nextflow.version" %in% colnames(.)) `nextflow.version` else NA,
+    "stats.succeedCount" = if("stats.succeedCount" %in% colnames(.)) `stats.succeedCount` else NA,
+    "stats.failedCount" = if("stats.failedCount" %in% colnames(.)) `stats.failedCount` else NA,
+    executors = if("executors" %in% colnames(.)) executors else NA,
+    "computeEnv.config.region" = if("computeEnv.config.region" %in% colnames(.)) `computeEnv.config.region` else NA,
+    "computeEnv.config.forge.type" = if("computeEnv.config.forge.type" %in% colnames(.)) `computeEnv.config.forge.type` else NA,
+    "computeEnv.config.forge.maxCpus" = if("computeEnv.config.forge.maxCpus" %in% colnames(.)) `computeEnv.config.forge.maxCpus` else NA,
+    "computeEnv.config.waveEnabled" = if("computeEnv.config.waveEnabled" %in% colnames(.)) `computeEnv.config.waveEnabled` else NA,
+    "computeEnv.config.fusion2Enabled" = if("computeEnv.config.fusion2Enabled" %in% colnames(.)) `computeEnv.config.fusion2Enabled` else NA,
+    "computeEnv.config.nvnmeStorageEnabled" = if("computeEnv.config.nvnmeStorageEnabled" %in% colnames(.)) `computeEnv.config.nvnmeStorageEnabled` else NA,
+    "computeEnv.config.forge.gpuEnabled" = if("computeEnv.config.forge.gpuEnabled" %in% colnames(.)) `computeEnv.config.forge.gpuEnabled` else NA,
+    "computeEnv.config.forge.ebsAutoScale" = if("computeEnv.config.forge.ebsAutoScale" %in% colnames(.)) `computeEnv.config.forge.ebsAutoScale` else NA
+  ) %>%
+  select(pipeline, group, run_id, userName, workflow_revision, "nextflow.version", version, 
+         "stats.succeedCount", "stats.failedCount", executors, "computeEnv.config.region",
+         "computeEnv.config.forge.type", "computeEnv.config.forge.maxCpus", "computeEnv.config.waveEnabled",
+         "computeEnv.config.fusion2Enabled", "computeEnv.config.nvnmeStorageEnabled",
+         "computeEnv.config.forge.gpuEnabled", "computeEnv.config.forge.ebsAutoScale") %>%
+  rename(
+    username = userName,
+    Version = workflow_revision,
+    Nextflow_version = "nextflow.version",
+    platform_version = version,
+    succeedCount = "stats.succeedCount",
+    failedCount = "stats.failedCount", 
+    executor = executors,
+    region = "computeEnv.config.region",
+    provisioning = "computeEnv.config.forge.type",
+    max_cpu = "computeEnv.config.forge.maxCpus",
+    waveEnabled = "computeEnv.config.waveEnabled",
+    fusion_enabled = "computeEnv.config.fusion2Enabled",
+    nvnmeStorageEnabled = "computeEnv.config.nvnmeStorageEnabled",
+    gpu_enabled = "computeEnv.config.forge.gpuEnabled",
+    ebs_autoscale = "computeEnv.config.forge.ebsAutoScale"
+  ) %>%
+  # Replace NA values in columns with enabled in name with false
+  mutate(across(ends_with("enabled"), ~ifelse(is.na(.), FALSE, .)))
+
+run_overview <- reactable(
+  view_table,
+  language = reactableLang(
+    searchPlaceholder = "Filter"
+    ),
+  defaultColDef = colDef(
+    align = "center",
+    minWidth = 150
+    ),
+   columns = list(
+    pipeline = colDef(name = "Pipeline<br>name",html = TRUE, align = "left",
+                       style = list(whiteSpace = "nowrap", overflow = "hidden", textOverflow = "ellipsis"),
+                      minWidth = 200,
+                       ),
+    group = colDef(name = "Group", html = TRUE, align = "left", minWidth = 150,),
+    run_id = colDef(name = "Run ID", html = TRUE, minWidth = 200, align = "left"),
+    username = colDef(name = "User<br>name", html = TRUE, minWidth = 180, align = "left"),
+    Version = colDef(name = "Pipeline<br>version", html = TRUE),
+    Nextflow_version = colDef(name = "Nextflow<br>version", html = TRUE),
+    platform_version = colDef(name = "Platform<br>version", html = TRUE, minWidth = 180),
+    succeedCount = colDef(name = "Tasks<br>succeeded", html = TRUE),
+    failedCount = colDef(name = "Tasks<br>failed", html = TRUE),
+    executor = colDef(name = "Executor"),
+    region = colDef(name = "Region"),
+    provisioning = colDef(name = "Provisioning<br>model", html = TRUE, minWidth = 150,),
+    max_cpu = colDef(name = "Max<br>CPUs", html = TRUE),
+    waveEnabled = colDef(name = "Wave<br>enabled", html = TRUE),
+    fusion_enabled = colDef(name = "Fusion<br>enabled", html = TRUE),
+    nvnmeStorageEnabled = colDef(name = "NVMe<br>enabled", html = TRUE),
+    gpu_enabled = colDef(name = "GPU<br>enabled", html = TRUE),
+    ebs_autoscale = colDef(name = "EBS<br>autoscale", html = TRUE)
+     ),
+  rowStyle = function(index) {
+    group <- view_table$group[index]
+    color <- groups_color_palette[[group]]
+    color_with_alpha <- apply_alpha(color, table_row_alpha_value)
+    list(background = color_with_alpha)
+  },
+  wrap = TRUE,
+  resizable = TRUE,
+  bordered = TRUE,
+  striped = FALSE,
+  highlight = TRUE,
+  searchable = TRUE,
+  defaultPageSize = 20
+)
+```
+
+::: {.callout-caution .benchmark_callouts collapse="false" icon="false"}
+## {{< fa table >}} Click to display table
+
+`r run_overview`
+:::
+
+## Run metrics
+
+This section provides a visual overview of the pipeline run metrics. Task-derived efficiencies are recomputed from the task logs, and optional scheduler/VM metrics are added when machine CSVs are available.
+
+```{r run-metrics}
+library(RColorBrewer)
+color_palette <- brewer.pal(8, "Set1")
+
+css_style <- "
+.reactable-cell .data-bar-text {
+  margin-right: 30px;  # Adjust this value to increase/decrease the distance
+}
+"
+
+cost_colname <- ""
+cost_colname_used <- ""
+cost_colname_unused <- ""
+
+# Custom formatter for percentage column
+format_percentage <- function(value) {
+  sprintf("%.2f%%", value)
+}
+
+## Add cost information, if requested
+if (grepl("cost",profile)) {
+  all_runs <- unique(cost_table$run_id)
+  
+  run_cost <- cost_table %>% 
+    group_by(run_id) %>%
+    subset(!is.na(cost)) %>%
+    summarise(cost = round(sum(cost),2),
+              used_cost = round(sum(used_cost),2),
+              unused_cost = round(sum(unused_cost),2)) %>%
+    select(run_id,cost,used_cost,unused_cost)
+  runs_with_some_cost <- run_cost$run_id
+  # Check if there is an NA in run_cost$cost and if so, break
+  if (!all(all_runs %in% runs_with_some_cost)){
+    # Check if all IDs in all_runs are found in runs_with_some_cost and if not, break
+    stop("Cost information is missing for some runs. Please check the cost report.")
+  }
+  
+  ## run_cost will contain accurate cost, if AWS reports provided
+  merged_logs <- merged_logs %>% select(-cost)
+  merged_logs <- left_join(merged_logs,run_cost,by="run_id")
+  cost_colname <- "Estimated<br>cost ($)"
+}
+
+if (params$aws_cost != "NA") {
+  cost_colname        <- "Compute<br>cost ($)"
+  cost_colname_used   <- "Used<br>compute<br>cost ($)"
+  cost_colname_unused <- "Unused<br>compute<br>cost ($)"
+}
+
+## Select which columns to keep
+if(grepl("cost",profile) & params$aws_cost != "NA") {
+    merged_logs <- merged_logs %>% select(any_of(c("pipeline","group","run_id","Wall_time","duration","cpuTime","task_runtime_ms","cost","readBytes","writeBytes","cpuEfficiency","memoryEfficiency","pipeline_workdirSize_GB","pipeline_workdirSize_price","used_cost","unused_cost","nMachines","vmCpuH","vmMemGibH","schedAllocCpuEfficiency","schedAllocMemEfficiency","realVmCpuEfficiency","realVmMemEfficiency","realCpuH","realMemGibH","requestedCpuH","requestedMemGibH")))
+}else {
+  merged_logs <- merged_logs %>% select(any_of(c("pipeline","group","run_id","Wall_time","duration","cpuTime","task_runtime_ms","cost","readBytes","writeBytes","cpuEfficiency","memoryEfficiency","pipeline_workdirSize_GB","pipeline_workdirSize_price","nMachines","vmCpuH","vmMemGibH","schedAllocCpuEfficiency","schedAllocMemEfficiency","realVmCpuEfficiency","realVmMemEfficiency","realCpuH","realMemGibH","requestedCpuH","requestedMemGibH")))
+}
+
+metrics_reactable <- merged_logs %>%
+  mutate(readBytes = round(readBytes,0),
+         writeBytes = round(writeBytes,0),
+         cpuEfficiency = round(cpuEfficiency,0),
+         memoryEfficiency = round(memoryEfficiency,4),
+         task_runtime_time = sapply(task_runtime_ms, milliseconds_to_hms)) %>%
+  arrange(pipeline)
+
+if("pipeline_workdirSize_GB" %in% colnames(metrics_reactable)) {
+  metrics_reactable <- metrics_reactable %>%
+    mutate(pipeline_workdirSize_GB = round(pipeline_workdirSize_GB,2),
+           pipeline_workdirSize_price = round(pipeline_workdirSize_price,2),)
+}
+
+# If cost profile not selected, drop costs
+if (!grepl("cost",profile) ) {
+  metrics_reactable <- metrics_reactable %>% select(-cost)
+}
+
+run_metrics_table <- reactable(metrics_reactable,
+                              language = reactableLang(
+                                searchPlaceholder = "Filter"
+                              ),
+                              defaultColDef = colDef(
+                                align = "center",
+                                minWidth = 180),
+                              columns = list(
+                                pipeline = colDef(name = "Pipeline<br>name", html = TRUE,align = "left",
+                                                  width = 200,  # Set an appropriate width
+                                                  style = list(whiteSpace = "nowrap", overflow = "hidden", 
+                                                               textOverflow = "ellipsis")
+                                ),
+                                group = colDef(name = "group",align = "left",),
+                                run_id = colDef(name = "Run ID", html = TRUE, minWidth = 180, align = "left",),
+                                Wall_time = colDef(name = "Wall<br>time", html = TRUE,
+                                                   cell = data_bars(metrics_reactable, fill_color = color_palette[1],
+                                                                    fill_by = "duration",
+                                                                    force_outside = c(0,0.5*max(metrics_reactable$duration))
+                                                                    )
+                                ),
+                                duration = colDef(show = FALSE),
+                                cpuTime    = colDef(name = "CPU<br>time (hours)", html = TRUE, format = colFormat(digits = 1),
+                                                 cell = data_bars(metrics_reactable, text_color = "black",  fill_color = color_palette[2],
+                                                                  fill_by = "cpuTime", 
+                                                                  text_position = "inside-end", force_outside = c(0,0.5*max(metrics_reactable$cpuTime))
+                                                                  )
+                                                 ),
+                                task_runtime_ms = colDef(show = FALSE),
+                                task_runtime_time = colDef(name = "Total task<br>runtime", html = TRUE,
+                                                   cell = data_bars(metrics_reactable, fill_color = color_palette[8],
+                                                                    fill_by = "task_runtime_ms",
+                                                                    force_outside = c(0,0.5*max(metrics_reactable$task_runtime_ms)))
+                                ),
+                              cost       = colDef(name = cost_colname, html = TRUE, 
+                                              cell = data_bars(metrics_reactable, fill_color = color_palette[3], fill_by = "cost",
+                                                               force_outside = c(0,0.5*max(metrics_reactable$cost))
+                                                               )),
+                              used_cost   = colDef(name = cost_colname_used, html = TRUE, 
+                                                    cell = data_bars(metrics_reactable, fill_color = color_palette[3], 
+                                                                     fill_by = "used_cost",
+                                                                     force_outside = c(0,0.5*max(metrics_reactable$used_cost))
+                                                                     )),
+                              unused_cost       = colDef(name = cost_colname_unused, html = TRUE, 
+                                                    cell = data_bars(metrics_reactable, fill_color = color_palette[3], fill_by = "unused_cost",
+                                                                     force_outside = c(0,0.5*max(metrics_reactable$unused_cost))
+                                                                     )),
+                               pipeline_workdirSize_GB       = colDef(name = "Workdir size (GB)", html = TRUE, 
+                                              cell = data_bars(metrics_reactable, fill_color = color_palette[3], fill_by = "pipeline_workdirSize_GB",
+                                                               force_outside = c(0,0.5*max(metrics_reactable$cost))
+                                                               )),
+                               pipeline_workdirSize_price       = colDef(name = "Workdir storage<br>cost monthly ($)", html = TRUE, 
+                                              cell = data_bars(metrics_reactable, fill_color = color_palette[3], fill_by = "pipeline_workdirSize_price",
+                                                               force_outside = c(0,0.5*max(metrics_reactable$cost))
+                                                               )),
+                                readBytes  = colDef(name = "Read<br>(GB)", html = TRUE, 
+                                                   cell = data_bars(metrics_reactable, fill_color = color_palette[4], fill_by = "readBytes",
+                                                                    force_outside = c(0,0.5*max(metrics_reactable$readBytes))
+                                                                    )),
+                                writeBytes = colDef(name = "Write<br>(GB)", html = TRUE, 
+                                                    cell = data_bars(metrics_reactable, fill_color = color_palette[5], fill_by = "writeBytes",
+                                                                     force_outside = c(0,0.5*max(metrics_reactable$writeBytes))
+                                                                     )),
+                                cpuEfficiency = colDef(name = "Task CPU<br>efficiency (%)", html = TRUE, 
+                                                       cell = data_bars(metrics_reactable, fill_color = color_palette[6], fill_by = "cpuEfficiency",
+                                                                        force_outside = c(0,0.5*max(metrics_reactable$cpuEfficiency))
+                                                                        )),
+                                memoryEfficiency = colDef(name = "Task memory<br>efficiency (%)", html = TRUE,
+                                                          cell = data_bars(metrics_reactable, fill_color = color_palette[7], fill_by = "memoryEfficiency",
+                                                                           force_outside = c(0,0.5*max(metrics_reactable$memoryEfficiency))
+                                                                           ))
+                              ),
+                              rowStyle = function(index) {
+                                group <- view_table$group[index]
+                                color <- groups_color_palette[[group]]
+                                color_with_alpha <- apply_alpha(color, table_row_alpha_value)
+                                list(background = color_with_alpha)
+                              },
+                              style = list(css = css_style),
+                              wrap = FALSE,
+                              resizable = TRUE,
+                              bordered = TRUE,
+                              striped = FALSE,
+                              highlight = TRUE,
+                              filterable = FALSE,
+                              searchable = TRUE,
+                              defaultPageSize = 20,
+                              elementId = "metrics-table"
+)
+```
+
+```{r download-button-run-overview}
+library(htmltools)
+
+download_button <- HTML('
+  <style>
+    .download-button {
+      background-color: #160F26; /* Green background */
+      border: none; /* Remove borders */
+      color: white; /* White text */
+      padding: 10px 10px; /* Some padding */
+      text-align: center; /* Center the text */
+      text-decoration: none; /* Remove underline */
+      display: inline-block; /* Make the button inline */
+      font-size: 17px; /* Increase font size */
+      margin: 4px 2px; /* Add some margin */
+      cursor: pointer; /* Pointer/hand icon */
+      border-radius: 5px; /* Rounded corners */
+    }
+    .download-button:hover {
+      background-color: #0DC09D; /* Darker green on hover */
+    }
+  </style>
+  <button class="download-button" onclick="Reactable.downloadDataCSV(\'metrics-table\', \'run_overview.csv\')">
+    Download as CSV
+  </button>
+')
+```
+
+::: {.callout-caution .benchmark_callouts collapse="true" icon="false"}
+## {{< fa table >}} Click to display table
+
+`r run_metrics_table`
+
+<center>`r download_button`</center>
+:::
+
+```{r}
+# Set dynamic figure height
+fig_height <- 10 + 3 * n_groups
+```
+
+
+```{r run-metrics-plot}
+#| fig-width: 12
+#| fig-height: !expr fig_height
+
+## Generate table for metrics plot based on whether cost parameter is set to true
+if (grepl("cost",profile)) {
+    metrics_table <- merged_logs %>% select(any_of(c("pipeline","group","run_id","Wall_time","duration","cpuTime","readBytes","writeBytes","cpuEfficiency","memoryEfficiency","task_runtime_ms","pipeline_workdirSize_GB","pipeline_workdirSize_price","cost","used_cost","unused_cost")))
+    if("pipeline_workdirSize_GB" %in% colnames(metrics_table)){
+      metrics <- c("Wall_time","cost","used_cost","unused_cost","task_runtime_ms","cpuTime","readBytes", "writeBytes", "cpuEfficiency", "memoryEfficiency","pipeline_workdirSize_GB","pipeline_workdirSize_price")
+      ## Create a labeler for facets
+      metrics_formatted <- c("Wall time (HH:MM:SS)","Estimated compute cost ($)","Estimated used compute cost ($)","Estimated unused compute cost ($)", "Total task runtime (HH:MM:SS)","CPU time (hours)", "Read (GB)", "Write (GB)", "Task CPU efficiency (%)", "Task memory efficiency (%)","Workdir size (GB)","Workdir storage cost monthly ($)")
+    }else{
+      metrics <- c("Wall_time","cost","used_cost","unused_cost","task_runtime_ms","cpuTime","readBytes", "writeBytes", "cpuEfficiency", "memoryEfficiency")
+      metrics_formatted <- c("Wall time (HH:MM:SS)","Estimated compute cost ($)","Estimated used compute cost ($)","Estimated unused compute cost ($)", "Total task runtime (HH:MM:SS)","CPU time (hours)", "Read (GB)", "Write (GB)", "Task CPU efficiency (%)", "Task memory efficiency (%)")
+    }
+
+    if (params$aws_cost != "NA") {
+      # Replace Estimated cost ($) with Accurate<br>cost ($) in vector metrics_formatted
+      metrics_formatted[metrics_formatted == "Estimated compute cost ($)"]        <- "Accurate compute cost ($)"
+      metrics_formatted[metrics_formatted == "Estimated used compute cost ($)"]   <- "Accurate used compute cost ($)"
+      metrics_formatted[metrics_formatted == "Estimated unused compute cost ($)"] <- "Accurate unused compute cost ($)"
+    }
+    labels <- setNames(metrics_formatted, metrics)
+  } else {
+    metrics_table <- merged_logs %>% select(any_of(c("pipeline","group","run_id","Wall_time","duration","cpuTime","readBytes","writeBytes","cpuEfficiency","memoryEfficiency","task_runtime_ms","pipeline_workdirSize_GB","pipeline_workdirSize_price")))
+    
+    if("pipeline_workdirSize_GB" %in% colnames(metrics_table)){
+      metrics <- c("Wall_time","cpuTime","task_runtime_ms","readBytes", "writeBytes", "cpuEfficiency", "memoryEfficiency","pipeline_workdirSize_GB","pipeline_workdirSize_price")
+      ## Create a labeler for facets
+      metrics_formatted <- c("Wall time (HH:MM:SS)", "CPU time (hours)","Total task runtime (HH:MM:SS)", "Read (GB)", "Write (GB)", "Task CPU efficiency (%)", "Task memory efficiency (%)","Workdir size (GB)","Workdir storage cost monthly ($)")
+    }else{
+    metrics_table <- merged_logs %>% select(any_of(c("pipeline","group","run_id","Wall_time","duration","cpuTime","readBytes","writeBytes","cpuEfficiency","memoryEfficiency","task_runtime_ms")))
+    metrics <- c("Wall_time","cpuTime","task_runtime_ms","readBytes", "writeBytes", "cpuEfficiency", "memoryEfficiency")
+    ## Create a labeler for facets
+    metrics_formatted <- c("Wall time (HH:MM:SS)", "CPU time (hours)","Total task runtime (HH:MM:SS)", "Read (GB)", "Write (GB)", "Task CPU efficiency (%)", "Task memory efficiency (%)")
+    }
+
+    labels <- setNames(metrics_formatted, metrics)
+  }
+
+metrics_table <- metrics_table %>% arrange(pipeline)
+
+metrics_table_long <- metrics_table %>%
+  mutate("Wall_time" = as.numeric(duration),
+         "readBytes" = as.numeric(readBytes),
+         "writeBytes" = as.numeric(writeBytes)
+         ) %>%
+  pivot_longer(cols = metrics,
+               names_to = "Metric", values_to = "Value") %>%
+  # Round all values except wall time and cost to 0 decimal places
+  mutate(Value = if_else(Metric %in% c("Wall_time","task_runtime_ms","cost","used_cost","unused_cost"),Value,round(Value, 0))
+         )
+
+## Set order of facets
+metrics_table_long$Metric <- factor(metrics_table_long$Metric,
+                                    levels = metrics)
+
+## Reverse order for flipped barplot
+metrics_table_long$group <- factor(metrics_table_long$group, levels = rev(levels(metrics_table_long$group)))
+
+## If a pipeline was run more than once, we show the mean for the barplot and points for the replicates. The text also shows the mean and is repositioned.
+if(n_runs_max > 1){
+  # Calculate mean values for text and text positioning
+  means <- metrics_table_long %>%
+    ungroup() %>%
+    group_by(Group,Metric,pipeline) %>%
+    summarise(mean_points = mean(as.numeric(Value)),
+              max_value = max(as.numeric(Value))) %>%
+    mutate(Formatted_Value = ifelse(Metric %in% c("Wall_time","task_runtime_ms"), sapply(mean_points, milliseconds_to_hms), 
+                                      if_else(Metric == "cost",as.character(round(mean_points,2)),
+                                              as.character(round(mean_points, 0))))
+           )
+  
+
+  metrics_plot <- ggplot(metrics_table_long,
+                         aes(x = Value, y = pipeline, group = group)
+                         ) +
+    geom_bar(aes(fill = group),stat = "summary",fun.y = "mean", position = "dodge", width = 0.75, color = "#160F26") +
+    scale_fill_manual(values = groups_color_palette) +
+    geom_point(aes(fill = group,
+                   text = paste("run_id: ", run_id,"\n",
+                                "Value: ", ifelse(Metric %in% c("Wall_time","task_runtime_ms"), sapply(Value, milliseconds_to_hms), as.character(Value)))
+                                ),
+               position = position_dodge(width = 0.75),  size = 3,
+               #color = "black", show.legend = FALSE
+               shape = 21, color = "black", show.legend = FALSE
+               )
+  
+}else{ # If a pipeline was run only once
+  metrics_table_long <- metrics_table_long %>%
+    mutate(Formatted_Value = ifelse(Metric %in% c("Wall_time","task_runtime_ms"), sapply(Value, milliseconds_to_hms), as.character(Value)))
+  
+  metrics_table_long$group <- factor(metrics_table_long$group, levels = levels(metrics_table_long$group))
+
+  metrics_plot <- ggplot(metrics_table_long,
+                         aes(x = Value, y = pipeline, fill = group)) +
+      geom_bar(stat = "identity", position = "dodge", width = 0.75,color = "#160F26") +
+      geom_text(aes(label = pad_labels(ifelse(Metric %in% c("Wall_time","task_runtime_ms"), Formatted_Value, Value))),
+            position = position_dodge(width = 0.75),
+            hjust = -0.2, 
+            size = 3.5,
+            color = "#160F26"
+            ) +
+    scale_fill_manual(values = groups_color_palette)
+}
+
+metrics_plot <- metrics_plot + 
+  facet_wrap(~ Metric, scales = "free_x", ncol = 2, labeller = as_labeller(labels)) +
+  labs(
+    x = "",
+    y = "",
+    fill = "group"
+  ) +
+  theme(legend.position = "top") +
+  # Reverse order of legend keys
+  guides(fill = guide_legend(reverse = TRUE)) +
+  # Hide x-axis completely
+  theme(axis.title.x = element_blank(),
+        # axis.text.x = element_blank(),
+        # axis.ticks.x = element_blank(),
+        axis.line.x = element_blank()) +
+  seqera_light_theme() +
+  scale_x_continuous(limits = expand_x_limits) 
+
+if(n_runs_max > 1){
+  ggplotly(metrics_plot, tooltip = c("text"))
+}else{
+  metrics_plot
+}
+```
+
+```{r vm-metrics-table}
+#| echo: false
+#| results: asis
+
+vm_metrics_cols <- c("nMachines", "vmCpuH", "vmMemGibH", "schedAllocCpuEfficiency", "schedAllocMemEfficiency", "realVmCpuEfficiency", "realVmMemEfficiency", "realCpuH", "realMemGibH", "requestedCpuH", "requestedMemGibH")
+
+if (all(vm_metrics_cols %in% colnames(metrics_reactable)) && any(!is.na(metrics_reactable$vmCpuH))) {
+  cat("## Scheduler VM metrics\n\n")
+  cat("These values are computed from optional machine CSVs when they are provided alongside each run dump. Task efficiencies are derived from task logs, while VM efficiencies relate those task metrics back to total machine lifetime capacity.\n\n")
+
+  vm_metrics_table <- metrics_reactable %>%
+    select(pipeline, group, run_id, all_of(vm_metrics_cols)) %>%
+    mutate(
+      vmCpuH = round(vmCpuH, 2),
+      vmMemGibH = round(vmMemGibH, 2),
+      schedAllocCpuEfficiency = round(schedAllocCpuEfficiency, 2),
+      schedAllocMemEfficiency = round(schedAllocMemEfficiency, 2),
+      realVmCpuEfficiency = round(realVmCpuEfficiency, 2),
+      realVmMemEfficiency = round(realVmMemEfficiency, 2),
+      realCpuH = round(realCpuH, 2),
+      realMemGibH = round(realMemGibH, 2),
+      requestedCpuH = round(requestedCpuH, 2),
+      requestedMemGibH = round(requestedMemGibH, 2)
+    )
+
+  vm_metrics_reactable <- reactable(
+    vm_metrics_table,
+    language = reactableLang(searchPlaceholder = "Filter"),
+    defaultColDef = colDef(align = "center", minWidth = 140),
+    columns = list(
+      pipeline = colDef(name = "Pipeline<br>name", html = TRUE, align = "left"),
+      group = colDef(align = "left"),
+      run_id = colDef(name = "Run ID", align = "left"),
+      nMachines = colDef(name = "Machines"),
+      vmCpuH = colDef(name = "VM CPU<br>hours", html = TRUE),
+      vmMemGibH = colDef(name = "VM memory<br>GiB hours", html = TRUE),
+      schedAllocCpuEfficiency = colDef(name = "Scheduler CPU<br>efficiency (%)", html = TRUE),
+      schedAllocMemEfficiency = colDef(name = "Scheduler memory<br>efficiency (%)", html = TRUE),
+      realVmCpuEfficiency = colDef(name = "Real VM CPU<br>efficiency (%)", html = TRUE),
+      realVmMemEfficiency = colDef(name = "Real VM memory<br>efficiency (%)", html = TRUE),
+      realCpuH = colDef(name = "Real CPU<br>hours", html = TRUE),
+      realMemGibH = colDef(name = "Real memory<br>GiB hours", html = TRUE),
+      requestedCpuH = colDef(name = "Requested CPU<br>hours", html = TRUE),
+      requestedMemGibH = colDef(name = "Requested memory<br>GiB hours", html = TRUE)
+    ),
+    wrap = FALSE,
+    resizable = TRUE,
+    bordered = TRUE,
+    striped = FALSE,
+    highlight = TRUE,
+    searchable = TRUE,
+    defaultPageSize = 20
+  )
+
+  print(vm_metrics_reactable)
+}
+```

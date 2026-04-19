@@ -1,0 +1,607 @@
+---
+format: 
+  html:
+    include-in-header:
+      - text: |
+          <link href="https://cdn.datatables.net/1.10.24/css/jquery.dataTables.css" rel="stylesheet"/>
+          <link href="https://cdn.datatables.net/buttons/1.7.0/css/buttons.dataTables.min.css" rel="stylesheet"/>
+          <script src="https://cdn.datatables.net/buttons/1.7.0/js/dataTables.buttons.min.js"></script>
+          <script src="https://cdn.datatables.net/buttons/1.7.0/js/buttons.html5.min.js"></script>
+---
+
+# Task overview
+
+::: {.callout-note .benchmark_callouts title="Summary"}
+This section provides an overview of task-level metrics for instance usage and runtime metrics.
+:::
+
+## Task instance usage
+
+::: {.callout-tip .benchmark_callouts title="Plot interaction" collapse="true"}
+-   Hover over any bar to see the number of tasks per instance type
+-   Single-click on entries in the legend to hide specific instance types
+-   Double-click on entries in the legend to show specific instance types
+:::
+
+
+```{r task-instance-usage-plot}
+#| fig-width: 12
+#| fig-height: 12
+
+## Use the tasks logs to summarize how many different tasks were run on which instance types
+summary_tasks <- task_data %>%
+  group_by(run_id,group, machineType) %>%
+  summarise(n = n()) %>%
+  ungroup() %>%
+  arrange(desc(n))
+
+## Replace NA by "HPC" for slurm runs
+executors <- unique(task_data$executor)
+if("local" %in% executors){
+  summary_tasks$machineType[is.na(summary_tasks$machineType)] <- "local"
+}else{
+  summary_tasks$machineType[is.na(summary_tasks$machineType)] <- "HPC"
+}
+
+
+## Add pipeline name to run_id
+summary_tasks <- full_join(summary_tasks,merged_logs %>% select(run_id,pipeline),by="run_id") %>%
+  select(group,pipeline,run_id,machineType,n)
+
+summary_tasks$pipeline <- factor(summary_tasks$pipeline,
+                               levels = rev(pipeline_order))
+
+# Split the data by the facet variable
+split_data <- summary_tasks %>%
+  split(.$pipeline)
+
+summary_tasks$Group <- factor(summary_tasks$group,
+                              levels = unique(seqera_platform_logs@group))
+
+## If a pipeline was run more than once, we modify how we plot the barplots 
+if(n_runs_max > 1){
+  instance_type_plot <- ggplot(summary_tasks, aes(x = paste(group,run_id,sep=" : "), y = n,
+                                                fill = machineType,
+                                                text = paste("Tasks: ",n,"\n",
+                                                             "Instance type: ",machineType,
+                                                             sep="")))
+  x_axis_mod <- theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}else{
+  instance_type_plot <- ggplot(summary_tasks, aes(x = group, y = n,
+                                                fill = machineType,
+                                                text = paste("Tasks: ",n,"\n",
+                                                             "Instance type: ",machineType,
+                                                             sep="")))
+  x_axis_mod <- theme(axis.text.x = element_text(angle = 90, hjust = 1))
+}
+
+names(instance_palette) <- unique(summary_tasks$machineType)
+instance_type_plot <- instance_type_plot +
+  geom_bar(stat = "identity", color = "black", position = "stack") +
+  labs(
+    x = "",
+    y = "Number of tasks",
+    fill = "group"
+  ) +
+  seqera_light_theme() +
+  theme(strip.text = element_text(size = 12),
+        axis.title.x = element_text(margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        panel.spacing.y = unit(2, "line"),
+        plot.margin = unit(c(1, 1, 1, 1), "cm"),
+        legend.position = "right",
+        legend.title=element_text(face = "bold")
+        ) +
+  facet_wrap(~ pipeline, scales = "free_y", ncol = 2) +
+  scale_fill_manual(values = instance_palette) +
+  scale_y_continuous(limits = expand_x_limits,breaks = scales::pretty_breaks(n = 5), labels = function(x) ifelse(x == floor(x), x, NA)) +
+  x_axis_mod
+
+ggplotly(instance_type_plot, tooltip="text") %>%
+  set_ggplotly_font() %>%
+  plotly::layout(
+    hovermode='x',
+    margin = list(r = 200),  # Increase the right margin
+    legend = list(
+      x = 1.02,  # Position the legend outside the plot area
+      y = 1,
+      orientation = "v",
+      font = list(size = 14)  # Adjust the font size if needed
+    )
+  ) %>%
+  htmlwidgets::onRender("
+    function(el, x) {
+      var legendItems = el.querySelectorAll('.legendtext');
+      legendItems.forEach(function(item) {
+        item.style.width = '100px';  // Adjust the width as needed
+        item.style.whiteSpace = 'normal';  // Allow wrapping
+      });
+    }
+  ")
+```
+
+## Task metrics
+
+This section provides a comparison and overview between staging and run times for tasks for each pipeline across these groups: `r groups_string`.
+
+The different times for tasks are defined as follows:
+
+-   **Wait time**: The time taken from submission to the start of the task.
+-   **Staging time**: The time taken to stage and unstage the task before and after execution.
+-   **Real time**: The time taken to execute the task.
+-   **Task duration**: The elapsed time from task start to task completion, which corresponds to staging time plus real time.
+
+For more detailed explanation of metrics shown in the table below the task plots, please see the [Nextflow reports documentation](https://www.nextflow.io/docs/latest/tracing.html).
+
+::: {.callout-tip .benchmark_callouts title="Plot interaction" collapse="true"}
+-   Single-click on any point to highlight the specific process in the table below.
+-   Double-click on any whitespace in the plot to unselect a point.
+:::
+
+```{r, results='asis'}
+#| label: task-level-plots
+#| fig-width: 12
+#| fig-height: 12
+#| warning: false
+
+## alpha value for the background color of the table
+row_alpha_value <- 0.15
+point_alpha <- 1
+point_size <- 2
+
+for(pipe in unique(task_data$pipeline)){
+  
+  #### Task staging and run times
+  pipe_parsed <- gsub("/","_",pipe)
+  cat(paste0("### ",pipe,paste0("{#sec-task-",pipe_parsed,"}"), " \n"))
+  
+  group1 <- as.character(unique(task_data$group)[1])
+  group2 <- as.character(unique(task_data$group)[2])
+  
+  #### Cost plots
+  if(grepl("cost",profile)){
+    
+    # cat(paste('The plots in this section show the cost distribution of tasks per process between the two groups. Tasks are grouped by processes on the x axis, so to show which process has a large cost spread across tasks and how this differs between groups. \n\n',sep=""))
+    
+    pipe_task_data_cost<- task_data %>%
+      subset(pipeline == pipe) %>%
+      select(run_id,pipeline,group,process,name,name_short,hash,runtime_mins,waittime_mins,staging_time_mins,realtime_mins)
+    pipe_task_data_cost$hash <- gsub("/","",pipe_task_data_cost$hash)
+    
+    cost_table_pipe <- cost_table %>%
+      subset(pipeline == pipe)
+    
+    cost_data_pipe_task <- full_join(cost_table_pipe,pipe_task_data_cost,by=c("run_id","pipeline","group","process","hash")) 
+    cost_data_pipe_task <- cost_data_pipe_task %>%
+      mutate(process_short = paste(str_extract(process, "[^:]+$"),sep=" - "))
+    
+    ## Sort processes based on most variation in cost between groups
+    process_sum_cost <- cost_data_pipe_task %>%
+      group_by(process_short,group) %>%
+      summarise(sum_cost = mean(cost)) %>%
+      ungroup() %>%
+      group_by(process_short) %>%
+      summarise(cost_sd = sd(sum_cost)) %>%
+      ungroup() %>%
+      arrange(desc(cost_sd))
+    
+    cost_data_pipe_task$process_short <- factor(cost_data_pipe_task$process_short, levels = process_sum_cost$process_short)
+  
+    shared_cost_data_pipe <- SharedData$new(cost_data_pipe_task, key = ~name, group = pipe)
+  
+    cost_task_time <- ggplot(shared_cost_data_pipe,
+                             aes(x = process_short,
+                                 y = cost,
+                                 text = paste("Task name: ",name,"\n",
+                                              "Task cost:",cost,sep=""))) +
+      ## Add a boxplot with color = group that is dodged by group
+      geom_boxplot(aes(color = group)) +
+      geom_point(aes(color = group),position = position_dodge(width = 0.9), alpha = 1) +
+      scale_color_manual(values = groups_color_palette) +
+      labs(x = "Processes",
+           y = "Task cost ($)",
+           title = "Per task cost") +
+      seqera_light_theme() +
+      theme(plot.margin = unit(c(t = 1, r =1, b = 1.3, l = 1), "cm")
+            ) +
+      theme(axis.text.x = element_blank(),
+            plot.title = element_text(size = plot_title_size)) +
+      guides(shape = 21)
+    
+      cost_task_time_plotly <- ggplotly(cost_task_time, tooltip = "text")
+      
+      hideOutliers <- function(x) {  
+      if (x$hoverinfo == 'y') {  
+        x$marker = list(opacity = 0)
+        x$hoverinfo = NA    
+        }  
+      return(x)  
+    }
+
+    n_groups <- length(unique(cost_data_pipe_task$group))
+    cost_task_time_plotly[["x"]][["data"]] <- map(cost_task_time_plotly[["x"]][["data"]], ~ hideOutliers(.))
+    
+    ## Fix ggplotly legend
+    cost_task_time_plotly <- cost_task_time_plotly %>% style(cost_task_time_plotly,showlegend = FALSE, traces = 1:n_groups)
+    cost_task_time_plotly <- cost_task_time_plotly %>% style(cost_task_time_plotly,showlegend = TRUE, traces = (n_groups+1):(n_groups*2))
+    
+    ## Make boxplot not interactive
+    cost_task_time_plotly <- cost_task_time_plotly %>% style(cost_task_time_plotly, hoverinfo = "none", traces = 1:n_groups)
+      
+        
+      print(htmltools::tagList(
+         cost_task_time_plotly %>%
+          layout(hoverlabel = list(align = "left"),
+                 boxmode = "group") %>%
+          highlight(on = "plotly_click", off = "plotly_doubleclick", opacityDim = 0.1) %>%
+          set_ggplotly_font() %>% 
+          toWebGL()
+        )
+      )
+    
+    cost_data_pipe_task_table <- cost_data_pipe_task %>%
+      select(group,run_id,hash,name,cost,used_cost,unused_cost)
+    
+    ## Set order of Groups
+    cost_data_pipe_task_table$group <- factor(cost_data_pipe_task_table$group,
+                                              levels = unique(seqera_platform_logs@group))
+    
+    shared_data_cost_table <- SharedData$new(cost_data_pipe_task_table, key = ~name, group = pipe)
+    
+    rgba_colors <- sapply(groups_color_palette, hex_to_rgba, alpha = row_alpha_value)[1:length(unique(cost_data_pipe_task_table$group))]
+    pipe_cost_table <- div(class = "scrollable-table",
+                             datatable(shared_data_cost_table,
+                                   class = 'nowrap',
+                                   escape = FALSE,
+                                   colnames = c("Group" = "group", ## Order of colnames is important here!!!
+                                                "Run ID" = "run_id",
+                                                "Task<br/>hash" = "hash",
+                                                "Compute cost" = "cost",
+                                                "Used compute cost" = "used_cost",
+                                                "Unused compute cost" = "unused_cost",
+                                                "Task name" = "name"),
+                                   selection="none",
+                                   rownames= FALSE,
+                                   options = list(autoWidth = FALSE,
+                                                  language = list(search = 'Filter:'),
+                                                  pageLength = 5,
+                                                  order = list(list(2, 'asc')),
+                                                  initComplete = JS(
+                                                    "function(settings, json) {",
+                                                    "$('table').css({'font-size': '17px'});",
+                                                    "}"
+                                                  ))
+                                   ) %>%
+        formatStyle(
+          'Group',
+          target = 'row',
+          backgroundColor = styleEqual(
+            names(rgba_colors),
+            rgba_colors
+            )
+        )
+      )
+  
+      print(htmltools::tagList(
+        tags$style(HTML("
+      .dataTable thead th {
+        background-color: #160f26 !important;
+        color: white !important;
+        text-align: left !important;
+        white-space: nowrap;
+      }
+      .dataTable tbody td {
+        text-align: left !important;
+        white-space: nowrap;
+      }
+      .scrollable-table {
+        width: 100%;
+        overflow-x: auto;
+      }
+      /* Style for the download button */
+      .dt-button {
+        background-color: #160F26 !important;
+        border: none !important;
+        color: white !important;
+        padding: 10px 10px !important;
+        text-align: center !important;
+        text-decoration: none !important;
+        display: inline-block !important;
+        font-size: 17px !important;
+        margin: 4px 2px !important;
+        cursor: pointer !important;
+        border-radius: 5px !important;
+      }
+      .dt-button:hover {
+        background-color: #0DC09D !important;
+      }
+    ")
+        ),
+      pipe_cost_table))
+  }
+  
+  pipe_task_data_plot <- task_data %>%
+    subset(pipeline == pipe)
+
+  
+  ####
+  #### Code chunk that will be run if comparing 2 groups with 1 run each (Quicklaunches)
+  ####
+  if (benchmark_scenario == "2groups_1run") {
+    group1 <- as.character(unique(pipe_task_data_plot$group)[1])
+    group2 <- as.character(unique(pipe_task_data_plot$group)[2])
+    pipe_tasks_data <- task_data %>%
+      subset(pipeline == pipe)
+    
+    ## Calculate the staging difference between the two groups
+    pipe_staging_time <- pipe_tasks_data %>%
+      select(pipeline,group,process,process_short,name,name_short,staging_time_mins) %>%
+      group_by(pipeline,process,process_short,name,name_short) %>%
+      pivot_wider(names_from = group, values_from = staging_time_mins,values_fn = sum) %>%
+      mutate("staging_diff_min" = !!sym(group1) - !!sym(group2)) %>%
+      ungroup() %>%
+      arrange(desc(staging_diff_min))
+    
+    ## Calculate the realtime difference between the two groups
+    pipe_tasks_realtime <- pipe_tasks_data %>%
+      select(pipeline,group,process,process_short,name,name_short,realtime_mins) %>%
+      group_by(pipeline,process,process_short,name,name_short) %>%
+      pivot_wider(names_from = group, values_from = realtime_mins,values_fn = sum) %>%
+      mutate("realtime_diff_min" = !!sym(group1) - !!sym(group2)) %>%
+      ungroup() %>%
+      arrange(desc(realtime_diff_min))
+    
+    shared_data_staging <- SharedData$new(pipe_staging_time, key = ~name, group = pipe)
+    shared_data_realtimes <- SharedData$new(pipe_tasks_realtime,   key = ~name, group = pipe)
+    
+    ## Realtime task plot
+    pipe_task_staging_plot <- ggplot(shared_data_staging, 
+           aes(x = get(group1), 
+               y = get(group2),
+               text = paste("Task name: ",name_short,"\n",
+                             group1, " : ",sprintf("%02d:%02d:%02d", floor(get(group1) / 60), floor(get(group1) %% 60), round((get(group1) %% 1) * 60)),"\n",
+                             group2, " : ",sprintf("%02d:%02d:%02d", floor(get(group2) / 60), floor(get(group2) %% 60), round((get(group2) %% 1) * 60)),"\n",
+                                                        sep=""),
+               group = staging_diff_min)) +
+    geom_point(size = point_size, alpha = point_alpha, color = "#160F26") +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+    labs(
+      x = group1,
+      y = group2,
+      color = "Pipeline",
+      title = "Staging time (minutes)"
+    ) +
+    seqera_light_theme() +
+    theme(legend.position = "none",
+          plot.margin = unit(c(t = 1, r =1, b = 1.3, l = 1), "cm"),
+          plot.title = element_text(size = plot_title_size),
+    )
+    
+    ## Realtime task plot
+    pipe_task_realtime_plot <- ggplot(shared_data_realtimes, 
+           aes(x = get(group1), 
+               y = get(group2),
+               text = paste("Task name: ",name_short,"\n",
+                             group1, " : ",sprintf("%02d:%02d:%02d", floor(get(group1) / 60), floor(get(group1) %% 60), round((get(group1) %% 1) * 60)),"\n",
+                             group2, " : ",sprintf("%02d:%02d:%02d", floor(get(group2) / 60), floor(get(group2) %% 60), round((get(group2) %% 1) * 60)),"\n",
+                                                        sep=""),
+               group = realtime_diff_min)) +
+    geom_point(size = 2, alpha = 1, color = "#160F26") +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+    labs(
+      x = group1,
+      y = group2,
+      color = "Pipeline",
+      title = "Real time (minutes)"
+    ) + 
+    seqera_light_theme() +
+    theme(legend.position = "none",
+          plot.margin = unit(c(t = 1, r =1, b = 1.3, l = 1), "cm"),
+          plot.title = element_text(size = plot_title_size)
+    )
+
+    print(htmltools::tagList(
+        div(style = "display: inline-block; width: 49%;", 
+            ggplotly(pipe_task_staging_plot, tooltip = "text") %>% 
+              layout(hoverlabel = list(align = "left")) %>% 
+              highlight(on = "plotly_click", off = "plotly_doubleclick", opacityDim = 0.05) %>% 
+              set_ggplotly_font()) %>% toWebGL(),
+        div(style = "display: inline-block; width: 49%;", 
+            ggplotly(pipe_task_realtime_plot, tooltip = "text") %>% 
+              layout(hoverlabel = list(align = "left")) %>% 
+              highlight(on = "plotly_click", off = "plotly_doubleclick", opacityDim = 0.05) %>% 
+              set_ggplotly_font()) %>% toWebGL()
+        )
+      )
+
+  
+  ####
+  #### More than 2 groups to compare or multiple pipeline runs for the same pipeline
+  ####
+  }else {
+
+    shared_data_tasks_plot <- SharedData$new(pipe_task_data_plot, key = ~name, group = pipe)
+
+    ## If a pipeline was run more than once, we modify how we plot the points
+    if(n_runs_max > 1){
+      task_points_layer <- geom_point(aes(color = group), 
+                                      size = point_size, 
+                                      alpha = point_alpha)
+    }else{
+      task_points_layer <- geom_point(aes(color = group), 
+               size = point_size,
+               alpha = point_alpha)
+    }
+    
+    runtime_vs_realtime_plot <- ggplot(shared_data_tasks_plot,
+                                       aes(x = realtime_mins,
+                                           y = staging_time_mins, 
+                                           text = paste("Task name: ",name_short,"\n",
+                                                        "run_id :",run_id,"\n",
+                                                        "Submission time: ",waittime,"\n",
+                                                        "Staging time: ",staging_time,"\n",
+                                                        "Execution time: ",real_time,
+                                                        sep=""))
+                                       ) +
+    task_points_layer +
+    labs(
+      x = "Task real time (minutes)",
+      y = "Task staging time (minutes)",
+      title = "Task staging and real times",
+      color = "group"
+    ) +
+      seqera_light_theme() + 
+      scale_color_manual(values = groups_color_palette)  +
+      theme(plot.title = element_text(size = plot_title_size))
+    
+    print(htmltools::tagList(
+    ggplotly(runtime_vs_realtime_plot, tooltip = "text") %>% 
+      layout(hoverlabel = list(align = "left")) %>% highlight(on = "plotly_click", off = "plotly_doubleclick") %>%
+      set_ggplotly_font() %>% toWebGL()
+    )
+  )
+    
+  } ## End of if-else for multi-group
+
+  ## Select only columns we will use in the table
+  pipe_task_data_table <- pipe_task_data_plot %>%
+    select(group,run_id,name_short,hash,
+           waittime,real_time,staging_time,
+           cpus,memory,pcpu,pmem,rss,volCtxt,invCtxt,readBytes,writeBytes,
+           executor,cloudZone,machineType,name,status)
+  
+  if(grepl("cost",profile)){
+  ## Add accurate cost from cost_data_pipe_task_table
+    accurate_task_cost <- cost_data_pipe_task_table %>%
+      select(group,run_id,hash,cost) %>%
+      mutate(hash = paste0(substr(hash, 1, 2), "/", substr(hash, 3, nchar(hash))))
+    
+    pipe_task_data_table <- full_join(pipe_task_data_table,accurate_task_cost,
+                                      by = c("group","run_id","hash"))
+  }
+  
+  ## Tasks table
+  shared_data_tasks_table <- SharedData$new(pipe_task_data_table, key = ~name, group = pipe)
+  font.size <- "12"
+  rgba_colors <- sapply(groups_color_palette, hex_to_rgba, alpha = row_alpha_value)[1:length(unique(pipe_task_data_table$group))]
+  
+  # Define base column names that are common to both scenarios
+  base_col_names <- c(
+    "Group" = "group",
+    "Run ID" = "run_id", 
+    "Task<br/>hash" = "hash", 
+    "Task name short" = "name_short",
+    "Executor" = "executor",
+    "Cloud<br/>zone" = "cloudZone",
+    "Instance type" = "machineType",
+    "Wait<br/>time" = "waittime",
+    "Staging<br/>time" = "staging_time",
+    "Real<br/>time" = "real_time",
+    "Requested<br/>CPUs" = "cpus",
+    "Requested memory<br/>(GiB)" = "memory",
+    "Observed CPU<br/>(%)" = "pcpu",
+    "Observed memory<br/>(%)" = "pmem",
+    "Peak RSS<br/>(GiB)" = "rss",
+    "Read<br/>bytes" = "readBytes",
+    "Write<br/>bytes" = "writeBytes",
+    "VolCtxt" = "volCtxt",
+    "InvCtxt" = "invCtxt",
+    "Task name" = "name",
+    "Status" = "status"
+  )
+  
+  # Add cost column if it exists
+  col_names <- if("cost" %in% colnames(pipe_task_data_table)) {
+    c(base_col_names[1:10], "Cost" = "cost", base_col_names[11:21])
+  } else {
+    base_col_names
+  }
+  
+  # We need to select the actual column names from the data frame, not the display names
+  pipe_task_data_table_filtered <- pipe_task_data_table %>%
+    select(all_of(unname(col_names)))
+  
+  # Create a new SharedData object with the filtered data
+  shared_data_tasks_table_filtered <- SharedData$new(pipe_task_data_table_filtered, key = ~name, group = pipe)
+  
+  # Create the datatable
+  pipe_task_table <- div(
+    class = "scrollable-table",
+    datatable(
+      shared_data_tasks_table_filtered,
+      class = 'display',
+      extensions = c('Buttons'),
+      escape = FALSE,
+      colnames = col_names,
+      selection = "none",
+      rownames = FALSE,
+      options = list(
+        autoWidth = FALSE,
+        language = list(search = 'Filter:'),
+        pageLength = 10,
+        order = list(list(2, 'asc')),
+        dom = 'Bfrtip',
+        buttons = list(
+          list(
+            extend = 'csv',
+            text = 'Download task table as CSV',
+            filename = 'task_table'
+          )
+        ),
+        initComplete = JS(
+          "function(settings, json) {",
+          "$('table').css({'font-size': '17px'});",
+          "}"
+        )
+      )
+    ) %>%
+    formatStyle(
+      'Group',
+      target = 'row',
+      backgroundColor = styleEqual(
+        names(rgba_colors),
+        rgba_colors
+      )
+    )
+  )
+  
+  print(htmltools::tagList(
+    tags$style(HTML("
+  .dataTable thead th {
+    background-color: #160f26 !important;
+    color: white !important;
+    text-align: left !important;
+    white-space: nowrap;
+  }
+  .dataTable tbody td {
+    text-align: left !important;
+    white-space: nowrap;
+  }
+  .scrollable-table {
+    width: 100%;
+    overflow-x: auto;
+  }
+  /* Style for the download button */
+  .dt-button {
+    background-color: #160F26 !important;
+    border: none !important;
+    color: white !important;
+    padding: 10px 10px !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    display: inline-block !important;
+    font-size: 17px !important;
+    margin: 4px 2px !important;
+    cursor: pointer !important;
+    border-radius: 5px !important;
+  }
+  .dt-button:hover {
+    background-color: #0DC09D !important;
+  }
+")
+    ),
+  pipe_task_table))
+  
+  cat("\n\n")
+  cat(sprintf('<div style="margin-bottom: 40px;"></div>'))
+}
+```

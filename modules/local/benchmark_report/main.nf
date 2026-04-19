@@ -4,7 +4,8 @@ process BENCHMARK_REPORT {
 
     input:
     path run_dumps
-    val  groups
+    val  benchmark_runs
+    path machine_files
     path benchmark_aws_cur_report
     val  remove_failed_tasks
 
@@ -26,13 +27,22 @@ process BENCHMARK_REPORT {
     export QUARTO_CACHE=/tmp/quarto/cache
     export XDG_CACHE_HOME=/tmp/quarto
 
+    # Copy the baseline report project from the container and overlay repo-managed fixes.
+    cp -R /project report_project
+    cp -R ${projectDir}/modules/local/benchmark_report/overrides/. report_project/
+
     # Create the benchmark samplesheet csv
-    echo "group,file_path" > ${benchmark_samplesheet}
-    ${groups.withIndex().collect { group, idx ->
-        "echo \"${group},\$TASK_DIR/${run_dumps[idx]}\" >> ${benchmark_samplesheet}"
+    echo "group,file_path,machines_path" > ${benchmark_samplesheet}
+    ${benchmark_runs.collect { run ->
+        def group = run.group ?: ''
+        def fileName = run.file_name
+        def machinesName = run.machines_name ?: ''
+        def stagedFilePath = fileName ? "\$TASK_DIR/${fileName}" : ''
+        def stagedMachinesPath = machinesName ? "\$TASK_DIR/${machinesName}" : ''
+        "echo \"${group},${stagedFilePath},${stagedMachinesPath}\" >> ${benchmark_samplesheet}"
     }.join('\n')}
 
-    cd /project
+    cd report_project
     quarto render main_benchmark_report.qmd \\
         -P log_csv:"\$TASK_DIR/"${benchmark_samplesheet} \\
         $aws_cost_param \\
@@ -40,7 +50,7 @@ process BENCHMARK_REPORT {
         --output-dir .\\
         --output benchmark_report.html
 
-    cp /project/benchmark_report.html "\$TASK_DIR/"
+    cp benchmark_report.html "\$TASK_DIR/"
     cd "\$TASK_DIR/"
 
     cat <<-END_VERSIONS > versions.yml
