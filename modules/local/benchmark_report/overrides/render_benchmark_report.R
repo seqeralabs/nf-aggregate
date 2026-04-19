@@ -89,6 +89,27 @@ safe_sd <- function(x) {
   sd(x, na.rm = TRUE)
 }
 
+build_workspace_run_url <- function(run_id, group, existing_url = "") {
+  existing_url <- clean_scalar_chr(existing_url)
+  group <- clean_scalar_chr(group)
+
+  base_url <- dplyr::if_else(
+    grepl("^Batch", group, ignore.case = TRUE),
+    "https://seqera.io/orgs/scidev/workspaces/testing/watch",
+    "https://cloud.dev-seqera.io/orgs/unified-compute/workspaces/sched-testing"
+  )
+
+  has_watch <- grepl("/watch/?$", base_url)
+  run_path <- ifelse(has_watch, paste0("/", run_id), paste0("/watch/", run_id))
+  fallback_url <- paste0(sub("/$", "", base_url), run_path)
+
+  dplyr::if_else(
+    nzchar(existing_url) & !grepl("example\\.invalid", existing_url, ignore.case = TRUE),
+    existing_url,
+    fallback_url
+  )
+}
+
 build_cost_table <- function(task_data, merged_logs, aws_cost = NULL, remove_failed_tasks = FALSE) {
   accurate_task_costs <- data.frame()
   run_group_lookup <- merged_logs %>%
@@ -341,7 +362,11 @@ run_costs <- task_data_aug %>%
   )
 
 workspace_values <- clean_scalar_chr(first_present(merged_logs, c("workspaceFullName", "workspaceName", "workspaceId"), ""))
-platform_urls <- clean_scalar_chr(first_present(merged_logs, c("runUrl"), ""))
+platform_urls <- build_workspace_run_url(
+  run_id = clean_scalar_chr(merged_logs$run_id),
+  group = clean_scalar_chr(merged_logs$group),
+  existing_url = first_present(merged_logs, c("runUrl"), "")
+)
 
 benchmark_overview <- merged_logs %>%
   transmute(
