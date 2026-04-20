@@ -118,11 +118,6 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
             }
         )
 
-        if not report_included:
-            continue
-
-        included_run_ids.add(run_id)
-
         run_summary.append(
             {
                 "pipeline": r.get("pipeline"),
@@ -146,6 +141,11 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
                 "container_engine": r.get("container_engine"),
             }
         )
+
+        if not report_included:
+            continue
+
+        included_run_ids.add(run_id)
 
         run_metrics.append(
             {
