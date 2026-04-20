@@ -2,126 +2,156 @@
 // WORKFLOW: Run main seqeralabs/nf-aggregate workflow
 //
 
-include { BENCHMARK_REPORT     } from '../../modules/local/benchmark_report'
-include { PLOT_RUN_GANTT       } from '../../modules/local/plot_run_gantt'
-include { SEQERA_RUNS_DUMP     } from '../../modules/local/seqera_runs_dump'
-include { MULTIQC              } from '../../modules/nf-core/multiqc'
-include { getProcessVersions   } from '../../subworkflows/local/utils_nf_aggregate'
-include { getWorkflowVersions  } from '../../subworkflows/local/utils_nf_aggregate'
-include { paramsSummaryMultiqc } from '../../subworkflows/local/utils_nf_aggregate'
-include { paramsSummaryMap     } from 'plugin/nf-schema'
+include { NORMALIZE_BENCHMARK_JSONL      } from '../../modules/local/normalize_benchmark_jsonl'
+include { AGGREGATE_BENCHMARK_REPORT_DATA } from '../../modules/local/aggregate_benchmark_report_data'
+include { RENDER_BENCHMARK_REPORT         } from '../../modules/local/render_benchmark_report'
+include { EXTRACT_TARBALL                 } from '../../modules/local/extract_tarball'
+include { softwareVersionsToYAML          } from 'plugin/nf-core-utils'
 
 workflow NF_AGGREGATE {
     take:
     ids                      // channel: run ids read in from --input
-    multiqc_custom_config    // channel: user specified custom config file used by MultiQC
-    multiqc_logo             // channel: logo rendered in MultiQC report
     seqera_api_endpoint      //     val: Seqera Platform API endpoint URL
-    skip_run_gantt           //     val: Skip GANTT chart creation for each run
-    skip_multiqc             //     val: Skip MultiQC
     java_truststore_path     //     val: Path to java truststore if using private certs
     java_truststore_password //     val: Password for java truststore if using private certs
 
     main:
 
-    // Split ids into runs to fetch logs from platform deployment and runs provided externally
-    ids
-    .branch {meta ->
-        external: meta.workspace == 'external'
-            if (meta.logs =~ /workflows\/nf_aggregate\/assets\/logs\//) {
-                return [meta, projectDir + meta.logs]
-            } else {
-                return [meta, meta.logs]
-            }
-        fetch_run_dumps: true
-    }
-    .set { ids_split }
-
     ch_versions = Channel.empty()
-    ch_multiqc_files = Channel.empty()
 
     //
-    // MODULE: Fetch run information via the Seqera CLI
+    // Split runs into API-fetched vs externally-provided tarballs
     //
+    ids.branch {
+        api:      it.workspace != 'external'
+        external: it.workspace == 'external' && it.logs
+    }.set { ch_split }
 
-    SEQERA_RUNS_DUMP(
-        ids_split.fetch_run_dumps,
-        seqera_api_endpoint,
-        java_truststore_path ?: '',
-        java_truststore_password ?: '',
-    )
-    ch_versions = ch_versions.mix(SEQERA_RUNS_DUMP.out.versions)
+    ch_api_runs = ch_split.api
 
-    // Merge run dumps with external runs
-    SEQERA_RUNS_DUMP.out.run_dump
-        .mix(ids_split.external)
-        .set{ ch_all_runs }
-
-    //
-    // MODULE: Generate Gantt chart for workflow execution
-    //
-    if(!params.skip_run_gantt){
-        ch_all_runs
-            .filter { meta, _run_dir -> meta.fusion}
-            .set { ch_runs_for_gantt }
-
-        PLOT_RUN_GANTT(
-            ch_runs_for_gantt
-        )
-        ch_versions = ch_versions.mix(PLOT_RUN_GANTT.out.versions)
+    if (!params.generate_benchmark_report) {
+        ch_split.api.count().subscribe { n ->
+            if (n > 0) {
+                log.warn(
+                    "Found ${n} API run(s) but --generate_benchmark_report is not enabled. " +
+                    "API runs will not produce any output. Enable --generate_benchmark_report to process them."
+                )
+            }
+        }
     }
 
     //
-    // MODULE: Generate benchmark report
+    // MODULE: Extract external tarballs containing run JSON data
+    //
+    def samplesheet_dir = file(params.input).parent
+    ch_external_logs = ch_split.external.map { meta ->
+        def logs_path = meta.logs.startsWith('/') ? file(meta.logs) : samplesheet_dir.resolve(meta.logs)
+        [meta, file(logs_path, checkIfExists: true)]
+    }
+
+    ch_external_logs.branch {
+        dirs:     it[1].isDirectory()
+        tarballs: !it[1].isDirectory()
+    }.set { ch_external_split }
+
+    EXTRACT_TARBALL(ch_external_split.tarballs)
+    ch_versions = ch_versions.mix(EXTRACT_TARBALL.out.versions)
+
+    //
+    // BENCHMARK REPORT: raw JSON -> JSONL bundle -> report_data.json -> HTML
     //
     if (params.generate_benchmark_report) {
-        // Check if cur report is specified
-        aws_cur_report = params.benchmark_aws_cur_report ? Channel.fromPath(params.benchmark_aws_cur_report) : []
 
-        BENCHMARK_REPORT(
-            ch_all_runs.collect { it[1] },
-            ch_all_runs.collect { it[0].group },
-            aws_cur_report,
-            params.remove_failed_tasks,
+        // Path A: Fetch run data via API for non-external runs
+        ch_api_jsons = ch_api_runs.map { meta ->
+            def maxRetries = 3
+            def data = (1..maxRetries).findResult { attempt ->
+                try {
+                    return SeqeraApi.fetchRunData(meta, seqera_api_endpoint)
+                } catch (Exception e) {
+                    if (attempt == maxRetries) {
+                        throw new RuntimeException("Failed to fetch run data for ${meta.id} after ${maxRetries} attempts: ${e.message}", e)
+                    }
+                    def sleepMs = 1000 * Math.pow(2, attempt - 1) as long
+                    log.warn "API call failed for run ${meta.id} (attempt ${attempt}/${maxRetries}), retrying in ${sleepMs}ms: ${e.message}"
+                    Thread.sleep(sleepMs)
+                    return null
+                }
+            }
+            data.meta = [
+                id:        meta.id,
+                workspace: meta.workspace,
+                group:     meta.group ?: 'default',
+                platform:  meta.platform ?: null,
+                token_env: meta.token_env ?: null,
+            ]
+            def tmpDir = java.nio.file.Files.createTempDirectory("nf-agg-run-${meta.id}-")
+            def json_file = file(tmpDir.resolve("${meta.id}.json"))
+            json_file.text = groovy.json.JsonOutput.toJson(data)
+            return json_file
+        }
+
+        // Path B: Collect JSON files from extracted tarballs
+        ch_tarball_jsons = EXTRACT_TARBALL.out.extracted.flatMap { meta, dir ->
+            def jsons = []
+            dir.toFile().eachFileMatch(~/.*\.json/) { jsons << file(it) }
+            return jsons
+        }
+
+        ch_external_dir_jsons = ch_external_split.dirs.flatMap { meta, dir ->
+            def jsons = []
+            dir.toFile().eachFileMatch(~/.*\.json/) { jsons << file(it) }
+            return jsons
+        }
+
+        // Merge both paths into a single data directory
+        ch_data_dir = ch_api_jsons
+            .mix(ch_tarball_jsons)
+            .mix(ch_external_dir_jsons)
+            .collect()
+            .map { files ->
+                def dir = file(java.nio.file.Files.createTempDirectory("nf-agg-benchmark-"))
+                dir.mkdirs()
+                files.each { f -> f.copyTo(dir.resolve(f.name)) }
+                return dir
+            }
+
+        ch_cur = params.benchmark_aws_cur_report
+            ? Channel.fromPath(params.benchmark_aws_cur_report)
+            : Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file("${projectDir}/assets/NO_FILE"))
+
+        NORMALIZE_BENCHMARK_JSONL(
+            ch_data_dir,
+            ch_cur.ifEmpty(file("${projectDir}/assets/NO_FILE")),
         )
-        ch_versions = ch_versions.mix(BENCHMARK_REPORT.out.versions)
+        ch_versions = ch_versions.mix(NORMALIZE_BENCHMARK_JSONL.out.versions)
+
+        AGGREGATE_BENCHMARK_REPORT_DATA(
+            NORMALIZE_BENCHMARK_JSONL.out.jsonl,
+        )
+        ch_versions = ch_versions.mix(AGGREGATE_BENCHMARK_REPORT_DATA.out.versions)
+
+        RENDER_BENCHMARK_REPORT(
+            AGGREGATE_BENCHMARK_REPORT_DATA.out.data,
+            file("${projectDir}/assets/brand.yml", checkIfExists: true),
+            file("${projectDir}/assets/seqera_logo_color.svg", checkIfExists: true),
+        )
+        ch_versions = ch_versions.mix(RENDER_BENCHMARK_REPORT.out.versions)
     }
 
     //
     // Collate software versions
     //
-    ch_versions
-        .unique()
-        .map { getProcessVersions(it) }
-        .mix(Channel.of(getWorkflowVersions()))
-        .collectFile(storeDir: "${params.outdir}/pipeline_info", name: 'collated_software_mqc_versions.yml', newLine: true)
-        .set { ch_collated_versions }
-
-    //
-    // MODULE: MultiQC
-    //
-    ch_multiqc_report = Channel.empty()
-    if (!skip_multiqc) {
-        ch_multiqc_config = Channel.fromPath("${projectDir}/workflows/nf_aggregate/assets/multiqc_config.yml", checkIfExists: true)
-        summary_params = paramsSummaryMap(workflow, parameters_schema: "nextflow_schema.json")
-        ch_workflow_summary = Channel.value(paramsSummaryMultiqc(summary_params))
-        ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
-        ch_multiqc_files = ch_multiqc_files.mix(ch_collated_versions)
-        ch_multiqc_files = ch_multiqc_files.mix(ch_all_runs.collect { it[1] })
-
-        MULTIQC(
-            ch_multiqc_files.collect(),
-            ch_multiqc_config.toList(),
-            multiqc_custom_config.toList(),
-            multiqc_logo.toList(),
-            [],
-            [],
-        )
-
-        ch_multiqc_report = MULTIQC.out.report
-    }
+    softwareVersionsToYAML(
+        softwareVersions: ch_versions.unique(),
+        nextflowVersion: workflow.nextflow.version,
+    ).collectFile(
+        storeDir: "${params.outdir}/pipeline_info",
+        name: 'collated_software_versions.yml',
+        sort: true,
+        newLine: true,
+    )
 
     emit:
-    multiqc_report = ch_multiqc_report
-    versions       = ch_versions
+    versions = ch_versions
 }

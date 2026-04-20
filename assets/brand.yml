@@ -1,0 +1,94 @@
+brand:
+  name: Seqera
+
+colors:
+  green_palette:
+    seqera_green:
+      hex: "#31C9AC"
+      token: nextflow-5
+      contrast: "3.0:1 on white"
+      usage:
+        - CTA button bg
+        - icons
+        - decorative
+        - footer links
+      rules:
+        do_not:
+          - NEVER as text on white
+          - NEVER use white text on Brand Green bg — use Dark Brand
+        do:
+          - OK as button bg with Dark Brand text
+          - Use for decorative fills, progress bars, illustrations
+
+    deep_green:
+      hex: "#065647"
+      token: nextflow-9
+      contrast: "5.0:1 on white"
+      usage:
+        - Hover
+        - active
+        - focus ring
+        - text on Soft Green bg
+        - links
+        - stat numbers
+        - green labels on white
+      rules:
+        do:
+          - All hover/focus states
+          - Safe for text on White, Soft Green, or Soft Grey backgrounds
+        do_not:
+          - Don't use for long-reading body text or smaller font sizes
+
+    soft_green:
+      hex: "#E2F7F3"
+      token: nextflow-1
+      contrast: Surface only
+      usage:
+        - Tag bg
+        - stat card bg
+        - alternating section bg
+        - light tints
+      rules:
+        do:
+          - Background/surface only
+        do_not:
+          - Text on top — use Brand Dark or Body, not green
+
+  brand_surface:
+    brand_dark:
+      hex: "#201637"
+      contrast: "17.3:1 on white"
+      usage:
+        - Headings
+        - footer bg
+        - primary display text
+        - marketing assets
+
+  neutrals:
+    brand_dark:
+      hex: "#201637"
+      contrast: "17.3:1 on white"
+      usage:
+        - Headings
+        - footer bg
+        - primary display text
+
+    border_layout:
+      hex: "#CFD0D1"
+      token: grey-4
+      usage:
+        - Border color
+
+    neutral:
+      hex: "#F7F7F7"
+      token: grey-1
+      usage:
+        - Section backgrounds
+
+    white:
+      hex: "#ffffff"
+      token: white
+      usage:
+        - Page background
+        - Text color on Deep Green or Dark Brand backgrounds
+        - Graphic elements on dark backgrounds

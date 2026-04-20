@@ -1,0 +1,74 @@
+def INPUT_PATH = new File('workflows/nf_aggregate/assets/test_benchmark.csv').canonicalPath
+
+def expectedOutputNames = [
+    'benchmark_report',
+    'benchmark_report/benchmark_report.html',
+    'benchmark_report/jsonl_bundle',
+    'benchmark_report/jsonl_bundle/metrics.jsonl',
+    'benchmark_report/jsonl_bundle/runs.jsonl',
+    'benchmark_report/jsonl_bundle/tasks.jsonl',
+    'benchmark_report/report_data.json',
+    'pipeline_info',
+    'pipeline_info/collated_software_versions.yml',
+]
+
+def collatedVersions = { outdir ->
+    new File("${outdir}/pipeline_info/collated_software_versions.yml").text
+}
+
+nextflow_pipeline {
+    name "Pipeline benchmark from tarballs"
+    script "../../main.nf"
+    tag "pipeline"
+    tag "nf-aggregate"
+    tag "benchmark-tarball"
+
+    test("benchmark report includes extracted tarball runs") {
+        tag("benchmark")
+
+        when {
+            params {
+                input                     = INPUT_PATH
+                outdir                    = "$outputDir"
+                generate_benchmark_report = true
+            }
+        }
+
+        then {
+            def versions = collatedVersions(params.outdir)
+            def report = new File("${params.outdir}/benchmark_report/benchmark_report.html")
+            def reportData = new File("${params.outdir}/benchmark_report/report_data.json")
+            def jsonlBundle = new File("${params.outdir}/benchmark_report/jsonl_bundle")
+            def reportText = report.text
+
+            assert workflow.success
+            assert workflow.trace.succeeded().size() == 5
+            assert workflow.trace.succeeded().any { it.name.contains('EXTRACT_TARBALL') }
+            assert workflow.trace.succeeded().any { it.name.contains('NORMALIZE_BENCHMARK_JSONL') }
+            assert workflow.trace.succeeded().any { it.name.contains('AGGREGATE_BENCHMARK_REPORT_DATA') }
+            assert workflow.trace.succeeded().any { it.name.contains('RENDER_BENCHMARK_REPORT') }
+            assert versions.contains('EXTRACT_TARBALL:')
+            assert versions.contains('NORMALIZE_BENCHMARK_JSONL:')
+            assert versions.contains('AGGREGATE_BENCHMARK_REPORT_DATA:')
+            assert versions.contains('RENDER_BENCHMARK_REPORT:')
+            assert report.isFile()
+            assert reportData.isFile()
+            assert jsonlBundle.isDirectory()
+            assert reportText.contains('Run overview')
+            assert reportText.contains('Run summary')
+            assert reportText.contains('Workflow outcome')
+            assert reportText.contains('Process overview')
+            assert reportText.contains('Task overview')
+            assert reportText.contains('15dvxY1LnZYrYe')
+            assert reportText.contains('5ymDk0hmgqv4L4')
+            assert reportText.contains('g5')
+            assert reportText.contains('cpu')
+
+            assert snapshot(
+                workflow.trace.succeeded().size(),
+                removeFromYamlMap("$outputDir/pipeline_info/collated_software_versions.yml", "Workflow"),
+                expectedOutputNames
+            ).match()
+        }
+    }
+}

@@ -1,0 +1,34 @@
+{
+    "benchmark report consumes external log directory directly": {
+        "content": [
+            3,
+            {
+                "AGGREGATE_BENCHMARK_REPORT_DATA": {
+                    "python": "3.12.13"
+                },
+                "NORMALIZE_BENCHMARK_JSONL": {
+                    "python": "3.12.13"
+                },
+                "RENDER_BENCHMARK_REPORT": {
+                    "python": "3.12.13"
+                }
+            },
+            [
+                "benchmark_report",
+                "benchmark_report/benchmark_report.html",
+                "benchmark_report/jsonl_bundle",
+                "benchmark_report/jsonl_bundle/metrics.jsonl",
+                "benchmark_report/jsonl_bundle/runs.jsonl",
+                "benchmark_report/jsonl_bundle/tasks.jsonl",
+                "benchmark_report/report_data.json",
+                "pipeline_info",
+                "pipeline_info/collated_software_versions.yml"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.03.1"
+        },
+        "timestamp": "2026-04-14T10:00:00.000000"
+    }
+}

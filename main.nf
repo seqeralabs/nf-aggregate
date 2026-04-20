@@ -9,48 +9,73 @@
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    CONFIG FILES
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS / WORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { NF_AGGREGATE            } from './workflows/nf_aggregate'
-include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nf_aggregate'
+include { NF_AGGREGATE } from './workflows/nf_aggregate'
+include { checkCondaChannels; dumpParametersToJSON; getWorkflowVersion } from 'plugin/nf-core-utils'
+include { paramsSummaryLog; samplesheetToList; validateParameters } from 'plugin/nf-schema'
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    NAMED WORKFLOWS FOR PIPELINE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
 
 //
-// WORKFLOW: Execute a single named workflow for the pipeline
+// WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow {
-    ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
-    ch_multiqc_logo = params.multiqc_logo ? Channel.fromPath(params.multiqc_logo, checkIfExists: true) : Channel.fromPath("${projectDir}/assets/seqera_logo_colour.png", checkIfExists: true)
+workflow SEQERALABS_NF_AGGREGATE {
+    take:
+    samplesheet // channel: samplesheet read in from --input
+
+    main:
+    if (params.version) {
+        log.info("${workflow.manifest.name} ${getWorkflowVersion()}")
+        System.exit(0)
+    }
+
+    if (workflow.profile.tokenize(',').intersect(['conda', 'mamba'])) {
+        checkCondaChannels()
+    }
+
+    log.info(paramsSummaryLog(workflow))
+
+    if (params.validate_params) {
+        validateParameters()
+    }
+
+    ch_ids = Channel
+        .fromList(samplesheetToList(samplesheet, 'assets/schema_input.json'))
+        .flatten()
 
     //
-    // SUBWORKFLOW: Run initialisation tasks
-    //
-    PIPELINE_INITIALISATION(
-        params.version,
-        params.validate_params,
-        params.outdir,
-        params.input,
-    )
-
-    //
-    // WORKFLOW: Run primary workflows for the pipeline
+    // WORKFLOW: Run pipeline
     //
     NF_AGGREGATE(
-        PIPELINE_INITIALISATION.out.ids,
-        ch_multiqc_custom_config,
-        ch_multiqc_logo,
+        ch_ids,
         params.seqera_api_endpoint,
-        params.skip_run_gantt,
-        params.skip_multiqc,
         params.java_truststore_path,
         params.java_truststore_password,
     )
+}
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    RUN MAIN WORKFLOW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+workflow {
+
+    //
+    // WORKFLOW: Run main workflow
+    //
+    SEQERALABS_NF_AGGREGATE(
+        params.input
+    )
+
+    workflow.onComplete = {
+        dumpParametersToJSON(params.outdir, params)
+    }
 }
