@@ -28,7 +28,7 @@ jobs:
     name: Check for changes
     runs-on: ubuntu-latest
     outputs:
-      nf_test_files: ${{ steps.list.outputs.components }}
+      nf_test_files: ${{ steps.collect.outputs.nf_test_files }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -37,14 +37,32 @@ jobs:
       - name: List nf-test files
         id: list
         uses: adamrtalbot/detect-nf-test-changes@v0.0.3
+        continue-on-error: true
         with:
           head: ${{ github.sha }}
           base: origin/${{ github.base_ref }}
           include: .github/include.yaml
 
+      - name: Collect nf-test files
+        id: collect
+        shell: bash
+        run: |
+          components='${{ steps.list.outputs.components }}'
+          if [[ '${{ steps.list.outcome }}' == 'success' && -n "$components" && "$components" != '[]' ]]; then
+            echo "nf_test_files=$components" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import glob
+          import json
+          files = sorted(glob.glob("tests/**/main.nf.test", recursive=True))
+          print(f"nf_test_files={json.dumps(files)}")
+          PY
+
       - name: print list of nf-test files
         run: |
-          echo ${{ steps.list.outputs.components }}
+          echo '${{ steps.collect.outputs.nf_test_files }}'
 
   test:
     name: ${{ matrix.nf_test_files }} ${{ matrix.profile }} NF-${{ matrix.NXF_VER }}

@@ -50,7 +50,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install nf-core==${{ steps.read_yml.outputs['nf_core_version'] }}
+          if [ -n "${{ steps.read_yml.outputs['nf_core_version'] }}" ]; then
+            pip install nf-core==${{ steps.read_yml.outputs['nf_core_version'] }}
+          else
+            pip install nf-core
+          fi
 
       - name: Run nf-core pipelines lint
         if: ${{ github.base_ref != 'master' }}
