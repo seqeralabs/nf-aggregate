@@ -489,12 +489,19 @@
     <div class="chart" id="chart-pg-mem-mix"></div>
 
     <h2 id="pg-cpu-savings"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Savings attribution (CPU)</h2>
-    <p class="section-desc">
-      vCPU-hours attributable to each layer.<br>
-      <em>Scheduler rightsize</em> (green): max(0, user requested &minus; scheduler booked). Savings already realized.<br>
-      <em>Task overbook</em> (blue): scheduler booked &minus; used. Scheduler still booked more CPU than tasks used.<br>
-      <em>VM packing slack</em> (grey): VM capacity &minus; scheduler booked. VM capacity not booked to any task.
-    </p>
+    <p class="section-desc">vCPU-hours attributable to each layer.</p>
+    <div class="callout">
+      <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+        &#9432; How savings layers are defined
+      </div>
+      <div class="callout-body">
+        <p class="section-desc">
+          <em>Scheduler rightsize</em> (green): max(0, user requested &minus; scheduler booked). Savings already realized.<br>
+          <em>Task overbook</em> (blue): scheduler booked &minus; used. Scheduler still booked more CPU than tasks used.<br>
+          <em>VM packing slack</em> (grey): VM capacity &minus; scheduler booked. VM capacity not booked to any task.
+        </p>
+      </div>
+    </div>
     <div class="chart" id="chart-pg-cpu-savings"></div>
 
     <h2 id="pg-mem-savings"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Savings attribution (Memory)</h2>
