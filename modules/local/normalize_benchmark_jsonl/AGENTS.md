@@ -7,8 +7,14 @@ Purpose
 Owns
 
 - `NORMALIZE_BENCHMARK_JSONL` in `main.nf`
-- Python stage logic in `bin/benchmark_report_normalize.py`
+- Module-local CLI entrypoint in `bin/benchmark_report.py`
+- Shared normalization logic in repo-root `bin/benchmark_report_normalize.py`
 - Stage-scoped tests under `tests/`
+
+Run directly
+
+- `nextflow run modules/local/normalize_benchmark_jsonl/main.nf -profile docker,arm --data_dir <dir> --benchmark_aws_cur_report <parquet-or-NO_FILE>`
+- The direct `nextflow run modules/local/...` path depends on the module-local `bin/benchmark_report.py` shim/CLI; keep that invocation shape working if you refactor the stage.
 
 Inputs
 

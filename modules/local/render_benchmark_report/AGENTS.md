@@ -7,8 +7,14 @@ Purpose
 Owns
 
 - `RENDER_BENCHMARK_REPORT` in `main.nf`
-- Python render logic in `bin/benchmark_report_render.py`
+- Module-local CLI entrypoint in `bin/benchmark_report.py`
+- Shared render logic in repo-root `bin/benchmark_report_render.py`
 - Stage-scoped tests under `tests/`
+
+Run directly
+
+- `nextflow run modules/local/render_benchmark_report/main.nf -profile docker,arm --report_data_json <report_data.json> --brand_yml <brand.yml-or-NO_FILE> --logo_svg <logo.svg-or-NO_FILE>`
+- The direct `nextflow run modules/local/...` path depends on the module-local `bin/benchmark_report.py` shim/CLI; keep that invocation shape working if you refactor the stage.
 
 Inputs
 

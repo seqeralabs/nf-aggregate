@@ -7,8 +7,14 @@ Purpose
 Owns
 
 - `AGGREGATE_BENCHMARK_REPORT_DATA` in `main.nf`
-- Python aggregation logic in `bin/benchmark_report_aggregate.py`
+- Module-local CLI entrypoint in `bin/benchmark_report.py`
+- Shared aggregation logic in repo-root `bin/benchmark_report_aggregate.py`
 - Stage-scoped tests under `tests/`
+
+Run directly
+
+- `nextflow run modules/local/aggregate_benchmark_report_data/main.nf -profile docker,arm --jsonl_bundle <jsonl_bundle_dir>`
+- The direct `nextflow run modules/local/...` path depends on the module-local `bin/benchmark_report.py` shim/CLI; keep that invocation shape working if you refactor the stage.
 
 Inputs
 
