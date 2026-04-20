@@ -91,6 +91,22 @@ def _classify_workflow_status(status: str | None) -> tuple[str, str, bool]:
     return (normalized.title(), "other", True)
 
 
+def _positive_gap(upper: float | None, lower: float | None) -> float | None:
+    if upper is None or lower is None:
+        return None
+    return max(upper - lower, 0.0)
+
+
+def _compute_scheduler_booked(
+    capacity: float | None, efficiency_pct: float | None, fallback: float | None = None
+) -> float | None:
+    if capacity is not None and efficiency_pct is not None:
+        return min(capacity, max(0.0, capacity * efficiency_pct / 100.0))
+    if fallback is not None:
+        return max(fallback, 0.0)
+    return None
+
+
 def _load_machines_index(jsonl_dir: Path) -> dict[str, dict[str, Any]]:
     index: dict[str, dict[str, Any]] = {}
     for row in _iter_jsonl(jsonl_dir / "machines.jsonl"):
@@ -234,6 +250,11 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
         lambda: {"process_runtime_ms": defaultdict(int), "total_tasks": 0, "scheduling_runtime_ms": 0}
     )
 
+    # Task-derived CPU/memory resource accumulators per run
+    task_run_acc: dict[str, dict[str, float]] = defaultdict(
+        lambda: {"requested_cpu_h": 0.0, "requested_mem_gib_h": 0.0, "real_cpu_h": 0.0, "real_mem_gib_h": 0.0}
+    )
+
     for t in _iter_jsonl(jsonl_dir / "tasks.jsonl"):
         run_id = str(t.get("run_id", ""))
         if run_id not in included_run_ids:
@@ -315,6 +336,18 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
                 }
             )
 
+        if status in {"COMPLETED", "CACHED"}:
+            # Accumulate task-derived CPU/memory resource hours
+            cpus = float(t.get("cpus") or 0)
+            realtime_h = float(t.get("realtime_ms") or 0) / 3600000.0
+            pcpu = float(t.get("pcpu") or 0)
+            mem_bytes = float(t.get("memory_bytes") or 0)
+            peak_rss = float(t.get("peak_rss") or 0) or float(t.get("rss") or 0)
+            task_run_acc[run_id]["requested_cpu_h"] += cpus * realtime_h
+            task_run_acc[run_id]["requested_mem_gib_h"] += (mem_bytes / (1024**3)) * realtime_h
+            task_run_acc[run_id]["real_cpu_h"] += (pcpu / 100.0) * realtime_h
+            task_run_acc[run_id]["real_mem_gib_h"] += (peak_rss / (1024**3)) * realtime_h
+
         if status != "COMPLETED":
             continue
 
@@ -347,6 +380,53 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
         machine_type = t.get("machine_type")
         if machine_type:
             instance_groups[(group, str(machine_type))] += 1
+
+    # Enrich run_metrics with scheduler-performance layer fields
+    for row in run_metrics:
+        rid = row.get("run_id", "")
+        acc = task_run_acc.get(rid)
+        if not acc:
+            continue
+        req_cpu = acc["requested_cpu_h"]
+        req_mem = acc["requested_mem_gib_h"]
+        real_cpu = acc["real_cpu_h"]
+        real_mem = acc["real_mem_gib_h"]
+
+        row["requestedCpuH"] = _round(req_cpu, 2)
+        row["requestedMemGibH"] = _round(req_mem, 2)
+        row["realCpuH"] = _round(real_cpu, 2)
+        row["realMemGibH"] = _round(real_mem, 2)
+
+        vm_cpu = row.get("vmCpuH")
+        vm_mem = row.get("vmMemGibH")
+        sched_cpu_eff = row.get("schedAllocCpuEfficiency")
+        sched_mem_eff = row.get("schedAllocMemEfficiency")
+
+        row["requestedVmCpuEfficiency"] = _round(
+            (req_cpu / vm_cpu * 100.0) if vm_cpu and vm_cpu > 0 else None, 2
+        )
+        row["requestedVmMemEfficiency"] = _round(
+            (req_mem / vm_mem * 100.0) if vm_mem and vm_mem > 0 else None, 2
+        )
+
+        booked_cpu = _compute_scheduler_booked(vm_cpu, sched_cpu_eff, req_cpu)
+        booked_mem = _compute_scheduler_booked(vm_mem, sched_mem_eff, req_mem)
+        row["schedulerBookedCpuH"] = _round(booked_cpu, 2)
+        row["schedulerBookedMemGibH"] = _round(booked_mem, 2)
+
+        row["schedulerRightsizedCpuH"] = _round(_positive_gap(req_cpu, booked_cpu), 2)
+        row["schedulerRightsizedMemGibH"] = _round(_positive_gap(req_mem, booked_mem), 2)
+        row["schedulerOverbookCpuH"] = _round(_positive_gap(booked_cpu, real_cpu), 2)
+        row["schedulerOverbookMemGibH"] = _round(_positive_gap(booked_mem, real_mem), 2)
+        row["vmPackingSlackCpuH"] = _round(_positive_gap(vm_cpu, booked_cpu), 2)
+        row["vmPackingSlackMemGibH"] = _round(_positive_gap(vm_mem, booked_mem), 2)
+
+        row["realVmCpuEfficiency"] = _round(
+            (real_cpu / vm_cpu * 100.0) if vm_cpu and vm_cpu > 0 else None, 2
+        )
+        row["realVmMemEfficiency"] = _round(
+            (real_mem / vm_mem * 100.0) if vm_mem and vm_mem > 0 else None, 2
+        )
 
     benchmark_overview.sort(key=lambda x: (str(x.get("pipeline", "")), str(x.get("group", ""))))
     run_summary.sort(key=lambda x: str(x.get("group", "")))
