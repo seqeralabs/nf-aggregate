@@ -443,6 +443,7 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
   const cols = ['Pipeline name','Group','Run ID','Duration','CPU time (hours)',
                 'Compute cost ($)','Read (GB)','Write (GB)',
                 'CPU efficiency (%)','Memory efficiency (%)',
+                'Sched alloc CPU (VM) %','Sched alloc Mem (VM) %',
                 'Used cost ($)','Unused cost ($)','Total run time'];
   let html = '<thead><tr>' + cols.map(c => '<th>'+c+'</th>').join('') + '</tr></thead><tbody>';
   metrics.forEach(r => {
@@ -463,6 +464,8 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
     html += '<td>' + fmtGB(r.writeBytes) + '</td>';
     html += '<td>' + fmtPct(r.cpuEfficiency) + '</td>';
     html += '<td>' + fmtPct(r.memoryEfficiency) + '</td>';
+    html += '<td>' + fmtPct(r.schedAllocCpuEfficiency) + '</td>';
+    html += '<td>' + fmtPct(r.schedAllocMemEfficiency) + '</td>';
     html += '<td>' + fmtCost(c.used_cost) + '</td>';
     html += '<td>' + fmtCost(c.unused_cost) + '</td>';
     html += '<td>' + prtFmt + '</td>';

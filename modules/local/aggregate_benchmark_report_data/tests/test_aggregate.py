@@ -409,6 +409,22 @@ def test_combined_task_runtime_splits_by_pipeline_and_group_and_uses_realtime(tm
     assert p2["total_duration_ms"] == 45000
 
 
+def test_vm_metrics_merged_into_run_metrics(tmp_path, make_run, flat_task, write_run_json):
+    data_dir = tmp_path / "data"
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    write_run_json(data_dir, [make_run(tasks=[flat_task()])])
+    normalize_jsonl(data_dir, jsonl_dir)
+
+    machines = [{"run_id": "run1", "n_machines": 3, "vm_cpu_h": 12.5, "vm_mem_gib_h": 48.0, "sched_alloc_cpu_efficiency": 65.0, "sched_alloc_mem_efficiency": 42.0}]
+    (jsonl_dir / "machines.jsonl").write_text(json.dumps(machines[0]) + "\n")
+
+    data = build_report_data(jsonl_dir)
+    m = data["run_metrics"][0]
+    assert m["vmCpuH"] == 12.5
+    assert m["nMachines"] == 3
+    assert m["schedAllocCpuEfficiency"] == 65.0
+
+
 def test_combined_task_runtime_legend_rollup(tmp_path):
     jsonl_dir = tmp_path / "jsonl_bundle"
     jsonl_dir.mkdir(parents=True)

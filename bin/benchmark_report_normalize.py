@@ -283,7 +283,155 @@ def _normalize_cost_rows(costs_parquet: Path) -> list[dict[str, Any]]:
     return list(grouped.values())
 
 
-def normalize_jsonl(data_dir: Path, output_dir: Path, costs_parquet: Path | None = None) -> None:
+def _safe_float(val: Any) -> float:
+    if val is None:
+        return 0.0
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def _parse_machine_percent(val: Any) -> float:
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    s = str(val).strip().rstrip("%")
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def _summarise_machines(machines_dir: Path) -> list[dict[str, Any]]:
+    """Parse machine CSVs and produce per-run VM metrics summaries."""
+    import csv
+
+    all_rows: list[dict[str, str]] = []
+    for csv_path in sorted(machines_dir.glob("*.csv")):
+        with csv_path.open(newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                all_rows.append(row)
+
+    if not all_rows:
+        return []
+
+    has_scheduler = any(
+        r.get("instance_id") and str(r["instance_id"]).strip()
+        for r in all_rows
+    )
+    has_batch = any(
+        r.get("ecs_instance_id") and str(r["ecs_instance_id"]).strip()
+        for r in all_rows
+    )
+
+    run_acc: dict[str, dict[str, Any]] = {}
+
+    if has_scheduler:
+        for r in all_rows:
+            iid = (r.get("instance_id") or "").strip()
+            if not iid:
+                continue
+            run_id = str(r.get("run_id", "")).strip()
+            if not run_id:
+                continue
+            vcpus = _safe_float(r.get("vcpus"))
+            mem_gib = _safe_float(r.get("memory_gib"))
+            hours = _safe_float(r.get("machine_hours"))
+            cpu_util = _parse_machine_percent(r.get("avg_cpu_utilization"))
+            mem_util = _parse_machine_percent(r.get("avg_memory_utilization"))
+
+            if run_id not in run_acc:
+                run_acc[run_id] = {
+                    "n_machines": 0,
+                    "vm_cpu_h": 0.0,
+                    "vm_mem_gib_h": 0.0,
+                    "weighted_cpu_util": 0.0,
+                    "weighted_mem_util": 0.0,
+                    "cpu_weight": 0.0,
+                    "mem_weight": 0.0,
+                }
+
+            acc = run_acc[run_id]
+            acc["n_machines"] += 1
+            cpu_h = vcpus * hours
+            mem_gib_h = mem_gib * hours
+            acc["vm_cpu_h"] += cpu_h
+            acc["vm_mem_gib_h"] += mem_gib_h
+            acc["weighted_cpu_util"] += cpu_util * cpu_h
+            acc["cpu_weight"] += cpu_h
+            acc["weighted_mem_util"] += mem_util * mem_gib_h
+            acc["mem_weight"] += mem_gib_h
+
+    if has_batch:
+        for r in all_rows:
+            eid = (r.get("ecs_instance_id") or "").strip()
+            if not eid:
+                continue
+            run_id = str(r.get("run_id", "")).strip()
+            if not run_id:
+                continue
+
+            vm_cpu_h = _safe_float(r.get("total_vcpu_hours"))
+            vm_mem_gib_h = _safe_float(r.get("total_memory_gib_hours"))
+            req_cpu_h = _safe_float(r.get("total_requested_vcpu_hours")) or _safe_float(r.get("requested_vcpu_hours"))
+            req_mem_gib_h = _safe_float(r.get("total_requested_memory_gib_hours")) or _safe_float(r.get("requested_memory_gib_hours"))
+
+            if run_id not in run_acc:
+                run_acc[run_id] = {
+                    "n_machines": 0,
+                    "vm_cpu_h": 0.0,
+                    "vm_mem_gib_h": 0.0,
+                    "weighted_cpu_util": 0.0,
+                    "weighted_mem_util": 0.0,
+                    "cpu_weight": 0.0,
+                    "mem_weight": 0.0,
+                    "batch_req_cpu_h": 0.0,
+                    "batch_req_mem_gib_h": 0.0,
+                }
+
+            acc = run_acc[run_id]
+            acc["n_machines"] += 1
+            acc["vm_cpu_h"] += vm_cpu_h
+            acc["vm_mem_gib_h"] += vm_mem_gib_h
+            acc.setdefault("batch_req_cpu_h", 0.0)
+            acc.setdefault("batch_req_mem_gib_h", 0.0)
+            acc["batch_req_cpu_h"] += req_cpu_h
+            acc["batch_req_mem_gib_h"] += req_mem_gib_h
+
+    results = []
+    for run_id, acc in run_acc.items():
+        vm_cpu_h = acc["vm_cpu_h"]
+        vm_mem_gib_h = acc["vm_mem_gib_h"]
+        cpu_weight = acc.get("cpu_weight", 0.0)
+        mem_weight = acc.get("mem_weight", 0.0)
+
+        sched_cpu_eff = (acc["weighted_cpu_util"] / cpu_weight) if cpu_weight > 0 else None
+        sched_mem_eff = (acc["weighted_mem_util"] / mem_weight) if mem_weight > 0 else None
+
+        # For batch runs, compute efficiency from requested/vm
+        if "batch_req_cpu_h" in acc:
+            batch_req_cpu = acc["batch_req_cpu_h"]
+            batch_req_mem = acc["batch_req_mem_gib_h"]
+            if sched_cpu_eff is None and vm_cpu_h > 0:
+                sched_cpu_eff = (batch_req_cpu / vm_cpu_h) * 100
+            if sched_mem_eff is None and vm_mem_gib_h > 0:
+                sched_mem_eff = (batch_req_mem / vm_mem_gib_h) * 100
+
+        results.append({
+            "run_id": run_id,
+            "n_machines": acc["n_machines"],
+            "vm_cpu_h": round(vm_cpu_h, 4),
+            "vm_mem_gib_h": round(vm_mem_gib_h, 4),
+            "sched_alloc_cpu_efficiency": round(sched_cpu_eff, 2) if sched_cpu_eff is not None else None,
+            "sched_alloc_mem_efficiency": round(sched_mem_eff, 2) if sched_mem_eff is not None else None,
+        })
+    return results
+
+
+def normalize_jsonl(data_dir: Path, output_dir: Path, costs_parquet: Path | None = None, machines_dir: Path | None = None) -> None:
     runs = load_run_data(data_dir)
     if not runs:
         typer.echo("No run data found", err=True)
@@ -302,5 +450,10 @@ def normalize_jsonl(data_dir: Path, output_dir: Path, costs_parquet: Path | None
     if costs_parquet and costs_parquet.exists() and costs_parquet.name != "NO_FILE":
         cost_rows = _normalize_cost_rows(costs_parquet)
         _write_jsonl(output_dir / "costs.jsonl", cost_rows)
+
+    if machines_dir and machines_dir.exists() and any(machines_dir.glob("*.csv")):
+        machine_rows = _summarise_machines(machines_dir)
+        if machine_rows:
+            _write_jsonl(output_dir / "machines.jsonl", machine_rows)
 
     typer.echo(f"JSONL bundle written to {output_dir}")

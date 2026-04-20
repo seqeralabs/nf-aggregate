@@ -120,9 +120,27 @@ workflow NF_AGGREGATE {
             ? Channel.fromPath(params.benchmark_aws_cur_report)
             : Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file("${projectDir}/assets/NO_FILE"))
 
+        // Collect machine metrics CSVs from external runs (if present)
+        ch_machines_dir = ch_split.external
+            .filter { it.machines }
+            .map { meta ->
+                def machines_path = meta.machines.startsWith('/') ? file(meta.machines) : samplesheet_dir.resolve(meta.machines)
+                file(machines_path, checkIfExists: true)
+            }
+            .collect()
+            .map { files ->
+                if (!files) return file("${projectDir}/assets/NO_FILE")
+                def dir = file(java.nio.file.Files.createTempDirectory("nf-agg-machines-"))
+                dir.mkdirs()
+                files.each { f -> f.copyTo(dir.resolve(f.name)) }
+                return dir
+            }
+            .ifEmpty(file("${projectDir}/assets/NO_FILE"))
+
         NORMALIZE_BENCHMARK_JSONL(
             ch_data_dir,
             ch_cur.ifEmpty(file("${projectDir}/assets/NO_FILE")),
+            ch_machines_dir,
         )
         ch_versions = ch_versions.mix(NORMALIZE_BENCHMARK_JSONL.out.versions)
 

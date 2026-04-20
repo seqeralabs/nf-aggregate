@@ -91,6 +91,15 @@ def _classify_workflow_status(status: str | None) -> tuple[str, str, bool]:
     return (normalized.title(), "other", True)
 
 
+def _load_machines_index(jsonl_dir: Path) -> dict[str, dict[str, Any]]:
+    index: dict[str, dict[str, Any]] = {}
+    for row in _iter_jsonl(jsonl_dir / "machines.jsonl"):
+        run_id = str(row.get("run_id", ""))
+        if run_id:
+            index[run_id] = row
+    return index
+
+
 def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
     benchmark_overview: list[dict[str, Any]] = []
     run_summary: list[dict[str, Any]] = []
@@ -99,6 +108,7 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
     run_cost_acc: dict[tuple[str, str], dict[str, Any]] = {}
     run_pipeline: dict[str, str] = {}
     included_run_ids: set[str] = set()
+    machines_index = _load_machines_index(jsonl_dir)
 
     for r in _iter_jsonl(jsonl_dir / "runs.jsonl"):
         run_id = str(r.get("run_id", ""))
@@ -147,20 +157,28 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
 
         included_run_ids.add(run_id)
 
-        run_metrics.append(
-            {
-                "pipeline": r.get("pipeline"),
-                "group": group,
-                "run_id": run_id,
-                "duration": int(r.get("duration_ms") or 0),
-                "cpuTime": _round((float(r.get("cpu_time_ms") or 0) / 1000.0) / 3600.0, 1),
-                "pipeline_runtime": int(r.get("cpu_time_ms") or 0),
-                "cpuEfficiency": _round(float(r.get("cpu_efficiency")) if r.get("cpu_efficiency") is not None else None, 0),
-                "memoryEfficiency": _round(float(r.get("memory_efficiency")) if r.get("memory_efficiency") is not None else None, 2),
-                "readBytes": _round(float(r.get("read_bytes") or 0) / 1e9, 0),
-                "writeBytes": _round(float(r.get("write_bytes") or 0) / 1e9, 0),
-            }
-        )
+        metrics_row = {
+            "pipeline": r.get("pipeline"),
+            "group": group,
+            "run_id": run_id,
+            "duration": int(r.get("duration_ms") or 0),
+            "cpuTime": _round((float(r.get("cpu_time_ms") or 0) / 1000.0) / 3600.0, 1),
+            "pipeline_runtime": int(r.get("cpu_time_ms") or 0),
+            "cpuEfficiency": _round(float(r.get("cpu_efficiency")) if r.get("cpu_efficiency") is not None else None, 0),
+            "memoryEfficiency": _round(float(r.get("memory_efficiency")) if r.get("memory_efficiency") is not None else None, 2),
+            "readBytes": _round(float(r.get("read_bytes") or 0) / 1e9, 0),
+            "writeBytes": _round(float(r.get("write_bytes") or 0) / 1e9, 0),
+        }
+
+        vm = machines_index.get(run_id)
+        if vm:
+            metrics_row["nMachines"] = vm.get("n_machines")
+            metrics_row["vmCpuH"] = _round(vm.get("vm_cpu_h"), 2)
+            metrics_row["vmMemGibH"] = _round(vm.get("vm_mem_gib_h"), 2)
+            metrics_row["schedAllocCpuEfficiency"] = _round(vm.get("sched_alloc_cpu_efficiency"), 2)
+            metrics_row["schedAllocMemEfficiency"] = _round(vm.get("sched_alloc_mem_efficiency"), 2)
+
+        run_metrics.append(metrics_row)
 
         key = (run_id, group)
         run_cost_acc[key] = {

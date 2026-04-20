@@ -6,6 +6,7 @@ process NORMALIZE_BENCHMARK_JSONL {
     input:
     path data_dir
     path benchmark_aws_cur_report
+    path machines_dir
 
     output:
     path "jsonl_bundle/", emit: jsonl
@@ -13,10 +14,12 @@ process NORMALIZE_BENCHMARK_JSONL {
 
     script:
     def cost_flag = benchmark_aws_cur_report.name != 'NO_FILE' ? "--costs ${benchmark_aws_cur_report}" : ""
+    def machines_flag = machines_dir.name != 'NO_FILE' ? "--machines-dir ${machines_dir}" : ""
     """
     benchmark_report.py normalize-jsonl \\
         --data-dir ${data_dir} \\
         ${cost_flag} \\
+        ${machines_flag} \\
         --output-dir jsonl_bundle
 
     cat <<-END_VERSIONS > versions.yml
