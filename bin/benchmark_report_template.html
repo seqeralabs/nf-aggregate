@@ -202,11 +202,13 @@
   <a href="#run-overview"><svg class="nav-icon"><use href="#ic-run"/></svg> Run overview</a>
   <a href="#run-summary" class="l2"><svg class="nav-icon"><use href="#ic-table"/></svg> Run summary</a>
   <a href="#run-metrics" class="l2"><svg class="nav-icon"><use href="#ic-chart"/></svg> Run metrics</a>
+  <a href="#methodology" class="l2"><svg class="nav-icon"><use href="#ic-table"/></svg> Methodology</a>
   <a href="#process-overview"><svg class="nav-icon"><use href="#ic-process"/></svg> Process overview</a>
   <a href="#combined-task-runtime" class="l2"><svg class="nav-icon"><use href="#ic-chart"/></svg> Combined task runtime</a>
   <a href="#task-overview"><svg class="nav-icon"><use href="#ic-task"/></svg> Task overview</a>
   <a href="#task-instance-usage" class="l2"><svg class="nav-icon"><use href="#ic-instance"/></svg> Instance usage</a>
   <a href="#task-metrics" class="l2"><svg class="nav-icon"><use href="#ic-scatter"/></svg> Task metrics</a>
+  <a href="#performance-gains"><svg class="nav-icon"><use href="#ic-benchmark"/></svg> Performance gains</a>
 </div>
 
 <div class="main-content">
@@ -262,9 +264,93 @@
       <div class="chart" id="chart-mem-eff"></div>
     </div>
     <div class="chart-row">
+      <div class="chart" id="chart-vm-alloc-cpu"></div>
+      <div class="chart" id="chart-vm-alloc-mem"></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart" id="chart-vm-real-cpu"></div>
+      <div class="chart" id="chart-vm-real-mem"></div>
+    </div>
+    <div class="chart-row">
       <div class="chart" id="chart-read-io"></div>
       <div class="chart" id="chart-write-io"></div>
     </div>
+
+    <h2 id="methodology"><svg class="h-icon sm"><use href="#ic-table"/></svg> Methodology &mdash; what each utilization metric means</h2>
+    <p class="section-desc">
+      The report exposes <strong>four different utilization metrics</strong>. They sound similar
+      but measure very different things, and in practice they disagree by 2&ndash;5&times;.
+      Read this before comparing rows in the run-metrics table above.
+    </p>
+    <table class="info-table" id="methodology-table">
+      <thead>
+        <tr>
+          <th style="width:22%">Metric</th>
+          <th style="width:8%">Level</th>
+          <th style="width:8%">Resource</th>
+          <th>Numerator</th>
+          <th>Denominator</th>
+          <th style="width:26%">What it captures</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td rowspan="2"><strong>Trace efficiency (task)</strong><br><span class="text-muted">cpuEfficiency / memoryEfficiency</span></td>
+          <td rowspan="2">Task</td>
+          <td><strong>CPU</strong></td>
+          <td>&Sigma;<sub>tasks</sub>&nbsp;(pcpu / 100 &middot; realtime)</td>
+          <td>&Sigma;<sub>tasks</sub>&nbsp;(cpus<sub>req</sub> &middot; realtime)</td>
+          <td rowspan="2">How close each task came to using what it asked for. Ignores VM packing and VM idle time.</td>
+        </tr>
+        <tr>
+          <td><strong>Memory</strong></td>
+          <td>&Sigma;<sub>tasks</sub>&nbsp;(peakRss &middot; realtime)</td>
+          <td>&Sigma;<sub>tasks</sub>&nbsp;(memory<sub>req</sub> &middot; realtime)</td>
+        </tr>
+        <tr>
+          <td rowspan="2"><strong>Sched allocation (VM)</strong><br><span class="text-muted">schedAllocCpuEfficiency / schedAllocMemEfficiency</span></td>
+          <td rowspan="2">VM</td>
+          <td><strong>CPU</strong></td>
+          <td>&Sigma;<sub>VMs</sub>&nbsp;(avg_cpu_util &middot; vCPU &middot; lifetime)</td>
+          <td>&Sigma;<sub>VMs</sub>&nbsp;(vCPU &middot; lifetime)</td>
+          <td rowspan="2">
+            How <em>booked</em> each VM was. Per-VM <code>avg_util</code> =
+            &Sigma;(request<sub>task</sub> &middot; task_duration) / (capacity<sub>VM</sub> &middot; vm_lifetime).
+            Drops when a VM sits idle between tasks or when small tasks run on large instances.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Memory</strong></td>
+          <td>&Sigma;<sub>VMs</sub>&nbsp;(avg_mem_util &middot; memory<sub>VM</sub> &middot; lifetime)</td>
+          <td>&Sigma;<sub>VMs</sub>&nbsp;(memory<sub>VM</sub> &middot; lifetime)</td>
+        </tr>
+        <tr>
+          <td rowspan="2"><strong>Real VM efficiency (VM)</strong><br><span class="text-muted">realVmCpuEfficiency / realVmMemEfficiency</span></td>
+          <td rowspan="2">VM</td>
+          <td><strong>CPU</strong></td>
+          <td>&Sigma;<sub>tasks</sub>&nbsp;(pcpu / 100 &middot; realtime)</td>
+          <td>&Sigma;<sub>VMs</sub>&nbsp;(vCPU &middot; lifetime)</td>
+          <td rowspan="2">Ground truth: what fraction of the VM-hours you paid for was actually spent doing work.</td>
+        </tr>
+        <tr>
+          <td><strong>Memory</strong></td>
+          <td>&Sigma;<sub>tasks</sub>&nbsp;(peakRss &middot; realtime)</td>
+          <td>&Sigma;<sub>VMs</sub>&nbsp;(memory<sub>VM</sub> &middot; lifetime)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="section-desc" style="margin-top:8px">
+      <strong>How to read them:</strong>
+      <em>Trace efficiency</em> tells you whether users are requesting too much CPU/memory per task.
+      <em>Sched allocation</em> tells you how well the scheduler packs and reuses VMs.
+      <em>Real VM efficiency</em> is the end-to-end ground truth: what fraction of the VM-hours
+      you paid for were actually spent doing work. Trace efficiency &times; Sched allocation
+      &asymp; Real VM efficiency (modulo time-weighting).
+    </p>
+    <p class="section-desc">
+      VM-level metrics require a <code>machines.jsonl</code> in the JSONL bundle.
+      Runs without machine data show &mdash; for those columns.
+    </p>
   </div>
 
   <!-- 3. Process overview -->
@@ -314,6 +400,53 @@
       <strong>Real time</strong>: time to execute the task.
     </p>
     <div id="task-sections"></div>
+  </div>
+
+  <!-- 6. Performance gains -->
+  <div class="section" id="performance-gains">
+    <h1><svg class="h-icon"><use href="#ic-benchmark"/></svg> Performance gains</h1>
+    <p class="section-desc">
+      <strong>Summary</strong><br>
+      Decomposes the VM capacity-hours you paid for into <em>used</em> vs <em>wasted</em>,
+      and attributes the waste to the three responsibilities the Seqera scheduler
+      owns: <strong>VM provisioning</strong> (choosing instance types), <strong>packing</strong>
+      (which task on which VM and when), and <strong>task rightsizing</strong>
+      (trimming user-requested CPU/Memory before submitting to ECS, when prediction
+      is enabled).
+    </p>
+    <p class="section-desc">
+      <strong>Four quantities, per run</strong><br>
+      <em>VM capacity</em>: &Sigma;<sub>VMs</sub>&nbsp;(vCPU &middot; lifetime). What you paid for.<br>
+      <em>User requested</em>: &Sigma;<sub>tasks</sub>&nbsp;(cpus<sub>config</sub> &middot; realtime). Nextflow-directive request per task &times; active time.<br>
+      <em>Scheduler booked</em>: schedAllocCpuEfficiency &middot; VM capacity. What actually went to ECS as <code>cpuShares</code>.<br>
+      <em>Used</em>: &Sigma;<sub>tasks</sub>&nbsp;(pcpu/100 &middot; realtime). Actual work done.
+    </p>
+    <p class="section-desc">
+      <strong>How the scheduler's three jobs show up</strong><br>
+      &nbsp;&nbsp;&nbsp;&mdash; <em>Rightsizing</em> shrinks <code>scheduler booked</code> below <code>user requested</code>.<br>
+      &nbsp;&nbsp;&nbsp;&mdash; <em>Packing</em> shrinks the gap between <code>scheduler booked</code> and <code>VM capacity</code>.<br>
+      &nbsp;&nbsp;&nbsp;&mdash; <em>Provisioning</em> shrinks <code>VM capacity</code> itself (picking smaller/cheaper instances).
+    </p>
+
+    <h2 id="pg-cpu-mix"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Capacity mix (CPU)</h2>
+    <p class="section-desc">Each bar spans the total VM vCPU-hours paid for. Segments show how those hours were spent.</p>
+    <div class="chart" id="chart-pg-cpu-mix"></div>
+
+    <h2 id="pg-mem-mix"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Capacity mix (Memory)</h2>
+    <p class="section-desc">Each bar spans the total VM memory GiB-hours paid for.</p>
+    <div class="chart" id="chart-pg-mem-mix"></div>
+
+    <h2 id="pg-cpu-savings"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Savings attribution (CPU)</h2>
+    <p class="section-desc">
+      vCPU-hours attributable to each layer.<br>
+      <em>Scheduler rightsize</em> (green): max(0, user requested &minus; scheduler booked). Savings already realized.<br>
+      <em>Task overbook</em> (blue): scheduler booked &minus; used. Scheduler still booked more CPU than tasks used.<br>
+      <em>VM packing slack</em> (grey): VM capacity &minus; scheduler booked. VM capacity not booked to any task.
+    </p>
+    <div class="chart" id="chart-pg-cpu-savings"></div>
+
+    <h2 id="pg-mem-savings"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Savings attribution (Memory)</h2>
+    <div class="chart" id="chart-pg-mem-savings"></div>
   </div>
 
 </div>
@@ -442,8 +575,9 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
   const table = document.getElementById('run-metrics-table');
   const cols = ['Pipeline name','Group','Run ID','Duration','CPU time (hours)',
                 'Compute cost ($)','Read (GB)','Write (GB)',
-                'CPU efficiency (%)','Memory efficiency (%)',
+                'Trace CPU eff (task) %','Trace Mem eff (task) %',
                 'Sched alloc CPU (VM) %','Sched alloc Mem (VM) %',
+                'Real VM CPU eff %','Real VM Mem eff %',
                 'Used cost ($)','Unused cost ($)','Total run time'];
   let html = '<thead><tr>' + cols.map(c => '<th>'+c+'</th>').join('') + '</tr></thead><tbody>';
   metrics.forEach(r => {
@@ -466,6 +600,8 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
     html += '<td>' + fmtPct(r.memoryEfficiency) + '</td>';
     html += '<td>' + fmtPct(r.schedAllocCpuEfficiency) + '</td>';
     html += '<td>' + fmtPct(r.schedAllocMemEfficiency) + '</td>';
+    html += '<td>' + fmtPct(r.realVmCpuEfficiency) + '</td>';
+    html += '<td>' + fmtPct(r.realVmMemEfficiency) + '</td>';
     html += '<td>' + fmtCost(c.used_cost) + '</td>';
     html += '<td>' + fmtCost(c.unused_cost) + '</td>';
     html += '<td>' + prtFmt + '</td>';
@@ -572,11 +708,32 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
     { xName: 'Tasks', subtitle: statusSubtitle });
 
   const cpuEffValues = metrics.map(r => +(r.cpuEfficiency || 0));
-  hbarChart('chart-cpu-eff', 'CPU efficiency', labels, cpuEffValues,
+  hbarChart('chart-cpu-eff', 'Trace CPU efficiency (task)', labels, cpuEffValues,
     { xName: '%', suffix: '%', subtitle: takeaway(labels, cpuEffValues, { adjective: 'more efficient', suffix: '%' }) });
   const memEffValues = metrics.map(r => +(r.memoryEfficiency || 0));
-  hbarChart('chart-mem-eff', 'Memory efficiency', labels, memEffValues,
+  hbarChart('chart-mem-eff', 'Trace Memory efficiency (task)', labels, memEffValues,
     { xName: '%', suffix: '%', subtitle: takeaway(labels, memEffValues, { adjective: 'more efficient', suffix: '%' }) });
+
+  const hasVmMetrics = metrics.some(r => r.schedAllocCpuEfficiency != null || r.realVmCpuEfficiency != null);
+  if (hasVmMetrics) {
+    const allocCpu = metrics.map(r => +(r.schedAllocCpuEfficiency || 0));
+    hbarChart('chart-vm-alloc-cpu', 'Sched allocation CPU (VM booking)', labels, allocCpu,
+      { xName: '%', suffix: '%', subtitle: takeaway(labels, allocCpu, { adjective: 'better packed', suffix: '%' }) });
+    const allocMem = metrics.map(r => +(r.schedAllocMemEfficiency || 0));
+    hbarChart('chart-vm-alloc-mem', 'Sched allocation Memory (VM booking)', labels, allocMem,
+      { xName: '%', suffix: '%', subtitle: takeaway(labels, allocMem, { adjective: 'better packed', suffix: '%' }) });
+    const realCpu = metrics.map(r => +(r.realVmCpuEfficiency || 0));
+    hbarChart('chart-vm-real-cpu', 'Real VM CPU efficiency', labels, realCpu,
+      { xName: '%', suffix: '%', subtitle: takeaway(labels, realCpu, { adjective: 'more VM-efficient', suffix: '%' }) });
+    const realMem = metrics.map(r => +(r.realVmMemEfficiency || 0));
+    hbarChart('chart-vm-real-mem', 'Real VM Memory efficiency', labels, realMem,
+      { xName: '%', suffix: '%', subtitle: takeaway(labels, realMem, { adjective: 'more VM-efficient', suffix: '%' }) });
+  } else {
+    ['chart-vm-alloc-cpu','chart-vm-alloc-mem','chart-vm-real-cpu','chart-vm-real-mem'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+  }
 
   const readValues = metrics.map(r => +(r.readBytes || 0));
   hbarChart('chart-read-io', 'Data read', labels, readValues,
@@ -1275,6 +1432,87 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       table.innerHTML = html;
     }, 200);
   }
+})();
+
+// 6. Performance gains — capacity mix + savings attribution
+(function() {
+  const metrics = (DATA.run_metrics || []).filter(r => (r.vmCpuH || 0) > 0);
+  ['chart-pg-cpu-mix','chart-pg-mem-mix','chart-pg-cpu-savings','chart-pg-mem-savings'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !metrics.length) el.style.display = 'none';
+  });
+  if (!metrics.length) return;
+
+  const labels = metrics.map(r => r.group);
+
+  const C_USED = '#065647';
+  const C_BOOKED = '#2b8cbe';
+  const C_VM   = '#cfd0d1';
+
+  function mix(field) {
+    const used = [], schedExcess = [], vmSl = [];
+    metrics.forEach(r => {
+      const vm = Math.max(0, +r['vm' + field] || 0);
+      const usedKey = field === 'CpuH' ? 'realCpuH' : 'realMemGibH';
+      const overbookKey = field === 'CpuH' ? 'schedulerOverbookCpuH' : 'schedulerOverbookMemGibH';
+      const slackKey = field === 'CpuH' ? 'vmPackingSlackCpuH' : 'vmPackingSlackMemGibH';
+      const u = Math.max(0, +r[usedKey] || 0);
+      const ex = Math.max(0, +r[overbookKey] || 0);
+      const sl = Math.max(0, +r[slackKey] || 0);
+      const total = u + ex + sl;
+      const scale = total > vm && vm > 0 ? vm / total : 1;
+      used.push(+(u * scale).toFixed(2));
+      schedExcess.push(+(ex * scale).toFixed(2));
+      vmSl.push(+(sl * scale).toFixed(2));
+    });
+    return [
+      { name: 'Used (real work)', data: used, color: C_USED },
+      { name: 'Scheduler over-booked (vs used)', data: schedExcess, color: C_BOOKED },
+      { name: 'VM slack (packing)', data: vmSl, color: C_VM },
+    ];
+  }
+
+  const cpuMix = mix('CpuH');
+  hbarStacked('chart-pg-cpu-mix', 'CPU capacity mix', labels, cpuMix,
+    { xName: 'vCPU-hours', subtitle: 'Total bar = VM vCPU-hours paid for' });
+
+  const memMix = mix('MemGibH');
+  hbarStacked('chart-pg-mem-mix', 'Memory capacity mix', labels, memMix,
+    { xName: 'GiB-hours', subtitle: 'Total bar = VM memory GiB-hours paid for' });
+
+  const C_RS    = '#43b48d';
+  const C_OVERB = C_BOOKED;
+  const C_PACK  = C_VM;
+
+  function savingsChart(elId, title, field, yName) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const schedRightsize = [], taskOverbook = [], vmPacking = [];
+    metrics.forEach(r => {
+      const rightsizeKey = field === 'CpuH' ? 'schedulerRightsizedCpuH' : 'schedulerRightsizedMemGibH';
+      const overbookKey = field === 'CpuH' ? 'schedulerOverbookCpuH' : 'schedulerOverbookMemGibH';
+      const slackKey = field === 'CpuH' ? 'vmPackingSlackCpuH' : 'vmPackingSlackMemGibH';
+      schedRightsize.push(+Math.max(0, +r[rightsizeKey] || 0).toFixed(2));
+      taskOverbook.push(+Math.max(0, +r[overbookKey] || 0).toFixed(2));
+      vmPacking.push(+Math.max(0, +r[slackKey] || 0).toFixed(2));
+    });
+    el.style.height = Math.max(300, labels.length * 55 + 100) + 'px';
+    echarts.init(el, 'seqera').setOption({
+      title: { text: title },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { bottom: 0 },
+      grid: { top: 40, bottom: 60, containLabel: true },
+      xAxis: { type: 'category', data: labels },
+      yAxis: { type: 'value', name: yName, nameLocation: 'center', nameGap: 45 },
+      series: [
+        { name: 'Scheduler rightsize (already saved)', type: 'bar', stack: 'waste', data: schedRightsize, itemStyle: { color: C_RS } },
+        { name: 'Task overbook (remaining)',           type: 'bar', stack: 'waste', data: taskOverbook,   itemStyle: { color: C_OVERB } },
+        { name: 'VM packing slack',                    type: 'bar', stack: 'waste', data: vmPacking,      itemStyle: { color: C_PACK } },
+      ],
+    });
+  }
+  savingsChart('chart-pg-cpu-savings', 'Savings attribution (CPU) by layer', 'CpuH', 'vCPU-hours');
+  savingsChart('chart-pg-mem-savings', 'Savings attribution (Memory) by layer', 'MemGibH', 'GiB-hours');
 })();
 
 // Side nav: highlight link for section in view

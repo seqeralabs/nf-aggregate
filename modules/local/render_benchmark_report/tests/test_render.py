@@ -28,6 +28,38 @@ def test_render_html(tmp_path, minimal_report_data):
     assert ".status-badge.success" in text
     assert "<tr style=\"background:" not in text
     assert "rgba(220, 53, 69, 0.14)' :" not in text
+    # Methodology section
+    assert 'id="methodology"' in text
+    assert 'id="methodology-table"' in text
+    assert "Trace efficiency (task)" in text
+    assert "Sched allocation (VM)" in text
+    assert "Real VM efficiency (VM)" in text
+    assert "schedAllocCpuEfficiency" in text
+    assert "realVmCpuEfficiency" in text
+    # VM metric charts
+    assert 'id="chart-vm-alloc-cpu"' in text
+    assert 'id="chart-vm-alloc-mem"' in text
+    assert 'id="chart-vm-real-cpu"' in text
+    assert 'id="chart-vm-real-mem"' in text
+    assert "hasVmMetrics" in text
+    assert "Sched allocation CPU (VM booking)" in text
+    assert "Real VM CPU efficiency" in text
+    # Run metrics table columns
+    assert "Trace CPU eff (task) %" in text
+    assert "Real VM CPU eff %" in text
+    assert "Real VM Mem eff %" in text
+    assert "fmtPct(r.realVmCpuEfficiency)" in text
+    # Performance gains section
+    assert 'id="performance-gains"' in text
+    assert 'href="#performance-gains"' in text
+    assert 'id="chart-pg-cpu-mix"' in text
+    assert 'id="chart-pg-mem-mix"' in text
+    assert 'id="chart-pg-cpu-savings"' in text
+    assert 'id="chart-pg-mem-savings"' in text
+    assert "CPU capacity mix" in text
+    assert "Savings attribution (CPU) by layer" in text
+    assert "schedulerRightsizedCpuH" in text
+    assert "vmPackingSlackCpuH" in text
 
 
 def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data):
