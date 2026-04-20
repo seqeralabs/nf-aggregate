@@ -390,7 +390,7 @@ function downloadCSV(tableId, filename) {
 
 // Group colors
 const overviewGroups = [...new Set((DATA.benchmark_overview||[]).map(r => r.group))];
-const reportGroups = [...new Set((DATA.run_summary||[]).map(r => r.group))];
+const reportGroups = [...new Set((DATA.run_summary||[]).filter(r => r.report_included !== false).map(r => r.group))];
 const groupColor = {};
 overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
 
@@ -417,11 +417,13 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
     return 'unknown';
   };
   runs.forEach((r,i) => {
-    html += '<tr>';
+    html += '<tr' + (r.report_included === false ? ' style="opacity:0.6"' : '') + '>';
     cols.forEach(c => {
       const value = r[c[1]];
       if (c[1] === 'status_label') {
-        html += '<td><span class="status-badge ' + badgeClass(r) + '">' + (value || '\u2014') + '</span></td>';
+        let cell = '<span class="status-badge ' + badgeClass(r) + '">' + (value || '\u2014') + '</span>';
+        if (r.report_included === false) cell += '<span class="status-note">excluded from metrics</span>';
+        html += '<td>' + cell + '</td>';
       } else {
         html += '<td>' + (value != null ? value : '\u2014') + '</td>';
       }
@@ -540,8 +542,8 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
   hbarChart('chart-est-cost', 'Compute cost', labels, costValues,
     { xName: '$', prefix: '$', subtitle: takeaway(labels, costValues, { lowerBetter: true, adjective: 'cheaper', prefix: '$' }) });
 
-  // Workflow status — succeeded/failed/cached stacked bars
-  const summaryRuns = DATA.run_summary || [];
+  // Workflow status — succeeded/failed/cached stacked bars (included runs only)
+  const summaryRuns = (DATA.run_summary || []).filter(r => r.report_included !== false);
   const totalSucc = summaryRuns.reduce((s,r) => s + (r.succeedCount||0), 0);
   const totalFail = summaryRuns.reduce((s,r) => s + (r.failedCount||0), 0);
   const totalCached = summaryRuns.reduce((s,r) => s + (r.cachedCount||0), 0);

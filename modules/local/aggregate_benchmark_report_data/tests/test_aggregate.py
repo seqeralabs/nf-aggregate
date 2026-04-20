@@ -131,7 +131,11 @@ def test_failed_and_cancelled_runs_only_appear_in_overview(tmp_path, make_run, f
     assert overview["run-cancelled"]["report_included"] is False
     assert overview["run-cancelled"]["status_category"] == "cancelled"
 
-    assert [row["run_id"] for row in data["run_summary"]] == ["run-success"]
+    summary_ids = [row["run_id"] for row in data["run_summary"]]
+    assert summary_ids == ["run-success", "run-failed", "run-cancelled"]
+    assert data["run_summary"][0]["report_included"] is True
+    assert data["run_summary"][1]["report_included"] is False
+    assert data["run_summary"][2]["report_included"] is False
     assert [row["run_id"] for row in data["run_metrics"]] == ["run-success"]
     assert [row["run_id"] for row in data["run_costs"]] == ["run-success"]
     assert {row["Run ID"] for row in data["task_table"]} == {"run-success"}
