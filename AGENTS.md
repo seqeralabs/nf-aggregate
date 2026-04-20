@@ -84,6 +84,7 @@ Run this exact sequence when validating split benchmark-report changes in Cursor
 1. `uv run --with typer --with pyyaml --with jinja2 --with pyarrow --with pytest --with httpx pytest -v modules/local/aggregate_benchmark_report_data/tests/test_aggregate.py modules/local/normalize_benchmark_jsonl/tests/test_normalize.py modules/local/render_benchmark_report/tests/test_render.py bin/test_benchmark_report_fetch.py`
 2. `nf-test test --profile=+docker --verbose`
 3. `nextflow run . --input workflows/nf_aggregate/assets/test_benchmark.csv --generate_benchmark_report --outdir /tmp/nf-aggregate-e2e-results -profile docker`
+4. `pre-commit run --all-files` — **must pass before the final commit/push**. The `prettier` hook auto-fixes files in place; if it reports "files were modified by this hook", stage the changes (`git add -u`) and re-run until it passes. The `editorconfig-checker` hook only reports errors (no auto-fix) — fix those manually.
 
 ### Docker in Cloud VM (cgroupv2 workaround)
 
