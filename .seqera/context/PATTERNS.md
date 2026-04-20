@@ -93,7 +93,6 @@ Early QC tasks cost $0.001–$0.007 each. The dominant cost will come from STAR 
 
 ## File Naming Conventions
 
-
 | Pattern                | Convention                                  |
 | ---------------------- | ------------------------------------------- |
 | Modules                | `modules/local/<name>/main.nf`              |
@@ -104,11 +103,9 @@ Early QC tasks cost $0.001–$0.007 each. The dominant cost will come from STAR 
 | Bin scripts            | `bin/benchmark_report_<stage>.py`           |
 | Agent docs             | `AGENTS.md` at each directory level         |
 
-
 ## Git Workflow
 
 - Feature branches named `<user>/<description>`
 - Conventional commits: `feat()`, `fix()`, `test()`, `refactor()`, `docs()`, `perf()`
 - Commit signing required (GPG via SSH/1Password)
 - Pre-commit hooks for linting
-

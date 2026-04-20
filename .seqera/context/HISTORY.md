@@ -48,7 +48,6 @@
 
 Both runs are concurrent nf-core/rnaseq executions on the same workspace with identical test data (GM12878_REP1, GM12878_REP2). Key differences:
 
-
 | Metric                  | 1cF65l2PDvxNd5                       | 5VGC0gjEmghOaz             |
 | ----------------------- | ------------------------------------ | -------------------------- |
 | Submit time             | 17:51:26Z                            | 17:50:14Z                  |
@@ -57,7 +56,6 @@ Both runs are concurrent nf-core/rnaseq executions on the same workspace with id
 | GTF_FILTER realtime     | 58s                                  | 109s                       |
 | FQ_LINT avg realtime    | ~605s                                | ~613s                      |
 | Cost pattern            | Slightly higher per-task (m5d.large) | Lower per-task (c5d.large) |
-
 
 The timing variance in short tasks (SAMTOOLS_FAIDX: 28s vs 62s) likely reflects spot instance variability and S3 staging latency rather than algorithmic differences. Both runs are still in progress — STAR genome generation and alignment phases are pending.
 
@@ -69,4 +67,3 @@ Recent development has focused on the **benchmark report rendering pipeline**:
 2. **Combined runtime charts** (18a64f4 → a49a9a4): Added combined task runtime visualisation with scheduling overhead, per-pipeline breakdowns, and ECharts integration
 3. **CUR cost streaming** (b96ecfd): Optimised AWS CUR parquet processing with batch streaming
 4. **Test colocation** (96b8b81): Moved benchmark tests to live alongside their modules
-
