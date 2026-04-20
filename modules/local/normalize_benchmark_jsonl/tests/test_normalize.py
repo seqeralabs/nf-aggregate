@@ -40,6 +40,28 @@ def test_normalize_writes_jsonl_bundle(tmp_path, make_run, flat_task, write_run_
     task = json.loads(task_lines[0])
     assert task["process_short"] == "PROCESS_A"
 
+    run_lines = (out_dir / "runs.jsonl").read_text().strip().splitlines()
+    run = json.loads(run_lines[0])
+    assert run["workspace"] == "org/ws"
+    assert run["platform"] == ""
+
+
+def test_normalize_preserves_platform_and_run_url(tmp_path, make_run, flat_task, write_run_json):
+    data_dir = tmp_path / "data"
+    out_dir = tmp_path / "jsonl_bundle"
+    run = make_run(tasks=[flat_task()])
+    run["meta"]["workspace"] = "unified-compute/sched-testing"
+    run["meta"]["platform"] = "https://cloud.dev-seqera.io"
+    run["workflow"]["runUrl"] = "https://cloud.dev-seqera.io/orgs/unified-compute/workspaces/sched-testing/watch/run1"
+    write_run_json(data_dir, [run])
+
+    normalize_jsonl(data_dir, out_dir)
+
+    run_line = json.loads((out_dir / "runs.jsonl").read_text().strip().splitlines()[0])
+    assert run_line["workspace"] == "unified-compute/sched-testing"
+    assert run_line["platform"] == "https://cloud.dev-seqera.io"
+    assert run_line["run_url"].endswith("/watch/run1")
+
 
 def test_normalize_cost_rows_reads_parquet_in_batches(tmp_path):
     parquet_path = tmp_path / "costs.parquet"

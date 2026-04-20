@@ -557,6 +557,8 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
         let cell = '<span class="status-badge ' + badgeClass(r) + '">' + (value || '\u2014') + '</span>';
         if (r.report_included === false) cell += '<span class="status-note">excluded from metrics</span>';
         html += '<td>' + cell + '</td>';
+      } else if (c[1] === 'run_id' && r.runUrl) {
+        html += '<td><a href="' + r.runUrl + '" target="_blank" rel="noopener noreferrer">' + (value != null ? value : '\u2014') + '</a></td>';
       } else {
         html += '<td>' + (value != null ? value : '\u2014') + '</td>';
       }
@@ -590,7 +592,7 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
     html += '<tr>';
     html += '<td>' + r.pipeline + '</td>';
     html += '<td>' + r.group + '</td>';
-    html += '<td>' + r.run_id + '</td>';
+    html += '<td>' + (r.runUrl ? '<a href="' + r.runUrl + '" target="_blank" rel="noopener noreferrer">' + r.run_id + '</a>' : r.run_id) + '</td>';
     html += '<td>' + fmtDuration(r.duration) + '</td>';
     html += '<td>' + fmtHours(r.cpuTime) + '</td>';
     html += '<td>' + fmtCost(c.cost) + '</td>';

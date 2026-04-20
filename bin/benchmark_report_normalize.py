@@ -123,6 +123,9 @@ def extract_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "region": ce.get("region", ""),
                 "pipeline_version": wf.get("revision", ""),
                 "platform_version": launch.get("platformVersion", ""),
+                "workspace": run.get("meta", {}).get("workspace", ""),
+                "platform": run.get("meta", {}).get("platform", ""),
+                "run_url": wf.get("runUrl") or wf.get("url") or "",
             }
         )
     return rows

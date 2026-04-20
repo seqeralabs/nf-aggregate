@@ -60,6 +60,8 @@ def test_render_html(tmp_path, minimal_report_data):
     assert "Savings attribution (CPU) by layer" in text
     assert "schedulerRightsizedCpuH" in text
     assert "vmPackingSlackCpuH" in text
+    assert 'target="_blank" rel="noopener noreferrer"' in text
+    assert "r.runUrl ? '<a href=\"' + r.runUrl" in text
 
 
 def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data):

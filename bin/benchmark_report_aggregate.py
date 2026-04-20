@@ -107,6 +107,38 @@ def _compute_scheduler_booked(
     return None
 
 
+def _build_workspace_run_url(
+    run_id: str,
+    workspace: str | None,
+    platform: str | None,
+    group: str | None,
+    existing_url: str | None = None,
+) -> str:
+    existing = (existing_url or "").strip()
+    if existing and "example.invalid" not in existing.lower():
+        return existing
+
+    workspace_value = (workspace or "").strip()
+    group_value = (group or "").strip().lower()
+    platform_value = (platform or "").strip().rstrip("/")
+
+    if workspace_value and "/" in workspace_value:
+        org_slug, workspace_slug = workspace_value.split("/", 1)
+    elif group_value.startswith("batch"):
+        org_slug, workspace_slug = ("scidev", "testing")
+    else:
+        org_slug, workspace_slug = ("unified-compute", "sched-testing")
+
+    if platform_value:
+        base = platform_value
+    elif (org_slug, workspace_slug) == ("scidev", "testing"):
+        base = "https://cloud.seqera.io"
+    else:
+        base = "https://cloud.dev-seqera.io"
+
+    return f"{base}/orgs/{org_slug}/workspaces/{workspace_slug}/watch/{run_id}"
+
+
 def _load_machines_index(jsonl_dir: Path) -> dict[str, dict[str, Any]]:
     index: dict[str, dict[str, Any]] = {}
     for row in _iter_jsonl(jsonl_dir / "machines.jsonl"):
@@ -149,6 +181,14 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
                 "pipeline": r.get("pipeline"),
                 "group": group,
                 "run_id": run_id,
+                "workspace": r.get("workspace"),
+                "runUrl": _build_workspace_run_url(
+                    run_id=run_id,
+                    workspace=r.get("workspace"),
+                    platform=r.get("platform"),
+                    group=group,
+                    existing_url=r.get("run_url"),
+                ),
                 "username": r.get("username"),
                 "status": r.get("status"),
                 "status_label": status_label,
@@ -177,6 +217,14 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
             "pipeline": r.get("pipeline"),
             "group": group,
             "run_id": run_id,
+            "workspace": r.get("workspace"),
+            "runUrl": _build_workspace_run_url(
+                run_id=run_id,
+                workspace=r.get("workspace"),
+                platform=r.get("platform"),
+                group=group,
+                existing_url=r.get("run_url"),
+            ),
             "duration": int(r.get("duration_ms") or 0),
             "cpuTime": _round((float(r.get("cpu_time_ms") or 0) / 1000.0) / 3600.0, 1),
             "pipeline_runtime": int(r.get("cpu_time_ms") or 0),
