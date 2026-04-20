@@ -39,7 +39,6 @@ Input CSV (id, workspace, group, logs, platform, token_env)
 
 ## Entry Points
 
-
 | File                             | Role                                                                             |
 | -------------------------------- | -------------------------------------------------------------------------------- |
 | `main.nf`                        | Pipeline entry — validates params, parses samplesheet, delegates to NF_AGGREGATE |
@@ -47,9 +46,7 @@ Input CSV (id, workspace, group, logs, platform, token_env)
 | `lib/SeqeraApi.groovy`           | Groovy API client — paginated task fetch, workspace resolution                   |
 | `bin/benchmark_report.py`        | Typer CLI — normalize-jsonl, aggregate-report-data, render-html, fetch           |
 
-
 ## Processes (4 local modules)
-
 
 | Process                           | Container                       | Input                                       | Output                      |
 | --------------------------------- | ------------------------------- | ------------------------------------------- | --------------------------- |
@@ -58,9 +55,7 @@ Input CSV (id, workspace, group, logs, platform, token_env)
 | `AGGREGATE_BENCHMARK_REPORT_DATA` | wave python/duckdb/jinja2/typer | `jsonl_bundle/`                             | `report_data.json`          |
 | `RENDER_BENCHMARK_REPORT`         | wave python/duckdb/jinja2/typer | `report_data.json`, `brand.yml`, `logo.svg` | `benchmark_report.html`     |
 
-
 ## Key Parameters
-
 
 | Parameter                   | Default                       | Purpose                                     |
 | --------------------------- | ----------------------------- | ------------------------------------------- |
@@ -71,7 +66,6 @@ Input CSV (id, workspace, group, logs, platform, token_env)
 | `seqera_api_endpoint`       | `https://api.cloud.seqera.io` | Platform API base URL                       |
 | `java_truststore_path`      | `null`                        | Custom Java truststore for private certs    |
 | `java_truststore_password`  | `null`                        | Truststore password                         |
-
 
 ## Input Schema
 
@@ -99,4 +93,3 @@ results/
 3. **All JSON files** are collected into a single temp directory and passed to the 3-stage Python pipeline: normalize → aggregate → render.
 4. The Python stages are separate Nextflow processes sharing one Wave container image (`python_duckdb_jinja2_typer_pruned`).
 5. JSONL is the handoff format — streaming-friendly for large run datasets and Fusion FS compatible.
-

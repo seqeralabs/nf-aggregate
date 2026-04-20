@@ -61,4 +61,3 @@ Both runs `1cF65l2PDvxNd5` (maniac_celsius) and `5VGC0gjEmghOaz` (clever_kalman)
 - **No failed runs analysed:** Both Platform runs are currently successful. To populate this section with real failure analysis, re-run context generation after a failure occurs or provide historical failed run IDs.
 - **No STAR/alignment task data yet:** Both runs are still in early stages (QC/trim). Resource pressure and potential OOM failures during STAR genome generation and alignment are not yet observable.
 - **No cost data:** Neither run has completed, so total run cost is unavailable. Individual task costs are in the $0.001–$0.007 range for early QC tasks.
-

@@ -36,6 +36,7 @@ python bin/benchmark_report.py normalize-jsonl --data-dir <run_json_dir> --outpu
 ```
 
 Responsibilities:
+
 - read run JSON payloads
 - normalize runs/tasks/metrics rows
 - optionally normalize CUR parquet into `costs.jsonl`
@@ -54,6 +55,7 @@ python bin/benchmark_report.py aggregate-report-data --jsonl-dir <jsonl_bundle> 
 ```
 
 Responsibilities:
+
 - stream JSONL rows
 - compute report sections:
   - `benchmark_overview`
@@ -75,6 +77,7 @@ python bin/benchmark_report.py render-html --data <report_data.json> --output <b
 ```
 
 Responsibilities:
+
 - load report JSON
 - apply brand/logo overrides when provided
 - render self-contained HTML from the Jinja template
@@ -82,6 +85,7 @@ Responsibilities:
 ## Benchmark CLI surface
 
 `bin/benchmark_report.py` provides:
+
 - `normalize-jsonl`
 - `aggregate-report-data`
 - `render-html`

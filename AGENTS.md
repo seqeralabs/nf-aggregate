@@ -66,10 +66,10 @@ uv run --with typer --with pyyaml \
 
 ### Services overview
 
-| Service | Purpose | Run command |
-|---------|---------|-------------|
-| Nextflow pipeline | Core product — aggregates metrics from Seqera Platform runs | `nextflow run . --input <csv> --outdir results -profile docker` |
-| Python benchmark_report.py | Normalizes JSON -> JSONL, aggregates report data, then renders HTML | See "Rebuild Command" section above |
+| Service                    | Purpose                                                             | Run command                                                     |
+| -------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Nextflow pipeline          | Core product — aggregates metrics from Seqera Platform runs         | `nextflow run . --input <csv> --outdir results -profile docker` |
+| Python benchmark_report.py | Normalizes JSON -> JSONL, aggregates report data, then renders HTML | See "Rebuild Command" section above                             |
 
 ### Running tests
 

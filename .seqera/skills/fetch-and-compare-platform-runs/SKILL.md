@@ -6,6 +6,7 @@ description: >
   benchmark candidates, refreshing `.seqera/context`, or validating run-level
   differences before building a report.
 ---
+
 # Fetch and compare Platform runs
 
 Use this skill when the user wants to inspect one or more Seqera Platform runs
@@ -78,4 +79,3 @@ Build a full benchmark report when:
 - the user wants charts or HTML output
 - cost and aggregated process summaries matter more than raw run inspection
 - you need JSONL handoff artifacts for downstream debugging
-

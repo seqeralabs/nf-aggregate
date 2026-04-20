@@ -1,26 +1,32 @@
 # aggregate_benchmark_report_data
 
 Purpose
+
 - Convert the JSONL bundle into a single `report_data.json` document for rendering.
 
 Owns
+
 - `AGGREGATE_BENCHMARK_REPORT_DATA` in `main.nf`
 - Module-local CLI entrypoint in `bin/benchmark_report.py`
 - Shared aggregation logic in repo-root `bin/benchmark_report_aggregate.py`
 - Stage-scoped tests under `tests/`
 
 Run directly
+
 - `nextflow run modules/local/aggregate_benchmark_report_data/main.nf -profile docker,arm --jsonl_bundle <jsonl_bundle_dir>`
 - The direct `nextflow run modules/local/...` path depends on the module-local `bin/benchmark_report.py` shim/CLI; keep that invocation shape working if you refactor the stage.
 
 Inputs
+
 - `jsonl_bundle/` from `normalize_benchmark_jsonl`
 
 Outputs
+
 - `report_data.json`
 - `versions.yml`
 
 Invariants
+
 - This is the boundary between streaming records and presentation data.
 - Prefer streaming iteration over JSONL inputs; avoid full-file eager loads unless clearly bounded.
 - Cost joins must key by `(run_id, process, hash)` to avoid cross-process collisions.
@@ -36,8 +42,10 @@ Invariants
   - `cost_overview`
 
 Edit guidance
+
 - Keep rendering/template logic out of this stage.
 - If output schema changes, update render tests and any HTML assertions.
 
 Tests
+
 - `pytest modules/local/aggregate_benchmark_report_data/tests/test_aggregate.py -q`
