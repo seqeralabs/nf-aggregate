@@ -123,7 +123,7 @@ workflow NF_AGGREGATE {
 
         ch_cur = params.benchmark_aws_cur_report
             ? Channel.fromPath(params.benchmark_aws_cur_report)
-            : Channel.fromPath("${projectDir}/assets/NO_FILE", checkIfExists: false).ifEmpty(file("${projectDir}/assets/NO_FILE"))
+            : Channel.fromPath("${projectDir}/assets/NO_FILE_CUR", checkIfExists: false).ifEmpty(file("${projectDir}/assets/NO_FILE_CUR"))
 
         // Collect machine metrics CSVs from external runs (if present)
         ch_machines_dir = ch_split.external
@@ -134,18 +134,18 @@ workflow NF_AGGREGATE {
             }
             .collect()
             .map { files ->
-                if (!files) return file("${projectDir}/assets/NO_FILE")
+                if (!files) return file("${projectDir}/assets/NO_FILE_MACHINES")
                 def dir = file(benchmark_work_root.resolve("machines"))
                 if (dir.exists()) dir.deleteDir()
                 dir.mkdirs()
                 files.each { f -> f.copyTo(dir.resolve(f.name)) }
                 return dir
             }
-            .ifEmpty(file("${projectDir}/assets/NO_FILE"))
+            .ifEmpty(file("${projectDir}/assets/NO_FILE_MACHINES"))
 
         NORMALIZE_BENCHMARK_JSONL(
             ch_data_dir,
-            ch_cur.ifEmpty(file("${projectDir}/assets/NO_FILE")),
+            ch_cur.ifEmpty(file("${projectDir}/assets/NO_FILE_CUR")),
             ch_machines_dir,
         )
         ch_versions = ch_versions.mix(NORMALIZE_BENCHMARK_JSONL.out.versions)
