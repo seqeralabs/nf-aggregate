@@ -33,7 +33,7 @@ workflow NF_AGGREGATE {
         ch_split.api.count().subscribe { n ->
             if (n > 0) {
                 log.warn "Found ${n} API run(s) but --generate_benchmark_report is not enabled. " +
-                         "API runs will not produce any output. Enable --generate_benchmark_report to process them."
+                    "API runs will not produce any output. Enable --generate_benchmark_report to process them."
             }
         }
     }
