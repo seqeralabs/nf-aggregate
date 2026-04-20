@@ -61,6 +61,8 @@ uv run --with typer --with pyyaml \
 - `report_data.json` is the explicit boundary between aggregation and rendering
 - `commit.gpgsign` must be true (SSH signing via 1Password)
 - RTK `buildOutputFiltering` / `testOutputAggregation` can swallow nf-test output — disable to debug
+- **Nextflow `include` statements in `main.nf` must be single-line.** `adamrtalbot/detect-nf-test-changes@v0.0.3` (used by CI) parses include lines and crashes on multi-line blocks. Write `include { A ; B ; C } from '...'` not multi-line blocks.
+- **No `.nf-core.yml` in this repo.** The nf-core pipelines lint CI job has been removed because it depends on `.nf-core.yml` which was dropped. Do not re-add the `nf-core` job to `.github/workflows/linting.yml` without also restoring `.nf-core.yml`.
 
 ## Cursor Cloud specific instructions
 
@@ -84,6 +86,7 @@ Run this exact sequence when validating split benchmark-report changes in Cursor
 1. `uv run --with typer --with pyyaml --with jinja2 --with pyarrow --with pytest --with httpx pytest -v modules/local/aggregate_benchmark_report_data/tests/test_aggregate.py modules/local/normalize_benchmark_jsonl/tests/test_normalize.py modules/local/render_benchmark_report/tests/test_render.py bin/test_benchmark_report_fetch.py`
 2. `nf-test test --profile=+docker --verbose`
 3. `nextflow run . --input workflows/nf_aggregate/assets/test_benchmark.csv --generate_benchmark_report --outdir /tmp/nf-aggregate-e2e-results -profile docker`
+4. `pre-commit run --all-files` — **must pass before the final commit/push**. The `prettier` hook auto-fixes files in place; if it reports "files were modified by this hook", stage the changes (`git add -u`) and re-run until it passes. The `editorconfig-checker` hook only reports errors (no auto-fix) — fix those manually.
 
 ### Docker in Cloud VM (cgroupv2 workaround)
 

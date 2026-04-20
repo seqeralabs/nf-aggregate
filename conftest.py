@@ -92,6 +92,7 @@ def minimal_report_data():
         "run_metrics": [{"group": "cpu", "run_id": "run1"}],
         "run_costs": [{"group": "cpu", "run_id": "run1", "cost": 1.0, "used_cost": 1.0, "unused_cost": 0.0}],
         "process_stats": [],
+        "combined_task_runtime": [],
         "task_instance_usage": [],
         "task_table": [],
         "task_scatter": [],

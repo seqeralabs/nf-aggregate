@@ -9,6 +9,8 @@ from math import sqrt
 from pathlib import Path
 from typing import Any, Iterator
 
+_HIGHLIGHT_KEYWORDS = ("qc", "qualimap", "multiqc", "rseqc", "dupradar")
+
 
 def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
     if not path.exists():
@@ -71,15 +73,22 @@ def _cost_or_task(cost_row: dict[str, Any] | None, key: str, task_cost: float, d
     return float(value)
 
 
+def _is_highlight_process(process: str) -> bool:
+    process_lc = process.lower()
+    return any(keyword in process_lc for keyword in _HIGHLIGHT_KEYWORDS)
+
+
 def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
     benchmark_overview: list[dict[str, Any]] = []
     run_summary: list[dict[str, Any]] = []
     run_metrics: list[dict[str, Any]] = []
 
     run_cost_acc: dict[tuple[str, str], dict[str, Any]] = {}
+    run_pipeline: dict[str, str] = {}
 
     for r in _iter_jsonl(jsonl_dir / "runs.jsonl"):
         benchmark_overview.append({"pipeline": r.get("pipeline"), "group": r.get("group"), "run_id": r.get("run_id")})
+        run_pipeline[str(r.get("run_id", ""))] = str(r.get("pipeline") or "unknown")
 
         run_summary.append(
             {
@@ -166,6 +175,9 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
     cost_group_acc: dict[tuple[str, str], dict[str, Any]] = defaultdict(
         lambda: {"total_cost": 0.0, "used_cost": 0.0, "unused_cost": 0.0, "n_tasks": 0}
     )
+    combined_runtime_acc: dict[tuple[str, str], dict[str, Any]] = defaultdict(
+        lambda: {"process_runtime_ms": defaultdict(int), "total_tasks": 0, "scheduling_runtime_ms": 0}
+    )
 
     for t in _iter_jsonl(jsonl_dir / "tasks.jsonl"):
         run_id = str(t.get("run_id", ""))
@@ -247,6 +259,14 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
 
         if status != "COMPLETED":
             continue
+
+        pipeline = run_pipeline.get(run_id, "unknown")
+        runtime_panel_key = (pipeline, group)
+        panel_acc = combined_runtime_acc[runtime_panel_key]
+        process_name = process or process_short or "unknown"
+        panel_acc["process_runtime_ms"][process_name] += int(t.get("realtime_ms") or 0)
+        panel_acc["scheduling_runtime_ms"] += int(t.get("wait_ms") or 0)
+        panel_acc["total_tasks"] += 1
 
         process_key = (group, process, process_short)
         acc = process_acc[process_key]
@@ -338,12 +358,71 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
         ]
         cost_overview.sort(key=lambda x: float(x.get("total_cost") or 0), reverse=True)
 
+    combined_task_runtime = []
+    for (pipeline, group), panel_acc in sorted(combined_runtime_acc.items(), key=lambda x: (x[0][0], x[0][1])):
+        process_runtime_ms = panel_acc["process_runtime_ms"]
+        sorted_processes = sorted(process_runtime_ms.items(), key=lambda x: (-x[1], x[0]))
+        total_runtime_ms = sum(runtime for _, runtime in sorted_processes)
+        if total_runtime_ms <= 0:
+            continue
+        scheduling_runtime_ms = int(panel_acc.get("scheduling_runtime_ms") or 0)
+        total_duration_ms = total_runtime_ms + scheduling_runtime_ms
+
+        segments = []
+        for process_name, runtime_ms in sorted_processes:
+            pct = (runtime_ms / total_runtime_ms) * 100.0 if total_runtime_ms else 0.0
+            segments.append(
+                {
+                    "process": process_name,
+                    "runtime_ms": runtime_ms,
+                    "pct": _round(pct, 2),
+                    "highlight": _is_highlight_process(process_name),
+                }
+            )
+
+        legend = list(segments[:20])
+        if len(segments) > 20:
+            other_segments = segments[20:]
+            other_runtime = sum(int(seg.get("runtime_ms") or 0) for seg in other_segments)
+            other_pct = (other_runtime / total_runtime_ms) * 100.0 if total_runtime_ms else 0.0
+            legend.append(
+                {
+                    "process": f"Other ({len(other_segments)} small processes)",
+                    "runtime_ms": other_runtime,
+                    "pct": _round(other_pct, 2),
+                    "highlight": False,
+                }
+            )
+
+        qc_runtime_ms = sum(int(seg.get("runtime_ms") or 0) for seg in segments if seg.get("highlight"))
+        other_runtime_ms = total_runtime_ms - qc_runtime_ms
+
+        combined_task_runtime.append(
+            {
+                "pipeline": pipeline,
+                "group": group,
+                "panel_id": f"{pipeline}::{group}",
+                "total_runtime_ms": total_runtime_ms,
+                "scheduling_runtime_ms": scheduling_runtime_ms,
+                "total_duration_ms": total_duration_ms,
+                "total_tasks": int(panel_acc["total_tasks"]),
+                "unique_processes": len(segments),
+                "segments": segments,
+                "legend": legend,
+                "highlight_totals": {
+                    "qc_runtime_ms": qc_runtime_ms,
+                    "other_runtime_ms": other_runtime_ms,
+                },
+            }
+        )
+
     return {
         "benchmark_overview": benchmark_overview,
         "run_summary": run_summary,
         "run_metrics": run_metrics,
         "run_costs": run_costs,
         "process_stats": process_stats,
+        "combined_task_runtime": combined_task_runtime,
         "task_instance_usage": task_instance_usage,
         "task_table": task_table,
         "task_scatter": task_scatter,

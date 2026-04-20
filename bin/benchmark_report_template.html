@@ -80,10 +80,81 @@
              background: {{ brand_white }}; padding: 2px 10px; border-radius: 3px; text-decoration: none; }
   .csv-btn:hover { background: {{ brand_neutral }}; }
 
+  .runtime-panels { display: flex; flex-direction: column; gap: 18px; }
+  .runtime-panel {
+    border: 1px solid {{ brand_border }};
+    border-radius: 10px;
+    background: {{ brand_white }};
+    padding: 12px;
+  }
+  .runtime-unified-chart {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    margin-bottom: 10px;
+  }
+  .runtime-comparison-scroll {
+    margin-top: 6px;
+    overflow-x: auto;
+  }
+  .runtime-comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    table-layout: auto;
+    min-width: 720px;
+  }
+  .runtime-comparison-table th {
+    text-align: left;
+    background: {{ brand_neutral }};
+    color: {{ brand_heading }};
+    border-bottom: 1px solid {{ brand_border }};
+    padding: 6px 8px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .runtime-comparison-table th.group {
+    text-align: center;
+  }
+  .runtime-comparison-table td {
+    border-bottom: 1px solid {{ brand_border }};
+    padding: 5px 8px;
+    color: {{ brand_heading }};
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .runtime-comparison-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .runtime-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 6px;
+    vertical-align: -1px;
+  }
+  .runtime-summary {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .runtime-summary-pill {
+    border: 1px solid {{ brand_border }};
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: {{ brand_heading }};
+    background: {{ brand_neutral }};
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   @media (max-width: 900px) {
     .side-nav { display: none; }
     .main-content { margin-left: 0; }
     .chart-row { grid-template-columns: 1fr; }
+    .runtime-comparison-table { font-size: 11px; }
   }
 
   .text-muted { color: {{ brand_border }}; }
@@ -119,6 +190,7 @@
   <a href="#run-summary" class="l2"><svg class="nav-icon"><use href="#ic-table"/></svg> Run summary</a>
   <a href="#run-metrics" class="l2"><svg class="nav-icon"><use href="#ic-chart"/></svg> Run metrics</a>
   <a href="#process-overview"><svg class="nav-icon"><use href="#ic-process"/></svg> Process overview</a>
+  <a href="#combined-task-runtime" class="l2"><svg class="nav-icon"><use href="#ic-chart"/></svg> Combined task runtime</a>
   <a href="#task-overview"><svg class="nav-icon"><use href="#ic-task"/></svg> Task overview</a>
   <a href="#task-instance-usage" class="l2"><svg class="nav-icon"><use href="#ic-instance"/></svg> Instance usage</a>
   <a href="#task-metrics" class="l2"><svg class="nav-icon"><use href="#ic-scatter"/></svg> Task metrics</a>
@@ -214,7 +286,17 @@
     <div id="process-sections"></div>
   </div>
 
-  <!-- 4. Task overview -->
+  <!-- 4. Combined task runtime -->
+  <div class="section" id="combined-task-runtime">
+    <h1><svg class="h-icon"><use href="#ic-chart"/></svg> Combined task runtime</h1>
+    <p class="section-desc">
+      <strong>Summary</strong><br>
+      Combined task duration by process, split per pipeline and group. Includes scheduling overhead (submit to start).
+    </p>
+    <div id="combined-runtime-panels" class="runtime-panels"></div>
+  </div>
+
+  <!-- 5. Task overview -->
   <div class="section" id="task-overview">
     <h1><svg class="h-icon"><use href="#ic-task"/></svg> Task overview</h1>
     <p class="section-desc">
@@ -260,10 +342,27 @@ function fmtDuration(ms) {
   if (h > 0) return h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
   return m + ':' + String(s).padStart(2,'0');
 }
+function fmtDurationCompact(ms) {
+  if (ms == null || ms <= 0) return '0m';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
 function fmtCost(v) { return v != null ? '$' + Number(v).toFixed(2) : '\u2014'; }
 function fmtPct(v) { return v != null ? Number(v).toFixed(1) + '%' : '\u2014'; }
 function fmtGB(v) { return v != null ? Number(v).toLocaleString() : '\u2014'; }
 function fmtHours(v) { return v != null ? Number(v).toFixed(1) : '\u2014'; }
+function escapeHtml(v) {
+  return String(v)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
 
 function takeaway(labels, values, opts) {
   opts = opts || {};
@@ -628,7 +727,421 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
   });
 })();
 
-// 4.1 Task instance usage
+// 4. Combined task runtime by process
+(function() {
+  const panels = DATA.combined_task_runtime || [];
+  if (!panels.length) return;
+
+  const container = document.getElementById('combined-runtime-panels');
+  if (!container) return;
+
+  function neutralColor(idx, total) {
+    const palette = ['#CFD0D1', '#B9BEC4', '#A5ACB4', '#919AA4', '#7E8895', '#6C7887'];
+    if (total <= palette.length) return palette[idx % palette.length];
+    const scaled = Math.floor((idx / (total - 1)) * (palette.length - 1));
+    return palette[scaled];
+  }
+
+  function highlightColor(idx, total) {
+    const palette = ['#31C9AC', '#1DA18A', '#087F68', '#1F8F7E', '#45A1BF', '#3E86A9', '#2E6D93'];
+    if (total <= palette.length) return palette[idx % palette.length];
+    const scaled = Math.floor((idx / (total - 1)) * (palette.length - 1));
+    return palette[scaled];
+  }
+
+  function shortProcessName(name) {
+    if (!name) return 'unknown';
+    const parts = String(name).split(':');
+    return parts[parts.length - 1] || String(name);
+  }
+
+  function rowLabel(panel) {
+    const pipeline = String(panel.pipeline || 'unknown');
+    const group = String(panel.group || '');
+    return group ? `${pipeline} (${group})` : pipeline;
+  }
+
+  const rows = panels
+    .map((panel) => {
+      const segments = panel.segments || [];
+      if (!segments.length) return null;
+
+      const totalRuntime = Number(panel.total_runtime_ms || 0);
+      const schedulingRuntime = Math.max(0, Number(panel.scheduling_runtime_ms || 0));
+      const totalDuration = Math.max(
+        0,
+        Number(panel.total_duration_ms || (totalRuntime + schedulingRuntime) || totalRuntime)
+      );
+      if (totalDuration <= 0) return null;
+
+      const totalTasks = Number(panel.total_tasks || 0);
+      const uniqueProcesses = Number(panel.unique_processes || segments.length);
+      const qcRuntime = Number(panel.highlight_totals?.qc_runtime_ms || 0);
+      const otherRuntimeRaw = panel.highlight_totals?.other_runtime_ms;
+      const otherRuntime = Number(otherRuntimeRaw != null ? otherRuntimeRaw : Math.max(0, totalRuntime - qcRuntime));
+      const segmentsForRow = [];
+
+      if (schedulingRuntime > 0) {
+        segmentsForRow.push({
+          segment_id: '__SCHEDULING__',
+          process: 'Scheduling',
+          runtime_ms: schedulingRuntime,
+          highlight: false,
+          is_scheduling: true,
+        });
+      }
+
+      segments.forEach((seg, idx) => {
+        const runtimeMs = Number(seg.runtime_ms || 0);
+        if (runtimeMs <= 0) return;
+        const processName = String(seg.process || 'unknown');
+        segmentsForRow.push({
+          segment_id: `${idx}:${processName}`,
+          process: processName,
+          runtime_ms: runtimeMs,
+          highlight: Boolean(seg.highlight),
+          is_scheduling: false,
+        });
+      });
+      if (!segmentsForRow.length) return null;
+
+      const topLabelIds = new Set(
+        [...segmentsForRow]
+          .sort((a, b) => b.runtime_ms - a.runtime_ms || a.process.localeCompare(b.process))
+          .slice(0, 3)
+          .map((seg) => seg.segment_id)
+      );
+
+      return {
+        panel,
+        label: rowLabel(panel),
+        totalRuntimeMs: totalRuntime,
+        schedulingRuntimeMs: schedulingRuntime,
+        totalDurationMs: totalDuration,
+        totalTasks,
+        uniqueProcesses,
+        qcRuntimeMs: qcRuntime,
+        otherRuntimeMs: otherRuntime,
+        segmentsForRow,
+        topLabelIds,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.totalDurationMs - a.totalDurationMs || a.label.localeCompare(b.label));
+
+  if (!rows.length) return;
+
+  const processTotals = new Map();
+  rows.forEach((row) => {
+    row.segmentsForRow.forEach((seg) => {
+      if (seg.is_scheduling) return;
+      if (!processTotals.has(seg.process)) {
+        processTotals.set(seg.process, { runtime_ms: 0, highlight: false });
+      }
+      const current = processTotals.get(seg.process);
+      current.runtime_ms += seg.runtime_ms;
+      current.highlight = current.highlight || seg.highlight;
+    });
+  });
+
+  const highlightProcesses = [...processTotals.entries()]
+    .filter(([, meta]) => meta.highlight)
+    .sort((a, b) => b[1].runtime_ms - a[1].runtime_ms || a[0].localeCompare(b[0]))
+    .map(([name]) => name);
+  const neutralProcesses = [...processTotals.entries()]
+    .filter(([, meta]) => !meta.highlight)
+    .sort((a, b) => b[1].runtime_ms - a[1].runtime_ms || a[0].localeCompare(b[0]))
+    .map(([name]) => name);
+
+  const processColor = {};
+  highlightProcesses.forEach((name, idx) => { processColor[name] = highlightColor(idx, highlightProcesses.length); });
+  neutralProcesses.forEach((name, idx) => { processColor[name] = neutralColor(idx, neutralProcesses.length); });
+
+  const schedulingColor = '#F59E0B';
+  const rowCount = rows.length;
+  const maxTotalDurationMs = Math.max(...rows.map((row) => row.totalDurationMs), 1);
+  const uniqueProcessCount = processTotals.size;
+
+  function measureTextWidth(text, font) {
+    const canvas = measureTextWidth.canvas || (measureTextWidth.canvas = document.createElement('canvas'));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return text.length * 7;
+    ctx.font = font || "600 12px Inter, Helvetica, sans-serif";
+    return ctx.measureText(text).width;
+  }
+
+  const rowMetaLines = rows.map((row) => `${fmtDurationCompact(row.totalDurationMs)} \u00b7 ${row.totalTasks} tasks`);
+  const maxLabelPx = Math.max(
+    0,
+    ...rows.map((row, idx) => {
+      const line1 = measureTextWidth(row.label);
+      const line2 = measureTextWidth(rowMetaLines[idx], "500 12px Inter, Helvetica, sans-serif");
+      return Math.max(line1, line2);
+    })
+  );
+  const axisLabelWidth = Math.max(170, Math.ceil(maxLabelPx + 8));
+  const gridLeft = Math.max(220, axisLabelWidth + 24);
+  const breakdownLineHeight = 16;
+  const pipelineBreakdowns = rows.map((row) => {
+    const schedulingPct = row.totalDurationMs > 0 ? (row.schedulingRuntimeMs / row.totalDurationMs) * 100.0 : 0.0;
+    const qcPct = row.totalDurationMs > 0 ? (row.qcRuntimeMs / row.totalDurationMs) * 100.0 : 0.0;
+    const otherPct = row.totalDurationMs > 0 ? (row.otherRuntimeMs / row.totalDurationMs) * 100.0 : 0.0;
+    return {
+      label: row.label,
+      values: [
+        { label: 'Scheduling', runtimeMs: row.schedulingRuntimeMs, pct: schedulingPct, color: schedulingColor },
+        { label: 'QC', runtimeMs: row.qcRuntimeMs, pct: qcPct, color: '#31C9AC' },
+        { label: 'Other', runtimeMs: row.otherRuntimeMs, pct: otherPct, color: '#CFD0D1' },
+      ],
+    };
+  });
+  const gridTop = 90 + (pipelineBreakdowns.length * breakdownLineHeight);
+
+  const unifiedChartEl = document.createElement('div');
+  unifiedChartEl.className = 'chart runtime-unified-chart';
+  unifiedChartEl.style.height = Math.max(260, rowCount * 76 + 130) + 'px';
+  container.appendChild(unifiedChartEl);
+
+  const yData = rows.map((row) => row.label);
+  const series = [];
+  const seriesMeta = [];
+
+  rows.forEach((row, rowIdx) => {
+    const rowSegmentCount = row.segmentsForRow.length;
+    row.segmentsForRow.forEach((seg, segIdx) => {
+      const data = new Array(rowCount).fill(0);
+      data[rowIdx] = seg.runtime_ms;
+      const pct = row.totalDurationMs > 0 ? (seg.runtime_ms / row.totalDurationMs) * 100.0 : 0.0;
+      const color = seg.is_scheduling ? schedulingColor : (processColor[seg.process] || '#CFD0D1');
+
+      seriesMeta.push({
+        rowIdx,
+        rowLabel: row.label,
+        process: seg.process,
+        runtimeMs: seg.runtime_ms,
+        pct,
+      });
+
+      series.push({
+        name: seg.process,
+        type: 'bar',
+        stack: `runtime-${rowIdx}`,
+        barWidth: 36,
+        data,
+        itemStyle: {
+          color: color,
+          borderColor: '#ffffff',
+          borderWidth: 1,
+          borderRadius: segIdx === 0 ? [6, 0, 0, 6] : (segIdx === rowSegmentCount - 1 ? [0, 6, 6, 0] : 0),
+        },
+        emphasis: { focus: 'series' },
+        label: {
+          show: true,
+          position: 'inside',
+          formatter: (p) => {
+            if (p.dataIndex !== rowIdx || Number(p.value || 0) <= 0 || !row.topLabelIds.has(seg.segment_id)) return '';
+            const labelName = seg.is_scheduling ? 'Scheduling' : shortProcessName(seg.process);
+            return `${labelName}\n${fmtDurationCompact(seg.runtime_ms)} (${pct.toFixed(1)}%)`;
+          },
+          color: seg.is_scheduling ? '#111827' : '#ffffff',
+          fontSize: 11,
+          fontWeight: 600,
+          lineHeight: 13,
+          overflow: 'truncate',
+        },
+      });
+    });
+  });
+
+  const chartOption = {
+    title: {
+      text: 'Combined Task Duration by Process',
+      subtext: `${uniqueProcessCount} unique processes \u00b7 comparing ${rows.length} configurations \u00b7 includes scheduling overhead`,
+      left: 'center',
+      top: 8,
+    },
+    graphic: (function() {
+      const elements = [];
+      pipelineBreakdowns.forEach((line, lineIdx) => {
+        const top = 56 + (lineIdx * breakdownLineHeight);
+        const labelText = `${line.label}:`;
+        elements.push({
+          type: 'text',
+          left: gridLeft,
+          top,
+          style: {
+            text: labelText,
+            fill: '{{ brand_heading }}',
+            font: "600 11px Inter, Helvetica, sans-serif",
+            textVerticalAlign: 'top',
+          },
+        });
+        let left = gridLeft + measureTextWidth(labelText, "600 11px Inter, Helvetica, sans-serif") + 10;
+        line.values.forEach((item) => {
+          const text = `${item.label} ${fmtDurationCompact(item.runtimeMs)} (${item.pct.toFixed(0)}%)`;
+          const textW = measureTextWidth(text, "500 11px Inter, Helvetica, sans-serif");
+          elements.push({
+            type: 'rect',
+            left,
+            top: top + 2,
+            shape: { x: 0, y: 0, width: 8, height: 8 },
+            style: { fill: item.color, stroke: item.color },
+          });
+          elements.push({
+            type: 'text',
+            left: left + 12,
+            top,
+            style: {
+              text,
+              fill: '{{ brand_heading }}',
+              font: "500 11px Inter, Helvetica, sans-serif",
+              textVerticalAlign: 'top',
+            },
+          });
+          left += textW + 28;
+        });
+      });
+      return elements;
+    })(),
+    tooltip: {
+      trigger: 'item',
+      formatter: (p) => {
+        const meta = seriesMeta[p.seriesIndex];
+        if (!meta) return '';
+        return `<strong>${escapeHtml(meta.rowLabel)}</strong><br>${escapeHtml(meta.process)}<br>${fmtDurationCompact(meta.runtimeMs)} (${meta.pct.toFixed(1)}%)`;
+      },
+    },
+    grid: {
+      top: gridTop,
+      bottom: 20,
+      left: gridLeft,
+      right: 18,
+      containLabel: false,
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: maxTotalDurationMs,
+      show: false,
+    },
+    yAxis: {
+      type: 'category',
+      inverse: true,
+      data: yData,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        width: axisLabelWidth,
+        margin: 8,
+        overflow: 'truncate',
+        align: 'right',
+        verticalAlign: 'middle',
+        color: '{{ brand_heading }}',
+        fontWeight: 600,
+        lineHeight: 15,
+        formatter: (value, idx) => {
+          const row = rows[idx];
+          if (!row) return value;
+          return `${value}\n${fmtDurationCompact(row.totalDurationMs)} \u00b7 ${row.totalTasks} tasks`;
+        },
+      },
+    },
+    series: series,
+  };
+
+  const deferInit = (cb) => {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(cb);
+      return;
+    }
+    setTimeout(cb, 0);
+  };
+
+  function initUnifiedRuntimeChart(retry) {
+    const rect = unifiedChartEl.getBoundingClientRect();
+    if ((rect.width === 0 || rect.height === 0) && !retry) {
+      deferInit(() => initUnifiedRuntimeChart(true));
+      return;
+    }
+    const chart = echarts.init(unifiedChartEl, 'seqera');
+    chart.setOption(chartOption);
+    deferInit(() => chart.resize());
+  }
+
+  deferInit(() => initUnifiedRuntimeChart(false));
+
+  rows.forEach((row) => {
+    const processRuntimeByKey = new Map();
+    row.segmentsForRow.forEach((seg) => {
+      const key = seg.is_scheduling ? '__SCHEDULING__' : seg.process;
+      processRuntimeByKey.set(key, Number(seg.runtime_ms || 0));
+    });
+    row.processRuntimeByKey = processRuntimeByKey;
+  });
+
+  const mergedProcessMap = new Map();
+  rows.forEach((row) => {
+    row.segmentsForRow.forEach((seg) => {
+      const key = seg.is_scheduling ? '__SCHEDULING__' : String(seg.process || 'unknown');
+      if (!mergedProcessMap.has(key)) {
+        mergedProcessMap.set(key, {
+          key,
+          fullName: seg.is_scheduling ? 'Scheduling' : String(seg.process || 'unknown'),
+          isScheduling: Boolean(seg.is_scheduling),
+          totalRuntimeMs: 0,
+        });
+      }
+      mergedProcessMap.get(key).totalRuntimeMs += Number(seg.runtime_ms || 0);
+    });
+  });
+
+  const mergedProcessRows = [...mergedProcessMap.values()].sort((a, b) => {
+    if (a.isScheduling && !b.isScheduling) return -1;
+    if (!a.isScheduling && b.isScheduling) return 1;
+    return b.totalRuntimeMs - a.totalRuntimeMs || a.fullName.localeCompare(b.fullName);
+  });
+
+  const comparisonScroll = document.createElement('div');
+  comparisonScroll.className = 'runtime-comparison-scroll';
+  const comparisonTable = document.createElement('table');
+  comparisonTable.className = 'runtime-comparison-table';
+
+  const headerTop = ['<tr><th rowspan="2" style="min-width:220px">Process</th>']
+    .concat(
+      rows.map((row) => {
+        const labelEsc = escapeHtml(row.label);
+        return `<th class="group" colspan="2" title="${labelEsc}">${labelEsc}</th>`;
+      })
+    )
+    .concat(['</tr>'])
+    .join('');
+
+  const headerBottom = '<tr>' +
+    rows.map(() => '<th style="text-align:right">Duration</th><th style="text-align:right">Percent</th>').join('') +
+    '</tr>';
+
+  const bodyRows = mergedProcessRows.map((procRow) => {
+    const fullNameEsc = escapeHtml(procRow.fullName);
+    const shortNameEsc = escapeHtml(procRow.isScheduling ? 'Scheduling' : shortProcessName(procRow.fullName));
+    const swatch = procRow.isScheduling ? schedulingColor : (processColor[procRow.fullName] || '#CFD0D1');
+    const cells = rows.map((row) => {
+      const runtimeMs = Number(row.processRuntimeByKey.get(procRow.key) || 0);
+      if (runtimeMs <= 0) return '<td class="num">-</td><td class="num">-</td>';
+      const pct = row.totalDurationMs > 0 ? (runtimeMs / row.totalDurationMs) * 100.0 : 0.0;
+      return `<td class="num">${fmtDurationCompact(runtimeMs)}</td><td class="num">${pct.toFixed(1)}%</td>`;
+    }).join('');
+    return `<tr title="${fullNameEsc}">
+      <td><span class="runtime-swatch" style="background:${swatch}"></span>${shortNameEsc}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  comparisonTable.innerHTML = `<thead>${headerTop}${headerBottom}</thead><tbody>${bodyRows}</tbody>`;
+  comparisonScroll.appendChild(comparisonTable);
+  container.appendChild(comparisonScroll);
+})();
+
+// 5.1 Task instance usage
 (function() {
   const usage = DATA.task_instance_usage || [];
   if (!usage.length) return;
@@ -659,7 +1172,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
   });
 })();
 
-// 4.2 Task metrics
+// 5.2 Task metrics
 (function() {
   const tasks = DATA.task_scatter || [];
   const taskTable = DATA.task_table || [];
