@@ -522,16 +522,35 @@ def test_build_workspace_run_url_prefers_existing_url():
             run_id="run1",
             workspace="ignored/ws",
             platform="https://cloud.seqera.io",
-            group="cpu",
             existing_url="https://custom.example/run1",
         )
         == "https://custom.example/run1"
     )
 
 
-def test_build_workspace_run_url_uses_repo_defaults():
-    assert _build_workspace_run_url("dev-run", None, None, "sched-Predv1") == "https://cloud.dev-seqera.io/orgs/unified-compute/workspaces/sched-testing/watch/dev-run"
-    assert _build_workspace_run_url("batch-run", None, None, "Batch-baseline") == "https://cloud.seqera.io/orgs/scidev/workspaces/testing/watch/batch-run"
+def test_build_workspace_run_url_requires_workspace_and_platform():
+    assert _build_workspace_run_url("run1", None, None) == ""
+    assert _build_workspace_run_url("run1", "org/ws", None) == ""
+    assert _build_workspace_run_url("run1", None, "https://cloud.dev-seqera.io") == ""
+
+
+def test_build_workspace_run_url_builds_from_explicit_metadata():
+    assert (
+        _build_workspace_run_url(
+            "dev-run",
+            "unified-compute/sched-testing",
+            "https://cloud.dev-seqera.io",
+        )
+        == "https://cloud.dev-seqera.io/orgs/unified-compute/workspaces/sched-testing/watch/dev-run"
+    )
+    assert (
+        _build_workspace_run_url(
+            "batch-run",
+            "scidev/testing",
+            "https://cloud.seqera.io",
+        )
+        == "https://cloud.seqera.io/orgs/scidev/workspaces/testing/watch/batch-run"
+    )
 
 
 def test_build_report_data_adds_run_urls(tmp_path):
@@ -544,7 +563,7 @@ def test_build_report_data_adds_run_urls(tmp_path):
             "group": "cpu",
             "pipeline": "pipe",
             "workspace": "unified-compute/sched-testing",
-            "platform": "",
+            "platform": "https://cloud.dev-seqera.io",
             "username": "u",
             "pipeline_version": "main",
             "nextflow_version": "24.10.0",
@@ -570,6 +589,32 @@ def test_build_report_data_adds_run_urls(tmp_path):
             "group": "Batch-baseline",
             "pipeline": "pipe",
             "workspace": "scidev/testing",
+            "platform": "https://cloud.seqera.io",
+            "username": "u",
+            "pipeline_version": "main",
+            "nextflow_version": "24.10.0",
+            "platform_version": "x",
+            "succeeded": 1,
+            "failed": 0,
+            "cached": 0,
+            "status": "SUCCEEDED",
+            "executor": "awsbatch",
+            "region": "us-east-1",
+            "fusion_enabled": False,
+            "wave_enabled": False,
+            "container_engine": "docker",
+            "duration_ms": 10,
+            "cpu_time_ms": 1000,
+            "cpu_efficiency": 50.0,
+            "memory_efficiency": 50.0,
+            "read_bytes": 0,
+            "write_bytes": 0,
+        },
+        {
+            "run_id": "nolink1",
+            "group": "cpu",
+            "pipeline": "pipe",
+            "workspace": "unified-compute/sched-testing",
             "platform": "",
             "username": "u",
             "pipeline_version": "main",
@@ -596,6 +641,7 @@ def test_build_report_data_adds_run_urls(tmp_path):
     tasks = [
         {"run_id": "sched1", "group": "cpu", "hash": "aa/bbccdd", "process": "P:A", "process_short": "A", "name": "A", "status": "COMPLETED", "staging_ms": 0, "realtime_ms": 1000, "duration_ms": 1000, "cost": 0.0, "cpus": 1, "pcpu": 100.0, "memory_bytes": 1024**3, "peak_rss": 512**3},
         {"run_id": "batch1", "group": "Batch-baseline", "hash": "ee/ffgghh", "process": "P:B", "process_short": "B", "name": "B", "status": "COMPLETED", "staging_ms": 0, "realtime_ms": 1000, "duration_ms": 1000, "cost": 0.0, "cpus": 1, "pcpu": 100.0, "memory_bytes": 1024**3, "peak_rss": 512**3},
+        {"run_id": "nolink1", "group": "cpu", "hash": "ii/jjkkll", "process": "P:C", "process_short": "C", "name": "C", "status": "COMPLETED", "staging_ms": 0, "realtime_ms": 1000, "duration_ms": 1000, "cost": 0.0, "cpus": 1, "pcpu": 100.0, "memory_bytes": 1024**3, "peak_rss": 512**3},
     ]
 
     (jsonl_dir / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in runs))
@@ -607,8 +653,10 @@ def test_build_report_data_adds_run_urls(tmp_path):
 
     assert summary["sched1"]["runUrl"] == "https://cloud.dev-seqera.io/orgs/unified-compute/workspaces/sched-testing/watch/sched1"
     assert summary["batch1"]["runUrl"] == "https://cloud.seqera.io/orgs/scidev/workspaces/testing/watch/batch1"
+    assert summary["nolink1"]["runUrl"] == ""
     assert metrics["sched1"]["runUrl"].endswith("/sched1")
     assert metrics["batch1"]["runUrl"].endswith("/batch1")
+    assert metrics["nolink1"]["runUrl"] == ""
 
 
 def test_scheduler_performance_fields_with_vm(tmp_path):

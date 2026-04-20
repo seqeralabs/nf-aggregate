@@ -16,7 +16,7 @@ process NORMALIZE_BENCHMARK_JSONL {
     def cost_flag = benchmark_aws_cur_report.name != 'NO_FILE' ? "--costs ${benchmark_aws_cur_report}" : ""
     def machines_flag = machines_dir.name != 'NO_FILE' ? "--machines-dir ${machines_dir}" : ""
     """
-    benchmark_report.py normalize-jsonl \\
+    benchmark_report.py \\
         --data-dir ${data_dir} \\
         ${cost_flag} \\
         ${machines_flag} \\

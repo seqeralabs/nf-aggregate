@@ -62,6 +62,11 @@ workflow NF_AGGREGATE {
     //
     if (params.generate_benchmark_report) {
 
+        def benchmark_work_root = file("${workflow.workDir}/nf-agg/${workflow.runName}")
+        benchmark_work_root.mkdirs()
+        def api_json_dir = file(benchmark_work_root.resolve("api-json"))
+        api_json_dir.mkdirs()
+
         // Path A: Fetch run data via API for non-external runs
         ch_api_jsons = ch_api_runs.map { meta ->
             def maxRetries = 3
@@ -85,8 +90,7 @@ workflow NF_AGGREGATE {
                 platform:  meta.platform ?: null,
                 token_env: meta.token_env ?: null,
             ]
-            def tmpDir = java.nio.file.Files.createTempDirectory("nf-agg-run-${meta.id}-")
-            def json_file = file(tmpDir.resolve("${meta.id}.json"))
+            def json_file = file(api_json_dir.resolve("${meta.id}.json"))
             json_file.text = groovy.json.JsonOutput.toJson(data)
             return json_file
         }
@@ -110,7 +114,8 @@ workflow NF_AGGREGATE {
             .mix(ch_external_dir_jsons)
             .collect()
             .map { files ->
-                def dir = file(java.nio.file.Files.createTempDirectory("nf-agg-benchmark-"))
+                def dir = file(benchmark_work_root.resolve("benchmark-data"))
+                if (dir.exists()) dir.deleteDir()
                 dir.mkdirs()
                 files.each { f -> f.copyTo(dir.resolve(f.name)) }
                 return dir
@@ -130,7 +135,8 @@ workflow NF_AGGREGATE {
             .collect()
             .map { files ->
                 if (!files) return file("${projectDir}/assets/NO_FILE")
-                def dir = file(java.nio.file.Files.createTempDirectory("nf-agg-machines-"))
+                def dir = file(benchmark_work_root.resolve("machines"))
+                if (dir.exists()) dir.deleteDir()
                 dir.mkdirs()
                 files.each { f -> f.copyTo(dir.resolve(f.name)) }
                 return dir

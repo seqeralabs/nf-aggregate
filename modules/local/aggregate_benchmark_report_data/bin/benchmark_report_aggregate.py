@@ -111,7 +111,6 @@ def _build_workspace_run_url(
     run_id: str,
     workspace: str | None,
     platform: str | None,
-    group: str | None,
     existing_url: str | None = None,
 ) -> str:
     existing = (existing_url or "").strip()
@@ -119,24 +118,12 @@ def _build_workspace_run_url(
         return existing
 
     workspace_value = (workspace or "").strip()
-    group_value = (group or "").strip().lower()
     platform_value = (platform or "").strip().rstrip("/")
+    if not workspace_value or "/" not in workspace_value or not platform_value:
+        return ""
 
-    if workspace_value and "/" in workspace_value:
-        org_slug, workspace_slug = workspace_value.split("/", 1)
-    elif group_value.startswith("batch"):
-        org_slug, workspace_slug = ("scidev", "testing")
-    else:
-        org_slug, workspace_slug = ("unified-compute", "sched-testing")
-
-    if platform_value:
-        base = platform_value
-    elif (org_slug, workspace_slug) == ("scidev", "testing"):
-        base = "https://cloud.seqera.io"
-    else:
-        base = "https://cloud.dev-seqera.io"
-
-    return f"{base}/orgs/{org_slug}/workspaces/{workspace_slug}/watch/{run_id}"
+    org_slug, workspace_slug = workspace_value.split("/", 1)
+    return f"{platform_value}/orgs/{org_slug}/workspaces/{workspace_slug}/watch/{run_id}"
 
 
 def _load_machines_index(jsonl_dir: Path) -> dict[str, dict[str, Any]]:
@@ -186,7 +173,6 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
                     run_id=run_id,
                     workspace=r.get("workspace"),
                     platform=r.get("platform"),
-                    group=group,
                     existing_url=r.get("run_url"),
                 ),
                 "username": r.get("username"),
@@ -222,7 +208,6 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
                 run_id=run_id,
                 workspace=r.get("workspace"),
                 platform=r.get("platform"),
-                group=group,
                 existing_url=r.get("run_url"),
             ),
             "duration": int(r.get("duration_ms") or 0),

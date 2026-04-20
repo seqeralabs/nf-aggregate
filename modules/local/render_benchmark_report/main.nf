@@ -16,7 +16,7 @@ process RENDER_BENCHMARK_REPORT {
     def brand_flag = brand_yml.name != 'NO_FILE' ? "--brand ${brand_yml}" : ""
     def logo_flag = logo_svg.name != 'NO_FILE' ? "--logo ${logo_svg}" : ""
     """
-    benchmark_report.py render-html \\
+    benchmark_report.py \\
         --data ${report_data_json} \\
         ${brand_flag} \\
         ${logo_flag} \\

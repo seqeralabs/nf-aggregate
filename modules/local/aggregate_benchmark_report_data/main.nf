@@ -12,7 +12,7 @@ process AGGREGATE_BENCHMARK_REPORT_DATA {
 
     script:
     """
-    benchmark_report.py aggregate-report-data \\
+    benchmark_report.py \\
         --jsonl-dir ${jsonl_bundle} \\
         --output report_data.json
 
