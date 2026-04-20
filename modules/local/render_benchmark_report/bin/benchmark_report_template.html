@@ -470,6 +470,13 @@
           &nbsp;&nbsp;&nbsp;&mdash; <em>Packing</em> shrinks the gap between <code>scheduler booked</code> and <code>VM capacity</code>.<br>
           &nbsp;&nbsp;&nbsp;&mdash; <em>Provisioning</em> shrinks <code>VM capacity</code> itself (picking smaller/cheaper instances).
         </p>
+        <p class="section-desc">
+          <strong>Interpretation for runs without a Scheduler compute environment:</strong><br>
+          if a run does not use Scheduler-backed machine telemetry, the report falls back to
+          request-derived booking instead of observed scheduler booking. In that case,
+          <em>Scheduler rightsize will be zero by construction</em>, and the remaining bars are best read as
+          task over-requesting versus VM slack rather than as evidence of scheduler decisions.
+        </p>
       </div>
     </div>
 

@@ -42,6 +42,8 @@ def test_render_html(tmp_path, minimal_report_data):
     assert "How process runtime is measured" in text
     assert "How task timing is measured" in text
     assert "How savings attribution is measured" in text
+    assert "runs without a Scheduler compute environment" in text
+    assert "Scheduler rightsize will be zero by construction" in text
     # VM metric charts
     assert 'id="chart-vm-alloc-cpu"' in text
     assert 'id="chart-vm-alloc-mem"' in text
