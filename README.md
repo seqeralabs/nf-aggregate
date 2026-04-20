@@ -19,7 +19,7 @@ The pipeline fetches run data from the Seqera Platform API and generates benchma
 
 - [Nextflow](https://www.nextflow.io/docs/latest/getstarted.html#installation) >=25.10.0
 - Account in [Seqera Platform](https://seqera.io/platform/)
-- [Access token](https://docs.seqera.io/platform/23.3.0/api/overview#authentication) which is your personal authorization token for the Seqera Platform CLI. This can be created in the user menu under **Your tokens**. Export the token as a shell variable directly into your terminal if running the pipelie locally. You will not need to set this if running the pipeline within the Seqera Platform as it will automatically be inherited from the executing environment.
+- [Access token](https://docs.seqera.io/platform/23.3.0/api/overview#authentication) which is your personal authorization token for the Seqera Platform CLI. This can be created in the user menu under **Your tokens**. Export the token as a shell variable directly into your terminal if running the pipeline locally. You will not need to set this if running the pipeline within the Seqera Platform as it will automatically be inherited from the executing environment.
 
   ```bash
   export TOWER_ACCESS_TOKEN=<your access token>
@@ -46,7 +46,25 @@ nextflow run seqeralabs/nf-aggregate \
     -profile docker
 ```
 
-If you are using a Seqera Platform Enterprise instance that is secured with a private CA SSL certificate not recognized by default Java certificate authorities, you can specify a custom `cacerts` store path through the `--java_truststore_path` parameter and optionally, a password with the `--java_truststore_password`. This certificate will be used to achieve connectivity with your Seqera Platform instance through API and CLI.
+If you are using a Seqera Platform Enterprise instance that is secured with a private CA SSL certificate not recognized by default Java certificate authorities, you can specify a custom `cacerts` store path through the `--java_truststore_path` parameter and optionally, a password with the `--java_truststore_password`. This configures the Nextflow JVM used for Seqera Platform API access (see `lib/SeqeraApi.groovy`).
+
+### Seqera Platform Enterprise with a private CA (containers)
+
+For API access from Nextflow, `--java_truststore_path` / `--java_truststore_password` are usually sufficient. Task containers may still lack your private CA when they open TLS connections. As a workaround, add the following under **Advanced options → Nextflow config** in Seqera Platform (replace `tower-server-url` with your Seqera host name only, without `https://`):
+
+```groovy
+process {
+   withName: /NORMALIZE_BENCHMARK_JSONL|AGGREGATE_BENCHMARK_REPORT_DATA|RENDER_BENCHMARK_REPORT|EXTRACT_TARBALL/ {
+     beforeScript = '''
+keytool -printcert -rfc -sslserver tower-server-url:443 > PRIVATE_CERT.pem
+keytool -importcert -alias seqera-ca -file PRIVATE_CERT.pem -keystore truststore.jks -storepass changeit -noprompt
+export JAVA_TOOL_OPTIONS="-Djavax.net.ssl.trustStore=$(pwd)/truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+'''
+   }
+}
+```
+
+This downloads the server certificate, builds a small JKS truststore in the task work directory, and points the JVM inside the task at it.
 
 ### Benchmark reports
 
