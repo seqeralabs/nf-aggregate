@@ -8,7 +8,7 @@ Owns
 
 - `AGGREGATE_BENCHMARK_REPORT_DATA` in `main.nf`
 - Module-local CLI entrypoint in `bin/benchmark_report.py`
-- Shared aggregation logic in repo-root `bin/benchmark_report_aggregate.py`
+- Module-local aggregation logic in `bin/benchmark_report_aggregate.py`
 - Stage-scoped tests under `tests/`
 
 Run directly

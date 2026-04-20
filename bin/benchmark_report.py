@@ -3,13 +3,36 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
+import sys
 from pathlib import Path
 
 import typer
 
 app = typer.Typer(add_completion=False)
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+MODULE_BIN_DIRS = {
+    "normalize": REPO_ROOT / "modules" / "local" / "normalize_benchmark_jsonl" / "bin",
+    "aggregate": REPO_ROOT / "modules" / "local" / "aggregate_benchmark_report_data" / "bin",
+    "render": REPO_ROOT / "modules" / "local" / "render_benchmark_report" / "bin",
+}
+
+
+def _import_from_module_bin(module_name: str, key: str):
+    module_bin = MODULE_BIN_DIRS[key]
+    if not module_bin.exists():
+        raise RuntimeError(f"Module bin directory not found: {module_bin}")
+    sys.path.insert(0, str(module_bin))
+    try:
+        return importlib.import_module(module_name)
+    finally:
+        try:
+            sys.path.remove(str(module_bin))
+        except ValueError:
+            pass
 
 
 @app.command("normalize-jsonl")
@@ -17,11 +40,17 @@ def normalize_jsonl_cmd(
     data_dir: Path = typer.Option(..., exists=True, help="Directory containing run JSON files"),
     output_dir: Path = typer.Option(Path("jsonl_bundle"), help="Output JSONL bundle directory"),
     costs: Path = typer.Option(None, help="Optional AWS CUR parquet file"),
+    machines_dir: Path = typer.Option(None, help="Optional machine metrics CSV directory"),
 ) -> None:
     """Normalize raw run JSON into runs/tasks/metrics JSONL files."""
-    from benchmark_report_normalize import normalize_jsonl
+    normalize_mod = _import_from_module_bin("benchmark_report_normalize", "normalize")
 
-    normalize_jsonl(data_dir=data_dir, output_dir=output_dir, costs_parquet=costs)
+    normalize_mod.normalize_jsonl(
+        data_dir=data_dir,
+        output_dir=output_dir,
+        costs_parquet=costs,
+        machines_dir=machines_dir,
+    )
 
 
 @app.command("aggregate-report-data")
@@ -30,9 +59,9 @@ def aggregate_report_data_cmd(
     output: Path = typer.Option(Path("report_data.json"), help="Output report_data.json path"),
 ) -> None:
     """Aggregate JSONL bundle into report_data.json."""
-    from benchmark_report_aggregate import aggregate_report_data
+    aggregate_mod = _import_from_module_bin("benchmark_report_aggregate", "aggregate")
 
-    aggregate_report_data(jsonl_dir=jsonl_dir, output=output)
+    aggregate_mod.aggregate_report_data(jsonl_dir=jsonl_dir, output=output)
     typer.echo(f"Report data written to {output}")
 
 
@@ -44,9 +73,9 @@ def render_html_cmd(
     logo: Path = typer.Option(None, help="SVG logo file"),
 ) -> None:
     """Render benchmark HTML from report_data.json."""
-    from benchmark_report_render import render_report_from_json
+    render_mod = _import_from_module_bin("benchmark_report_render", "render")
 
-    render_report_from_json(report_data_path=data, output=output, brand_path=brand, logo_path=logo)
+    render_mod.render_report_from_json(report_data_path=data, output=output, brand_path=brand, logo_path=logo)
     typer.echo(f"Report written to {output}")
 
 
@@ -59,11 +88,11 @@ def report(
     logo: Path = typer.Option(None, help="SVG logo file"),
 ) -> None:
     """Convenience wrapper: aggregate-report-data + render-html."""
-    from benchmark_report_aggregate import aggregate_report_data
-    from benchmark_report_render import render_report_from_json
+    aggregate_mod = _import_from_module_bin("benchmark_report_aggregate", "aggregate")
+    render_mod = _import_from_module_bin("benchmark_report_render", "render")
 
-    aggregate_report_data(jsonl_dir=jsonl_dir, output=data_output)
-    render_report_from_json(report_data_path=data_output, output=output, brand_path=brand, logo_path=logo)
+    aggregate_mod.aggregate_report_data(jsonl_dir=jsonl_dir, output=data_output)
+    render_mod.render_report_from_json(report_data_path=data_output, output=output, brand_path=brand, logo_path=logo)
     typer.echo(f"Report written to {output}")
 
 

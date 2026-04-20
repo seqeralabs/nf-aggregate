@@ -8,22 +8,9 @@ This module-local entrypoint is the actual stage CLI used by
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
-
-def _add_repo_bin_to_path() -> None:
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "bin" / "benchmark_report_normalize.py"
-        if candidate.exists():
-            sys.path.insert(0, str(parent / "bin"))
-            return
-    raise RuntimeError("Unable to locate the repository root for benchmark report helpers")
-
-
-_add_repo_bin_to_path()
-
-from benchmark_report_normalize import normalize_jsonl  # noqa: E402
+from benchmark_report_normalize import normalize_jsonl
 
 
 def _build_parser() -> argparse.ArgumentParser:

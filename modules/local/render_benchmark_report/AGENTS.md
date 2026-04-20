@@ -8,7 +8,7 @@ Owns
 
 - `RENDER_BENCHMARK_REPORT` in `main.nf`
 - Module-local CLI entrypoint in `bin/benchmark_report.py`
-- Shared render logic in repo-root `bin/benchmark_report_render.py`
+- Module-local render logic in `bin/benchmark_report_render.py`
 - Stage-scoped tests under `tests/`
 
 Run directly
