@@ -34,11 +34,14 @@ def test_render_html(tmp_path, minimal_report_data):
     assert "Trace efficiency (task)" in text
     assert "Sched allocation (VM)" in text
     assert "Real VM efficiency (VM)" in text
-    assert "three utilization metric families" in text
+    assert "How to interpret utilization metrics" in text
     assert "Total Trace CPU Time (Task)" in text
     assert "Total VM CPU Time" in text
     assert "schedAllocCpuEfficiency" in text
     assert "realVmCpuEfficiency" in text
+    assert "How process runtime is measured" in text
+    assert "How task timing is measured" in text
+    assert "How savings attribution is measured" in text
     # VM metric charts
     assert 'id="chart-vm-alloc-cpu"' in text
     assert 'id="chart-vm-alloc-mem"' in text

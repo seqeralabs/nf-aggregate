@@ -277,12 +277,18 @@
     </div>
 
     <h2 id="methodology"><svg class="h-icon sm"><use href="#ic-table"/></svg> Methodology &mdash; what each utilization metric means</h2>
-    <p class="section-desc">
-      The report exposes <strong>three utilization metric families</strong>. They sound similar
-      but measure very different things, and in practice they disagree by 2&ndash;5&times;.
-      Read this before comparing rows in the run-metrics table above.
-    </p>
-    <table class="info-table" id="methodology-table">
+    <p class="section-desc">Reference definitions for utilization metrics and CPU-time accounting.</p>
+    <div class="callout">
+      <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+        &#9432; How to interpret utilization metrics
+      </div>
+      <div class="callout-body" style="overflow-x:auto">
+        <p class="section-desc">
+          The report exposes <strong>three utilization metric families</strong>. They sound similar
+          but measure very different things, and in practice they disagree by 2&ndash;5&times;.
+          Read this before comparing rows in the run-metrics table above.
+        </p>
+        <table class="info-table" id="methodology-table">
       <thead>
         <tr>
           <th style="width:22%">Metric</th>
@@ -339,102 +345,133 @@
         </tr>
       </tbody>
     </table>
-    <p class="section-desc" style="margin-top:8px">
-      <strong>How to read them:</strong>
-      <em>Trace efficiency</em> tells you whether users are requesting too much CPU/memory per task.
-      <em>Sched allocation</em> tells you how well the scheduler packs and reuses VMs.
-      <em>Real VM efficiency</em> is the end-to-end ground truth: what fraction of the VM-hours
-      you paid for were actually spent doing work. Trace efficiency &times; Sched allocation
-      &asymp; Real VM efficiency (modulo time-weighting).
-    </p>
-    <p class="section-desc">
-      VM-level metrics require a <code>machines.jsonl</code> in the JSONL bundle.
-      Runs without machine data show &mdash; for those columns.
-    </p>
-    <p class="section-desc" style="margin-top:8px">
-      <strong>CPU time columns in the run table:</strong>
-      <em>Total Trace CPU Time (Task)</em> is &Sigma;<sub>tasks</sub>(cpus<sub>req</sub> &middot; realtime), so it reflects
-      what tasks asked for, not what they actually used.
-      <em>Total VM CPU Time</em> is &Sigma;<sub>VMs</sub>(vCPU &middot; lifetime), the capacity you paid for.
-      Those two can be close while Trace CPU efficiency stays low, because Trace CPU efficiency compares
-      <em>used</em> CPU against <em>requested</em> CPU, not requested CPU against VM capacity.
-    </p>
+        <p class="section-desc" style="margin-top:8px">
+          <strong>How to read them:</strong>
+          <em>Trace efficiency</em> tells you whether users are requesting too much CPU/memory per task.
+          <em>Sched allocation</em> tells you how well the scheduler packs and reuses VMs.
+          <em>Real VM efficiency</em> is the end-to-end ground truth: what fraction of the VM-hours
+          you paid for were actually spent doing work. Trace efficiency &times; Sched allocation
+          &asymp; Real VM efficiency (modulo time-weighting).
+        </p>
+        <p class="section-desc">
+          VM-level metrics require a <code>machines.jsonl</code> in the JSONL bundle.
+          Runs without machine data show &mdash; for those columns.
+        </p>
+        <p class="section-desc" style="margin-top:8px">
+          <strong>CPU time columns in the run table:</strong>
+          <em>Total Trace CPU Time (Task)</em> is &Sigma;<sub>tasks</sub>(cpus<sub>req</sub> &middot; realtime), so it reflects
+          what tasks asked for, not what they actually used.
+          <em>Total VM CPU Time</em> is &Sigma;<sub>VMs</sub>(vCPU &middot; lifetime), the capacity you paid for.
+          Those two can be close while Trace CPU efficiency stays low, because Trace CPU efficiency compares
+          <em>used</em> CPU against <em>requested</em> CPU, not requested CPU against VM capacity.
+        </p>
+      </div>
+    </div>
   </div>
 
   <!-- 3. Process overview -->
   <div class="section" id="process-overview">
     <h1><svg class="h-icon"><use href="#ic-process"/></svg> Process overview</h1>
-    <p class="section-desc">
-      <strong>Summary</strong><br>
-      This section provides a comparison of the process-level metrics for each pipeline
-      across the groups. The plots show the run time distribution per process.
-      Dots represent mean values per process across all tasks.
-      Error bars indicate mean &plusmn; 1 standard deviation.
-      A single point indicates that a single task was executed for the process.
-    </p>
-    <p class="section-desc">
-      <strong>Run time</strong> = Staging time + real time
-    </p>
+    <p class="section-desc">Compare process-level runtime distributions across the included groups.</p>
+    <div class="callout">
+      <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+        &#9432; How process runtime is measured
+      </div>
+      <div class="callout-body">
+        <p class="section-desc">
+          <strong>Summary</strong><br>
+          This section provides a comparison of the process-level metrics for each pipeline
+          across the groups. The plots show the run time distribution per process.
+          Dots represent mean values per process across all tasks.
+          Error bars indicate mean &plusmn; 1 standard deviation.
+          A single point indicates that a single task was executed for the process.
+        </p>
+        <p class="section-desc">
+          <strong>Run time</strong> = Staging time + real time
+        </p>
+      </div>
+    </div>
     <div id="process-sections"></div>
   </div>
 
   <!-- 4. Combined task runtime -->
   <div class="section" id="combined-task-runtime">
     <h1><svg class="h-icon"><use href="#ic-chart"/></svg> Combined task runtime</h1>
-    <p class="section-desc">
-      <strong>Summary</strong><br>
-      Combined task duration by process, split per pipeline and group. Includes scheduling overhead (submit to start).
-    </p>
+    <p class="section-desc">Combined task duration by process, split per pipeline and group.</p>
+    <div class="callout">
+      <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+        &#9432; What is included in combined task runtime
+      </div>
+      <div class="callout-body">
+        <p class="section-desc">
+          <strong>Summary</strong><br>
+          Combined task duration by process, split per pipeline and group. Includes scheduling overhead (submit to start).
+        </p>
+      </div>
+    </div>
     <div id="combined-runtime-panels" class="runtime-panels"></div>
   </div>
 
   <!-- 5. Task overview -->
   <div class="section" id="task-overview">
     <h1><svg class="h-icon"><use href="#ic-task"/></svg> Task overview</h1>
-    <p class="section-desc">
-      <strong>Summary</strong><br>
-      This section provides an overview of task-level metrics for instance usage and runtime metrics.
-    </p>
+    <p class="section-desc">Overview of task-level instance usage and runtime distributions.</p>
 
     <h2 id="task-instance-usage"><svg class="h-icon sm"><use href="#ic-instance"/></svg> Task instance usage</h2>
     <p class="section-desc">Number of tasks per instance type, grouped by pipeline run group.</p>
     <div class="chart" id="chart-instance-usage" style="height:500px"></div>
 
     <h2 id="task-metrics"><svg class="h-icon sm"><use href="#ic-scatter"/></svg> Task metrics</h2>
-    <p class="section-desc">
-      This section provides a comparison between staging and run times for tasks.<br>
-      <strong>Wait time</strong>: time from submission to task start.<br>
-      <strong>Staging time</strong>: time to stage/unstage before and after execution.<br>
-      <strong>Real time</strong>: time to execute the task.
-    </p>
+    <p class="section-desc">Compare wait, staging, and real-time distributions for tasks.</p>
+    <div class="callout">
+      <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+        &#9432; How task timing is measured
+      </div>
+      <div class="callout-body">
+        <p class="section-desc">
+          This section provides a comparison between staging and run times for tasks.<br>
+          <strong>Wait time</strong>: time from submission to task start.<br>
+          <strong>Staging time</strong>: time to stage/unstage before and after execution.<br>
+          <strong>Real time</strong>: time to execute the task.
+        </p>
+      </div>
+    </div>
     <div id="task-sections"></div>
   </div>
 
   <!-- 6. Performance gains -->
   <div class="section" id="performance-gains">
     <h1><svg class="h-icon"><use href="#ic-benchmark"/></svg> Performance gains</h1>
-    <p class="section-desc">
-      <strong>Summary</strong><br>
-      Decomposes the VM capacity-hours you paid for into <em>used</em> vs <em>wasted</em>,
-      and attributes the waste to the three responsibilities the Seqera scheduler
-      owns: <strong>VM provisioning</strong> (choosing instance types), <strong>packing</strong>
-      (which task on which VM and when), and <strong>task rightsizing</strong>
-      (trimming user-requested CPU/Memory before submitting to ECS, when prediction
-      is enabled).
-    </p>
-    <p class="section-desc">
-      <strong>Four quantities, per run</strong><br>
-      <em>VM capacity</em>: &Sigma;<sub>VMs</sub>&nbsp;(vCPU &middot; lifetime). What you paid for.<br>
-      <em>User requested</em>: &Sigma;<sub>tasks</sub>&nbsp;(cpus<sub>config</sub> &middot; realtime). Nextflow-directive request per task &times; active time.<br>
-      <em>Scheduler booked</em>: schedAllocCpuEfficiency &middot; VM capacity. What actually went to ECS as <code>cpuShares</code>.<br>
-      <em>Used</em>: &Sigma;<sub>tasks</sub>&nbsp;(pcpu/100 &middot; realtime). Actual work done.
-    </p>
-    <p class="section-desc">
-      <strong>How the scheduler's three jobs show up</strong><br>
-      &nbsp;&nbsp;&nbsp;&mdash; <em>Rightsizing</em> shrinks <code>scheduler booked</code> below <code>user requested</code>.<br>
-      &nbsp;&nbsp;&nbsp;&mdash; <em>Packing</em> shrinks the gap between <code>scheduler booked</code> and <code>VM capacity</code>.<br>
-      &nbsp;&nbsp;&nbsp;&mdash; <em>Provisioning</em> shrinks <code>VM capacity</code> itself (picking smaller/cheaper instances).
-    </p>
+    <p class="section-desc">Capacity mix and savings attribution across CPU and memory.</p>
+    <div class="callout">
+      <div class="callout-header" onclick="this.nextElementSibling.classList.toggle('show')">
+        &#9432; How savings attribution is measured
+      </div>
+      <div class="callout-body">
+        <p class="section-desc">
+          <strong>Summary</strong><br>
+          Decomposes the VM capacity-hours you paid for into <em>used</em> vs <em>wasted</em>,
+          and attributes the waste to the three responsibilities the Seqera scheduler
+          owns: <strong>VM provisioning</strong> (choosing instance types), <strong>packing</strong>
+          (which task on which VM and when), and <strong>task rightsizing</strong>
+          (trimming user-requested CPU/Memory before submitting to ECS, when prediction
+          is enabled).
+        </p>
+        <p class="section-desc">
+          <strong>Four quantities, per run</strong><br>
+          <em>VM capacity</em>: &Sigma;<sub>VMs</sub>&nbsp;(vCPU &middot; lifetime). What you paid for.<br>
+          <em>User requested</em>: &Sigma;<sub>tasks</sub>&nbsp;(cpus<sub>config</sub> &middot; realtime). Nextflow-directive request per task &times; active time.<br>
+          <em>Scheduler booked</em>: schedAllocCpuEfficiency &middot; VM capacity. What actually went to ECS as <code>cpuShares</code>.<br>
+          <em>Used</em>: &Sigma;<sub>tasks</sub>&nbsp;(pcpu/100 &middot; realtime). Actual work done.
+        </p>
+        <p class="section-desc">
+          <strong>How the scheduler's three jobs show up</strong><br>
+          &nbsp;&nbsp;&nbsp;&mdash; <em>Rightsizing</em> shrinks <code>scheduler booked</code> below <code>user requested</code>.<br>
+          &nbsp;&nbsp;&nbsp;&mdash; <em>Packing</em> shrinks the gap between <code>scheduler booked</code> and <code>VM capacity</code>.<br>
+          &nbsp;&nbsp;&nbsp;&mdash; <em>Provisioning</em> shrinks <code>VM capacity</code> itself (picking smaller/cheaper instances).
+        </p>
+      </div>
+    </div>
 
     <h2 id="pg-cpu-mix"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Capacity mix (CPU)</h2>
     <p class="section-desc">Each bar spans the total VM vCPU-hours paid for. Segments show how those hours were spent.</p>
