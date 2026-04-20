@@ -7,5 +7,7 @@ testing/
 testing*
 *.pyc
 bin/
-# Large single-line fixture JSON (Prettier would expand to thousands of lines)
-workflows/nf_aggregate/assets/log_dirs/**/*.json
+**/AGENTS.md
+docs/DESIGN.md
+renovate.json
+workflows/nf_aggregate/assets/log_dirs/

@@ -14,8 +14,8 @@
 */
 
 include { NF_AGGREGATE } from './workflows/nf_aggregate'
-include { checkCondaChannels ; dumpParametersToJSON ; getWorkflowVersion } from 'plugin/nf-core-utils'
-include { paramsSummaryLog ; samplesheetToList ; validateParameters } from 'plugin/nf-schema'
+include { checkCondaChannels; dumpParametersToJSON; getWorkflowVersion } from 'plugin/nf-core-utils'
+include { paramsSummaryLog; samplesheetToList; validateParameters } from 'plugin/nf-schema'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
