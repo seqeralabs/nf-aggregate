@@ -61,6 +61,8 @@ uv run --with typer --with pyyaml \
 - `report_data.json` is the explicit boundary between aggregation and rendering
 - `commit.gpgsign` must be true (SSH signing via 1Password)
 - RTK `buildOutputFiltering` / `testOutputAggregation` can swallow nf-test output — disable to debug
+- **Nextflow `include` statements in `main.nf` must be single-line.** `adamrtalbot/detect-nf-test-changes@v0.0.3` (used by CI) parses include lines and crashes on multi-line blocks. Write `include { A ; B ; C } from '...'` not multi-line blocks.
+- **No `.nf-core.yml` in this repo.** The nf-core pipelines lint CI job has been removed because it depends on `.nf-core.yml` which was dropped. Do not re-add the `nf-core` job to `.github/workflows/linting.yml` without also restoring `.nf-core.yml`.
 
 ## Cursor Cloud specific instructions
 
