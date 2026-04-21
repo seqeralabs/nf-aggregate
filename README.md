@@ -103,7 +103,6 @@ nextflow run seqeralabs/nf-aggregate \
 The benchmark report can be generated without cost data - simply omit the `--benchmark_aws_cur_report` parameter if cost analysis is not needed.
 
 For a checked-in real-world example that exercises external run JSON directories plus a tiny filtered cost parquet, see:
-
 - `workflows/nf_aggregate/assets/test_benchmark_realworld_costs.csv`
 - `workflows/nf_aggregate/assets/realworld_log_dirs/`
 - `workflows/nf_aggregate/assets/test_benchmark_realworld_costs.parquet`
