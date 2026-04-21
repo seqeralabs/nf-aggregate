@@ -1,292 +1,380 @@
 {
-  "benchmark_overview": [
-    {
-      "pipeline": "nf-core/rnaseq",
-      "group": "Batch-OnD",
-      "run_id": "5UVluQqRJksADq",
-      "status": "SUCCEEDED",
-      "status_label": "Succeeded",
-      "status_category": "success",
-      "report_included": true
-    },
-    {
-      "pipeline": "nf-core/rnaseq",
-      "group": "Sched-SpotFirst-Predv1",
-      "run_id": "3TOIc7mG6Qw2K9",
-      "status": "SUCCEEDED",
-      "status_label": "Succeeded",
-      "status_category": "success",
-      "report_included": true
-    }
-  ],
-  "run_summary": [
-    {
-      "pipeline": "nf-core/rnaseq",
-      "group": "Batch-OnD",
-      "run_id": "5UVluQqRJksADq",
-      "workspace": "scidev/testing",
-      "runUrl": "https://cloud.seqera.io/orgs/scidev/workspaces/testing/watch/5UVluQqRJksADq",
-      "username": "edmund-miller",
-      "status": "SUCCEEDED",
-      "status_label": "Succeeded",
-      "status_category": "success",
-      "report_included": true,
-      "Version": "3.23.0^2~21",
-      "Nextflow_version": "25.10.4",
-      "platform_version": "25.1.0",
-      "succeedCount": 303,
-      "failedCount": 4,
-      "cachedCount": 0,
-      "executor": "awsbatch",
-      "region": "eu-west-1",
-      "fusion_enabled": true,
-      "wave_enabled": true
-    },
-    {
-      "pipeline": "nf-core/rnaseq",
-      "group": "Sched-SpotFirst-Predv1",
-      "run_id": "3TOIc7mG6Qw2K9",
-      "workspace": "unified-compute/sched-testing",
-      "runUrl": "https://cloud.dev-seqera.io/orgs/unified-compute/workspaces/sched-testing/watch/3TOIc7mG6Qw2K9",
-      "username": "edmund-miller",
-      "status": "SUCCEEDED",
-      "status_label": "Succeeded",
-      "status_category": "success",
-      "report_included": true,
-      "Version": "3.23.0dev",
-      "Nextflow_version": "26.03.0-edge",
-      "platform_version": "25.1.0",
-      "succeedCount": 303,
-      "failedCount": 0,
-      "cachedCount": 0,
-      "executor": "awsbatch",
-      "region": "eu-west-1",
-      "fusion_enabled": true,
-      "wave_enabled": true
-    }
-  ],
-  "run_metrics": [
-    {
-      "pipeline": "nf-core/rnaseq",
-      "group": "Batch-OnD",
-      "run_id": "5UVluQqRJksADq",
-      "workspace": "scidev/testing",
-      "runUrl": "https://cloud.seqera.io/orgs/scidev/workspaces/testing/watch/5UVluQqRJksADq",
-      "duration": 23650202,
-      "cpuTime": 350.1,
-      "pipeline_runtime": 1260222572,
-      "cpuEfficiency": 42,
-      "memoryEfficiency": 14.61,
-      "readBytes": 8577,
-      "writeBytes": 4368,
-      "nMachines": 6,
-      "vmCpuH": 36.0,
-      "vmMemGibH": 144.0,
-      "requestedCpuH": 24.0,
-      "requestedMemGibH": 96.0,
-      "requestedVmCpuEfficiency": 66.67,
-      "requestedVmMemEfficiency": 66.67,
-      "schedAllocCpuEfficiency": 66.67,
-      "schedAllocMemEfficiency": 66.67,
-      "schedulerBookedCpuH": 24.0,
-      "schedulerBookedMemGibH": 96.0,
-      "schedulerRightsizedCpuH": 0.0,
-      "schedulerRightsizedMemGibH": 0.0,
-      "schedulerOverbookCpuH": 6.0,
-      "schedulerOverbookMemGibH": 24.0,
-      "vmPackingSlackCpuH": 12.0,
-      "vmPackingSlackMemGibH": 48.0,
-      "realCpuH": 18.0,
-      "realMemGibH": 72.0,
-      "realVmCpuEfficiency": 50.0,
-      "realVmMemEfficiency": 50.0
-    },
-    {
-      "pipeline": "nf-core/rnaseq",
-      "group": "Sched-SpotFirst-Predv1",
-      "run_id": "3TOIc7mG6Qw2K9",
-      "workspace": "unified-compute/sched-testing",
-      "runUrl": "https://cloud.dev-seqera.io/orgs/unified-compute/workspaces/sched-testing/watch/3TOIc7mG6Qw2K9",
-      "duration": 42850555,
-      "cpuTime": 621.6,
-      "pipeline_runtime": 2237894093,
-      "cpuEfficiency": 40,
-      "memoryEfficiency": 14.94,
-      "readBytes": 8414,
-      "writeBytes": 4219,
-      "nMachines": 4,
-      "vmCpuH": 24.0,
-      "vmMemGibH": 96.0,
-      "requestedCpuH": 22.0,
-      "requestedMemGibH": 84.0,
-      "requestedVmCpuEfficiency": 91.67,
-      "requestedVmMemEfficiency": 87.5,
-      "schedAllocCpuEfficiency": 75.0,
-      "schedAllocMemEfficiency": 75.0,
-      "schedulerBookedCpuH": 18.0,
-      "schedulerBookedMemGibH": 72.0,
-      "schedulerRightsizedCpuH": 4.0,
-      "schedulerRightsizedMemGibH": 12.0,
-      "schedulerOverbookCpuH": 4.0,
-      "schedulerOverbookMemGibH": 16.0,
-      "vmPackingSlackCpuH": 6.0,
-      "vmPackingSlackMemGibH": 24.0,
-      "realCpuH": 14.0,
-      "realMemGibH": 56.0,
-      "realVmCpuEfficiency": 58.33,
-      "realVmMemEfficiency": 58.33
-    }
-  ],
-  "run_costs": [
-    {
-      "group": "Batch-OnD",
-      "run_id": "5UVluQqRJksADq",
-      "cost": 41.7,
-      "used_cost": 38.9,
-      "unused_cost": 2.8
-    },
-    {
-      "group": "Sched-SpotFirst-Predv1",
-      "run_id": "3TOIc7mG6Qw2K9",
-      "cost": 33.4,
-      "used_cost": 31.9,
-      "unused_cost": 1.5
-    }
-  ],
-  "process_stats": [
-    {
-      "group": "Batch-OnD",
-      "process_name": "NFCORE_RNASEQ:FASTQC",
-      "process_short": "FASTQC",
-      "n_tasks": 2,
-      "avg_runtime_min": 34.2,
-      "sd_runtime_min": 4.8,
-      "total_cost": 1.24
-    },
-    {
-      "group": "Sched-SpotFirst-Predv1",
-      "process_name": "NFCORE_RNASEQ:FASTQC",
-      "process_short": "FASTQC",
-      "n_tasks": 2,
-      "avg_runtime_min": 28.7,
-      "sd_runtime_min": 3.6,
-      "total_cost": 0.98
-    },
-    {
-      "group": "Batch-OnD",
-      "process_name": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES",
-      "process_short": "STAR_ALIGN_IGENOMES",
-      "n_tasks": 2,
-      "avg_runtime_min": 115.3,
-      "sd_runtime_min": 12.1,
-      "total_cost": 8.43
-    },
-    {
-      "group": "Sched-SpotFirst-Predv1",
-      "process_name": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES",
-      "process_short": "STAR_ALIGN_IGENOMES",
-      "n_tasks": 2,
-      "avg_runtime_min": 103.4,
-      "sd_runtime_min": 9.7,
-      "total_cost": 7.61
-    }
-  ],
-  "combined_task_runtime": [
-    {
-      "pipeline": "nf-core/rnaseq",
-      "group": "Batch-OnD",
-      "panel_id": "nf-core/rnaseq::Batch-OnD",
-      "total_runtime_ms": 4800000,
-      "scheduling_runtime_ms": 540000,
-      "total_duration_ms": 5340000,
-      "total_tasks": 4,
-      "unique_processes": 2,
-      "segments": [
-        {"process": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES", "runtime_ms": 3000000, "pct": 62.5, "highlight": false},
-        {"process": "NFCORE_RNASEQ:FASTQC", "runtime_ms": 1800000, "pct": 37.5, "highlight": true}
-      ],
-      "legend": [
-        {"process": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES", "runtime_ms": 3000000, "pct": 62.5, "highlight": false},
-        {"process": "NFCORE_RNASEQ:FASTQC", "runtime_ms": 1800000, "pct": 37.5, "highlight": true}
-      ],
-      "highlight_totals": {"qc_runtime_ms": 1800000, "other_runtime_ms": 3000000}
-    },
-    {
-      "pipeline": "nf-core/rnaseq",
-      "group": "Sched-SpotFirst-Predv1",
-      "panel_id": "nf-core/rnaseq::Sched-SpotFirst-Predv1",
-      "total_runtime_ms": 4200000,
-      "scheduling_runtime_ms": 360000,
-      "total_duration_ms": 4560000,
-      "total_tasks": 4,
-      "unique_processes": 2,
-      "segments": [
-        {"process": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES", "runtime_ms": 2760000, "pct": 65.71, "highlight": false},
-        {"process": "NFCORE_RNASEQ:FASTQC", "runtime_ms": 1440000, "pct": 34.29, "highlight": true}
-      ],
-      "legend": [
-        {"process": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES", "runtime_ms": 2760000, "pct": 65.71, "highlight": false},
-        {"process": "NFCORE_RNASEQ:FASTQC", "runtime_ms": 1440000, "pct": 34.29, "highlight": true}
-      ],
-      "highlight_totals": {"qc_runtime_ms": 1440000, "other_runtime_ms": 2760000}
-    }
-  ],
-  "task_instance_usage": [
-    {"group": "Batch-OnD", "machine_type": "c6id.8xlarge", "count": 2},
-    {"group": "Batch-OnD", "machine_type": "m6id.4xlarge", "count": 2},
-    {"group": "Sched-SpotFirst-Predv1", "machine_type": "m7i.4xlarge", "count": 3},
-    {"group": "Sched-SpotFirst-Predv1", "machine_type": "r7i.4xlarge", "count": 1}
-  ],
-  "task_table": [
-    {
-      "Group": "Batch-OnD",
-      "Run ID": "5UVluQqRJksADq",
-      "Taskhash": "ab/cd1234",
-      "Task name short": "FASTQC",
-      "Executor": "awsbatch",
-      "Cloudzone": "eu-west-1a",
-      "Instance type": "c6id.8xlarge",
-      "Realtime_min": 32.5,
-      "Cost": 0.42,
-      "CPUused": 4,
-      "Memoryused_GB": 8.0,
-      "Pcpu": 188.4,
-      "Pmem": 61.2,
-      "Readbytes": 1200000000,
-      "Writebytes": 250000000,
-      "Task name": "NFCORE_RNASEQ:FASTQC (sampleA)",
-      "Status": "COMPLETED"
-    },
-    {
-      "Group": "Sched-SpotFirst-Predv1",
-      "Run ID": "3TOIc7mG6Qw2K9",
-      "Taskhash": "ef/gh5678",
-      "Task name short": "FASTQC",
-      "Executor": "awsbatch",
-      "Cloudzone": "eu-west-1b",
-      "Instance type": "m7i.4xlarge",
-      "Realtime_min": 27.8,
-      "Cost": 0.31,
-      "CPUused": 4,
-      "Memoryused_GB": 8.0,
-      "Pcpu": 176.9,
-      "Pmem": 58.4,
-      "Readbytes": 1100000000,
-      "Writebytes": 210000000,
-      "Task name": "NFCORE_RNASEQ:FASTQC (sampleA)",
-      "Status": "COMPLETED"
-    }
-  ],
-  "task_scatter": [
-    {"run_id": "5UVluQqRJksADq", "group": "Batch-OnD", "process_short": "FASTQC", "name": "NFCORE_RNASEQ:FASTQC", "realtime_min": 32.5, "staging_min": 4.5, "cost": 0.42, "cpus": 4, "memory_gb": 8.0},
-    {"run_id": "5UVluQqRJksADq", "group": "Batch-OnD", "process_short": "STAR_ALIGN_IGENOMES", "name": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES", "realtime_min": 118.6, "staging_min": 11.2, "cost": 4.21, "cpus": 16, "memory_gb": 64.0},
-    {"run_id": "3TOIc7mG6Qw2K9", "group": "Sched-SpotFirst-Predv1", "process_short": "FASTQC", "name": "NFCORE_RNASEQ:FASTQC", "realtime_min": 27.8, "staging_min": 3.7, "cost": 0.31, "cpus": 4, "memory_gb": 8.0},
-    {"run_id": "3TOIc7mG6Qw2K9", "group": "Sched-SpotFirst-Predv1", "process_short": "STAR_ALIGN_IGENOMES", "name": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES", "realtime_min": 101.4, "staging_min": 8.9, "cost": 3.78, "cpus": 16, "memory_gb": 64.0}
-  ],
-  "cost_overview": [
-    {"group": "Batch-OnD", "process_short": "FASTQC", "total_cost": 1.24, "used_cost": 1.13, "unused_cost": 0.11, "n_tasks": 2},
-    {"group": "Batch-OnD", "process_short": "STAR_ALIGN_IGENOMES", "total_cost": 8.43, "used_cost": 7.84, "unused_cost": 0.59, "n_tasks": 2},
-    {"group": "Sched-SpotFirst-Predv1", "process_short": "FASTQC", "total_cost": 0.98, "used_cost": 0.91, "unused_cost": 0.07, "n_tasks": 2},
-    {"group": "Sched-SpotFirst-Predv1", "process_short": "STAR_ALIGN_IGENOMES", "total_cost": 7.61, "used_cost": 7.1, "unused_cost": 0.51, "n_tasks": 2}
-  ]
+    "benchmark_overview": [
+        {
+            "pipeline": "nf-core/rnaseq",
+            "group": "Batch-OnD",
+            "run_id": "5UVluQqRJksADq",
+            "status": "SUCCEEDED",
+            "status_label": "Succeeded",
+            "status_category": "success",
+            "report_included": true
+        },
+        {
+            "pipeline": "nf-core/rnaseq",
+            "group": "Sched-SpotFirst-Predv1",
+            "run_id": "3TOIc7mG6Qw2K9",
+            "status": "SUCCEEDED",
+            "status_label": "Succeeded",
+            "status_category": "success",
+            "report_included": true
+        }
+    ],
+    "run_summary": [
+        {
+            "pipeline": "nf-core/rnaseq",
+            "group": "Batch-OnD",
+            "run_id": "5UVluQqRJksADq",
+            "workspace": "scidev/testing",
+            "runUrl": "https://cloud.seqera.io/orgs/scidev/workspaces/testing/watch/5UVluQqRJksADq",
+            "username": "edmund-miller",
+            "status": "SUCCEEDED",
+            "status_label": "Succeeded",
+            "status_category": "success",
+            "report_included": true,
+            "Version": "3.23.0^2~21",
+            "Nextflow_version": "25.10.4",
+            "platform_version": "25.1.0",
+            "succeedCount": 303,
+            "failedCount": 4,
+            "cachedCount": 0,
+            "executor": "awsbatch",
+            "region": "eu-west-1",
+            "fusion_enabled": true,
+            "wave_enabled": true
+        },
+        {
+            "pipeline": "nf-core/rnaseq",
+            "group": "Sched-SpotFirst-Predv1",
+            "run_id": "3TOIc7mG6Qw2K9",
+            "workspace": "unified-compute/sched-testing",
+            "runUrl": "https://cloud.dev-seqera.io/orgs/unified-compute/workspaces/sched-testing/watch/3TOIc7mG6Qw2K9",
+            "username": "edmund-miller",
+            "status": "SUCCEEDED",
+            "status_label": "Succeeded",
+            "status_category": "success",
+            "report_included": true,
+            "Version": "3.23.0dev",
+            "Nextflow_version": "26.03.0-edge",
+            "platform_version": "25.1.0",
+            "succeedCount": 303,
+            "failedCount": 0,
+            "cachedCount": 0,
+            "executor": "awsbatch",
+            "region": "eu-west-1",
+            "fusion_enabled": true,
+            "wave_enabled": true
+        }
+    ],
+    "run_metrics": [
+        {
+            "pipeline": "nf-core/rnaseq",
+            "group": "Batch-OnD",
+            "run_id": "5UVluQqRJksADq",
+            "workspace": "scidev/testing",
+            "runUrl": "https://cloud.seqera.io/orgs/scidev/workspaces/testing/watch/5UVluQqRJksADq",
+            "duration": 23650202,
+            "cpuTime": 350.1,
+            "pipeline_runtime": 1260222572,
+            "cpuEfficiency": 42,
+            "memoryEfficiency": 14.61,
+            "readBytes": 8577,
+            "writeBytes": 4368,
+            "nMachines": 6,
+            "vmCpuH": 36.0,
+            "vmMemGibH": 144.0,
+            "requestedCpuH": 24.0,
+            "requestedMemGibH": 96.0,
+            "requestedVmCpuEfficiency": 66.67,
+            "requestedVmMemEfficiency": 66.67,
+            "schedAllocCpuEfficiency": 66.67,
+            "schedAllocMemEfficiency": 66.67,
+            "schedulerBookedCpuH": 24.0,
+            "schedulerBookedMemGibH": 96.0,
+            "schedulerRightsizedCpuH": 0.0,
+            "schedulerRightsizedMemGibH": 0.0,
+            "schedulerOverbookCpuH": 6.0,
+            "schedulerOverbookMemGibH": 24.0,
+            "vmPackingSlackCpuH": 12.0,
+            "vmPackingSlackMemGibH": 48.0,
+            "realCpuH": 18.0,
+            "realMemGibH": 72.0,
+            "realVmCpuEfficiency": 50.0,
+            "realVmMemEfficiency": 50.0
+        },
+        {
+            "pipeline": "nf-core/rnaseq",
+            "group": "Sched-SpotFirst-Predv1",
+            "run_id": "3TOIc7mG6Qw2K9",
+            "workspace": "unified-compute/sched-testing",
+            "runUrl": "https://cloud.dev-seqera.io/orgs/unified-compute/workspaces/sched-testing/watch/3TOIc7mG6Qw2K9",
+            "duration": 42850555,
+            "cpuTime": 621.6,
+            "pipeline_runtime": 2237894093,
+            "cpuEfficiency": 40,
+            "memoryEfficiency": 14.94,
+            "readBytes": 8414,
+            "writeBytes": 4219,
+            "nMachines": 4,
+            "vmCpuH": 24.0,
+            "vmMemGibH": 96.0,
+            "requestedCpuH": 22.0,
+            "requestedMemGibH": 84.0,
+            "requestedVmCpuEfficiency": 91.67,
+            "requestedVmMemEfficiency": 87.5,
+            "schedAllocCpuEfficiency": 75.0,
+            "schedAllocMemEfficiency": 75.0,
+            "schedulerBookedCpuH": 18.0,
+            "schedulerBookedMemGibH": 72.0,
+            "schedulerRightsizedCpuH": 4.0,
+            "schedulerRightsizedMemGibH": 12.0,
+            "schedulerOverbookCpuH": 4.0,
+            "schedulerOverbookMemGibH": 16.0,
+            "vmPackingSlackCpuH": 6.0,
+            "vmPackingSlackMemGibH": 24.0,
+            "realCpuH": 14.0,
+            "realMemGibH": 56.0,
+            "realVmCpuEfficiency": 58.33,
+            "realVmMemEfficiency": 58.33
+        }
+    ],
+    "run_costs": [
+        {
+            "group": "Batch-OnD",
+            "run_id": "5UVluQqRJksADq",
+            "cost": 41.7,
+            "used_cost": 38.9,
+            "unused_cost": 2.8
+        },
+        {
+            "group": "Sched-SpotFirst-Predv1",
+            "run_id": "3TOIc7mG6Qw2K9",
+            "cost": 33.4,
+            "used_cost": 31.9,
+            "unused_cost": 1.5
+        }
+    ],
+    "process_stats": [
+        {
+            "group": "Batch-OnD",
+            "process_name": "NFCORE_RNASEQ:FASTQC",
+            "process_short": "FASTQC",
+            "n_tasks": 2,
+            "avg_runtime_min": 34.2,
+            "sd_runtime_min": 4.8,
+            "total_cost": 1.24
+        },
+        {
+            "group": "Sched-SpotFirst-Predv1",
+            "process_name": "NFCORE_RNASEQ:FASTQC",
+            "process_short": "FASTQC",
+            "n_tasks": 2,
+            "avg_runtime_min": 28.7,
+            "sd_runtime_min": 3.6,
+            "total_cost": 0.98
+        },
+        {
+            "group": "Batch-OnD",
+            "process_name": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES",
+            "process_short": "STAR_ALIGN_IGENOMES",
+            "n_tasks": 2,
+            "avg_runtime_min": 115.3,
+            "sd_runtime_min": 12.1,
+            "total_cost": 8.43
+        },
+        {
+            "group": "Sched-SpotFirst-Predv1",
+            "process_name": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES",
+            "process_short": "STAR_ALIGN_IGENOMES",
+            "n_tasks": 2,
+            "avg_runtime_min": 103.4,
+            "sd_runtime_min": 9.7,
+            "total_cost": 7.61
+        }
+    ],
+    "combined_task_runtime": [
+        {
+            "pipeline": "nf-core/rnaseq",
+            "group": "Batch-OnD",
+            "panel_id": "nf-core/rnaseq::Batch-OnD",
+            "total_runtime_ms": 4800000,
+            "scheduling_runtime_ms": 540000,
+            "total_duration_ms": 5340000,
+            "total_tasks": 4,
+            "unique_processes": 2,
+            "segments": [
+                {
+                    "process": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES",
+                    "runtime_ms": 3000000,
+                    "pct": 62.5,
+                    "highlight": false
+                },
+                { "process": "NFCORE_RNASEQ:FASTQC", "runtime_ms": 1800000, "pct": 37.5, "highlight": true }
+            ],
+            "legend": [
+                {
+                    "process": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES",
+                    "runtime_ms": 3000000,
+                    "pct": 62.5,
+                    "highlight": false
+                },
+                { "process": "NFCORE_RNASEQ:FASTQC", "runtime_ms": 1800000, "pct": 37.5, "highlight": true }
+            ],
+            "highlight_totals": { "qc_runtime_ms": 1800000, "other_runtime_ms": 3000000 }
+        },
+        {
+            "pipeline": "nf-core/rnaseq",
+            "group": "Sched-SpotFirst-Predv1",
+            "panel_id": "nf-core/rnaseq::Sched-SpotFirst-Predv1",
+            "total_runtime_ms": 4200000,
+            "scheduling_runtime_ms": 360000,
+            "total_duration_ms": 4560000,
+            "total_tasks": 4,
+            "unique_processes": 2,
+            "segments": [
+                {
+                    "process": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES",
+                    "runtime_ms": 2760000,
+                    "pct": 65.71,
+                    "highlight": false
+                },
+                { "process": "NFCORE_RNASEQ:FASTQC", "runtime_ms": 1440000, "pct": 34.29, "highlight": true }
+            ],
+            "legend": [
+                {
+                    "process": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES",
+                    "runtime_ms": 2760000,
+                    "pct": 65.71,
+                    "highlight": false
+                },
+                { "process": "NFCORE_RNASEQ:FASTQC", "runtime_ms": 1440000, "pct": 34.29, "highlight": true }
+            ],
+            "highlight_totals": { "qc_runtime_ms": 1440000, "other_runtime_ms": 2760000 }
+        }
+    ],
+    "task_instance_usage": [
+        { "group": "Batch-OnD", "machine_type": "c6id.8xlarge", "count": 2 },
+        { "group": "Batch-OnD", "machine_type": "m6id.4xlarge", "count": 2 },
+        { "group": "Sched-SpotFirst-Predv1", "machine_type": "m7i.4xlarge", "count": 3 },
+        { "group": "Sched-SpotFirst-Predv1", "machine_type": "r7i.4xlarge", "count": 1 }
+    ],
+    "task_table": [
+        {
+            "Group": "Batch-OnD",
+            "Run ID": "5UVluQqRJksADq",
+            "Taskhash": "ab/cd1234",
+            "Task name short": "FASTQC",
+            "Executor": "awsbatch",
+            "Cloudzone": "eu-west-1a",
+            "Instance type": "c6id.8xlarge",
+            "Realtime_min": 32.5,
+            "Cost": 0.42,
+            "CPUused": 4,
+            "Memoryused_GB": 8.0,
+            "Pcpu": 188.4,
+            "Pmem": 61.2,
+            "Readbytes": 1200000000,
+            "Writebytes": 250000000,
+            "Task name": "NFCORE_RNASEQ:FASTQC (sampleA)",
+            "Status": "COMPLETED"
+        },
+        {
+            "Group": "Sched-SpotFirst-Predv1",
+            "Run ID": "3TOIc7mG6Qw2K9",
+            "Taskhash": "ef/gh5678",
+            "Task name short": "FASTQC",
+            "Executor": "awsbatch",
+            "Cloudzone": "eu-west-1b",
+            "Instance type": "m7i.4xlarge",
+            "Realtime_min": 27.8,
+            "Cost": 0.31,
+            "CPUused": 4,
+            "Memoryused_GB": 8.0,
+            "Pcpu": 176.9,
+            "Pmem": 58.4,
+            "Readbytes": 1100000000,
+            "Writebytes": 210000000,
+            "Task name": "NFCORE_RNASEQ:FASTQC (sampleA)",
+            "Status": "COMPLETED"
+        }
+    ],
+    "task_scatter": [
+        {
+            "run_id": "5UVluQqRJksADq",
+            "group": "Batch-OnD",
+            "process_short": "FASTQC",
+            "name": "NFCORE_RNASEQ:FASTQC",
+            "realtime_min": 32.5,
+            "staging_min": 4.5,
+            "cost": 0.42,
+            "cpus": 4,
+            "memory_gb": 8.0
+        },
+        {
+            "run_id": "5UVluQqRJksADq",
+            "group": "Batch-OnD",
+            "process_short": "STAR_ALIGN_IGENOMES",
+            "name": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES",
+            "realtime_min": 118.6,
+            "staging_min": 11.2,
+            "cost": 4.21,
+            "cpus": 16,
+            "memory_gb": 64.0
+        },
+        {
+            "run_id": "3TOIc7mG6Qw2K9",
+            "group": "Sched-SpotFirst-Predv1",
+            "process_short": "FASTQC",
+            "name": "NFCORE_RNASEQ:FASTQC",
+            "realtime_min": 27.8,
+            "staging_min": 3.7,
+            "cost": 0.31,
+            "cpus": 4,
+            "memory_gb": 8.0
+        },
+        {
+            "run_id": "3TOIc7mG6Qw2K9",
+            "group": "Sched-SpotFirst-Predv1",
+            "process_short": "STAR_ALIGN_IGENOMES",
+            "name": "NFCORE_RNASEQ:STAR_ALIGN_IGENOMES",
+            "realtime_min": 101.4,
+            "staging_min": 8.9,
+            "cost": 3.78,
+            "cpus": 16,
+            "memory_gb": 64.0
+        }
+    ],
+    "cost_overview": [
+        {
+            "group": "Batch-OnD",
+            "process_short": "FASTQC",
+            "total_cost": 1.24,
+            "used_cost": 1.13,
+            "unused_cost": 0.11,
+            "n_tasks": 2
+        },
+        {
+            "group": "Batch-OnD",
+            "process_short": "STAR_ALIGN_IGENOMES",
+            "total_cost": 8.43,
+            "used_cost": 7.84,
+            "unused_cost": 0.59,
+            "n_tasks": 2
+        },
+        {
+            "group": "Sched-SpotFirst-Predv1",
+            "process_short": "FASTQC",
+            "total_cost": 0.98,
+            "used_cost": 0.91,
+            "unused_cost": 0.07,
+            "n_tasks": 2
+        },
+        {
+            "group": "Sched-SpotFirst-Predv1",
+            "process_short": "STAR_ALIGN_IGENOMES",
+            "total_cost": 7.61,
+            "used_cost": 7.1,
+            "unused_cost": 0.51,
+            "n_tasks": 2
+        }
+    ]
 }

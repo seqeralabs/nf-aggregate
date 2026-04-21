@@ -3,6 +3,7 @@ repos:
     rev: "v3.1.0"
     hooks:
       - id: prettier
+        exclude: ^workflows/nf_aggregate/assets/realworld_log_dirs/
         additional_dependencies:
           - prettier@3.2.5
 
