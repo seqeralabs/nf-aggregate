@@ -81,6 +81,19 @@ def test_render_performance_gains_with_vm_data(tmp_path, minimal_report_data):
     assert "Savings attribution (CPU) by layer" in text
 
 
+def test_render_pr132_style_scheduler_vm_fixture(tmp_path, pr132_scheduler_vm_report_data):
+    out = tmp_path / "report.html"
+    render_html(pr132_scheduler_vm_report_data, out)
+    text = out.read_text()
+    assert "Batch-OnD" in text
+    assert "Sched-SpotFirst-Predv1" in text
+    assert 'id="performance-gains"' in text
+    assert "How savings attribution is measured" in text
+    assert "Real VM CPU efficiency" in text
+    assert "schedulerRightsizedCpuH" in text
+    assert "vmPackingSlackCpuH" in text
+
+
 def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data):
     data = dict(minimal_report_data)
     data["combined_task_runtime"] = [

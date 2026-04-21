@@ -782,3 +782,143 @@ def test_scheduler_performance_fields_without_vm(tmp_path):
     assert m["requestedVmCpuEfficiency"] is None
     assert m["realVmCpuEfficiency"] is None
     assert m["vmPackingSlackCpuH"] is None
+
+
+def test_pr132_style_scheduler_vm_semantics(tmp_path):
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    jsonl_dir.mkdir(parents=True)
+
+    runs = [
+        {
+            "run_id": "batch-run",
+            "group": "Batch-OnD",
+            "pipeline": "nf-core/rnaseq",
+            "username": "u",
+            "pipeline_version": "main",
+            "nextflow_version": "24.10.0",
+            "platform_version": "x",
+            "succeeded": 1,
+            "failed": 0,
+            "cached": 0,
+            "status": "SUCCEEDED",
+            "executor": "awsbatch",
+            "region": "eu-west-1",
+            "fusion_enabled": True,
+            "wave_enabled": True,
+            "container_engine": "docker",
+            "duration_ms": 10,
+            "cpu_time_ms": 1000,
+            "cpu_efficiency": 50.0,
+            "memory_efficiency": 50.0,
+            "read_bytes": 0,
+            "write_bytes": 0,
+        },
+        {
+            "run_id": "sched-run",
+            "group": "Sched-SpotFirst-Predv1",
+            "pipeline": "nf-core/rnaseq",
+            "username": "u",
+            "pipeline_version": "main",
+            "nextflow_version": "26.03.0-edge",
+            "platform_version": "x",
+            "succeeded": 1,
+            "failed": 0,
+            "cached": 0,
+            "status": "SUCCEEDED",
+            "executor": "awsbatch",
+            "region": "eu-west-1",
+            "fusion_enabled": True,
+            "wave_enabled": True,
+            "container_engine": "docker",
+            "duration_ms": 10,
+            "cpu_time_ms": 1000,
+            "cpu_efficiency": 50.0,
+            "memory_efficiency": 50.0,
+            "read_bytes": 0,
+            "write_bytes": 0,
+        },
+    ]
+    tasks = [
+        {
+            "run_id": "batch-run",
+            "group": "Batch-OnD",
+            "hash": "ab/cdef12",
+            "process": "NFCORE_RNASEQ:FASTQC",
+            "process_short": "FASTQC",
+            "name": "FASTQC",
+            "status": "COMPLETED",
+            "staging_ms": 0,
+            "realtime_ms": 3_600_000,
+            "duration_ms": 3_600_000,
+            "cost": 1.0,
+            "cpus": 4,
+            "memory_bytes": 16 * 1024**3,
+            "pcpu": 300.0,
+            "peak_rss": 8 * 1024**3,
+            "machine_type": "c6id.8xlarge",
+            "cloud_zone": "eu-west-1a",
+            "executor": "awsbatch",
+        },
+        {
+            "run_id": "sched-run",
+            "group": "Sched-SpotFirst-Predv1",
+            "hash": "ab/cdef34",
+            "process": "NFCORE_RNASEQ:FASTQC",
+            "process_short": "FASTQC",
+            "name": "FASTQC",
+            "status": "COMPLETED",
+            "staging_ms": 0,
+            "realtime_ms": 3_600_000,
+            "duration_ms": 3_600_000,
+            "cost": 1.0,
+            "cpus": 4,
+            "memory_bytes": 16 * 1024**3,
+            "pcpu": 200.0,
+            "peak_rss": 8 * 1024**3,
+            "machine_type": "m7i.4xlarge",
+            "cloud_zone": "eu-west-1b",
+            "executor": "awsbatch",
+        },
+    ]
+    machines = [
+        {
+            "run_id": "batch-run",
+            "n_machines": 2,
+            "vm_cpu_h": 4.0,
+            "vm_mem_gib_h": 16.0,
+            "sched_alloc_cpu_efficiency": 100.0,
+            "sched_alloc_mem_efficiency": 100.0,
+        },
+        {
+            "run_id": "sched-run",
+            "n_machines": 1,
+            "vm_cpu_h": 6.0,
+            "vm_mem_gib_h": 24.0,
+            "sched_alloc_cpu_efficiency": 50.0,
+            "sched_alloc_mem_efficiency": 50.0,
+        },
+    ]
+
+    (jsonl_dir / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in runs))
+    (jsonl_dir / "tasks.jsonl").write_text("".join(json.dumps(t) + "\n" for t in tasks))
+    (jsonl_dir / "machines.jsonl").write_text("".join(json.dumps(m) + "\n" for m in machines))
+
+    data = build_report_data(jsonl_dir)
+    metrics = {row["group"]: row for row in data["run_metrics"]}
+
+    batch = metrics["Batch-OnD"]
+    sched = metrics["Sched-SpotFirst-Predv1"]
+
+    assert batch["nMachines"] == 2
+    assert batch["schedulerBookedCpuH"] == 4.0
+    assert batch["schedulerRightsizedCpuH"] == 0.0
+    assert batch["schedulerOverbookCpuH"] == 1.0
+    assert batch["vmPackingSlackCpuH"] == 0.0
+    assert batch["realVmCpuEfficiency"] == 75.0
+
+    assert sched["nMachines"] == 1
+    assert sched["schedulerBookedCpuH"] == 3.0
+    assert sched["schedulerRightsizedCpuH"] == 1.0
+    assert sched["schedulerOverbookCpuH"] == 1.0
+    assert sched["vmPackingSlackCpuH"] == 3.0
+    assert sched["realVmCpuEfficiency"] == 33.33

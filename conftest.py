@@ -97,6 +97,12 @@ def write_run_json():
 
 
 @pytest.fixture
+def pr132_scheduler_vm_report_data():
+    fixture_path = REPO_ROOT / "modules" / "local" / "render_benchmark_report" / "tests" / "fixtures" / "pr132_scheduler_vm_report_data.json"
+    return json.loads(fixture_path.read_text())
+
+
+@pytest.fixture
 def minimal_report_data():
     return {
         "benchmark_overview": [
