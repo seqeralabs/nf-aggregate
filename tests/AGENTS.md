@@ -8,6 +8,7 @@ Each pipeline-level scenario lives in its own directory:
 - `pipeline_mixed_no_benchmark/`
 - `pipeline_benchmark_tarball/`
 - `pipeline_benchmark_directory/`
+- `pipeline_benchmark_realworld_costs/`
 
 Each scenario directory contains:
 

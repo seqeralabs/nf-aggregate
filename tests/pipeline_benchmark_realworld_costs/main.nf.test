@@ -1,0 +1,82 @@
+def INPUT_PATH = new File('workflows/nf_aggregate/assets/test_benchmark_realworld_costs.csv').canonicalPath
+def CUR_PATH = new File('workflows/nf_aggregate/assets/test_benchmark_realworld_costs.parquet').canonicalPath
+
+def expectedOutputNames = [
+    'benchmark_report',
+    'benchmark_report/benchmark_report.html',
+    'benchmark_report/jsonl_bundle',
+    'benchmark_report/jsonl_bundle/costs.jsonl',
+    'benchmark_report/jsonl_bundle/metrics.jsonl',
+    'benchmark_report/jsonl_bundle/runs.jsonl',
+    'benchmark_report/jsonl_bundle/tasks.jsonl',
+    'benchmark_report/report_data.json',
+    'pipeline_info',
+    'pipeline_info/collated_software_versions.yml',
+]
+
+def collatedVersions = { outdir ->
+    new File("${outdir}/pipeline_info/collated_software_versions.yml").text
+}
+
+nextflow_pipeline {
+    name "Pipeline benchmark from real-world external directories with costs"
+    script "../../main.nf"
+    tag "pipeline"
+    tag "nf-aggregate"
+    tag "benchmark-realworld-costs"
+
+    test("benchmark report includes real-world external runs and ignores red-herring costs") {
+        tag("benchmark")
+        tag("costs")
+
+        when {
+            params {
+                input                     = INPUT_PATH
+                outdir                    = "$outputDir"
+                generate_benchmark_report = true
+                benchmark_aws_cur_report  = CUR_PATH
+            }
+        }
+
+        then {
+            def versions = collatedVersions(params.outdir)
+            def report = new File("${params.outdir}/benchmark_report/benchmark_report.html")
+            def reportData = new File("${params.outdir}/benchmark_report/report_data.json")
+            def costsJsonl = new File("${params.outdir}/benchmark_report/jsonl_bundle/costs.jsonl")
+            def reportText = report.text
+            def reportJson = new groovy.json.JsonSlurper().parse(reportData)
+            def costRunIds = reportJson.run_costs.collect { it.run_id }
+
+            assert workflow.success
+            assert workflow.trace.succeeded().size() == 3
+            assert workflow.trace.succeeded().any { it.name.contains('NORMALIZE_BENCHMARK_JSONL') }
+            assert workflow.trace.succeeded().any { it.name.contains('AGGREGATE_BENCHMARK_REPORT_DATA') }
+            assert workflow.trace.succeeded().any { it.name.contains('RENDER_BENCHMARK_REPORT') }
+            assert !workflow.trace.succeeded().any { it.name.contains('EXTRACT_TARBALL') }
+            assert versions.contains('NORMALIZE_BENCHMARK_JSONL:')
+            assert versions.contains('AGGREGATE_BENCHMARK_REPORT_DATA:')
+            assert versions.contains('RENDER_BENCHMARK_REPORT:')
+            assert report.isFile()
+            assert reportData.isFile()
+            assert costsJsonl.isFile()
+            assert reportText.contains('nf-core/sarek')
+            assert reportText.contains('nf-core/rnaseq')
+            assert reportText.contains('nf-core/methylseq')
+            assert reportText.contains('3dLeF2W4ju5og4')
+            assert reportText.contains('10Sj9ejvKktHWg')
+            assert reportText.contains('wELtvsveirfd9')
+            assert reportJson.cost_overview.size() > 0
+            assert reportJson.benchmark_overview.size() == 6
+            assert reportJson.run_costs.size() == 6
+            assert costRunIds.containsAll(['3dLeF2W4ju5og4', '1xpti5PH3K2VUW', '5yJURpCMUNmfri', '10Sj9ejvKktHWg', '50CueCkLKqyOeH', 'wELtvsveirfd9'])
+            assert !costRunIds.contains('red-herring-run-id')
+            assert reportJson.run_costs.find { it.run_id == '3dLeF2W4ju5og4' }.used_cost > 0
+
+            assert snapshot(
+                workflow.trace.succeeded().size(),
+                removeFromYamlMap("$outputDir/pipeline_info/collated_software_versions.yml", "Workflow"),
+                expectedOutputNames
+            ).match()
+        }
+    }
+}
