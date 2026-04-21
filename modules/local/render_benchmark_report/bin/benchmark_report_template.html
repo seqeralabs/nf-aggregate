@@ -208,7 +208,9 @@
   <a href="#task-overview"><svg class="nav-icon"><use href="#ic-task"/></svg> Task overview</a>
   <a href="#task-instance-usage" class="l2"><svg class="nav-icon"><use href="#ic-instance"/></svg> Instance usage</a>
   <a href="#task-metrics" class="l2"><svg class="nav-icon"><use href="#ic-scatter"/></svg> Task metrics</a>
+{% if has_performance_gains %}
   <a href="#performance-gains"><svg class="nav-icon"><use href="#ic-benchmark"/></svg> Performance gains</a>
+{% endif %}
 </div>
 
 <div class="main-content">
@@ -440,6 +442,7 @@
   </div>
 
   <!-- 6. Performance gains -->
+{% if has_performance_gains %}
   <div class="section" id="performance-gains">
     <h1><svg class="h-icon"><use href="#ic-benchmark"/></svg> Performance gains</h1>
     <p class="section-desc">Capacity mix and savings attribution across CPU and memory.</p>
@@ -507,6 +510,7 @@
     <h2 id="pg-mem-savings"><svg class="h-icon sm"><use href="#ic-chart"/></svg> Savings attribution (Memory)</h2>
     <div class="chart" id="chart-pg-mem-savings"></div>
   </div>
+{% endif %}
 
 </div>
 </div>

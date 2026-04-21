@@ -41,12 +41,8 @@ def test_render_html(tmp_path, minimal_report_data):
     assert "realVmCpuEfficiency" in text
     assert "How process runtime is measured" in text
     assert "How task timing is measured" in text
-    assert "How savings attribution is measured" in text
-    assert "How savings layers are defined" in text
-    assert "runs without a Scheduler compute environment" in text
-    assert "Scheduler rightsize will be zero by construction" in text
-    # VM metric charts
-    assert 'id="chart-vm-alloc-cpu"' in text
+    # Performance gains section — hidden when no VM telemetry
+
     assert 'id="chart-vm-alloc-mem"' in text
     assert 'id="chart-vm-real-cpu"' in text
     assert 'id="chart-vm-real-mem"' in text
@@ -58,19 +54,31 @@ def test_render_html(tmp_path, minimal_report_data):
     assert "Real VM CPU eff %" in text
     assert "Real VM Mem eff %" in text
     assert "fmtPct(r.realVmCpuEfficiency)" in text
-    # Performance gains section
+    # Performance gains section — hidden when no VM telemetry
+    assert 'id="performance-gains"' not in text
+    assert 'href="#performance-gains"' not in text
+    assert 'id="chart-pg-cpu-mix"' not in text
+    assert 'id="chart-pg-cpu-savings"' not in text
+    assert 'target="_blank" rel="noopener noreferrer"' in text
+    assert "r.runUrl ? '<a href=\"' + r.runUrl" in text
+
+
+def test_render_performance_gains_with_vm_data(tmp_path, minimal_report_data):
+    data = dict(minimal_report_data)
+    data["run_metrics"] = [{"group": "cpu", "run_id": "run1", "vmCpuH": 10.0}]
+    out = tmp_path / "report.html"
+    render_html(data, out)
+    text = out.read_text()
     assert 'id="performance-gains"' in text
     assert 'href="#performance-gains"' in text
     assert 'id="chart-pg-cpu-mix"' in text
-    assert 'id="chart-pg-mem-mix"' in text
     assert 'id="chart-pg-cpu-savings"' in text
-    assert 'id="chart-pg-mem-savings"' in text
+    assert "How savings attribution is measured" in text
+    assert "How savings layers are defined" in text
+    assert "runs without a Scheduler compute environment" in text
+    assert "Scheduler rightsize will be zero by construction" in text
     assert "CPU capacity mix" in text
     assert "Savings attribution (CPU) by layer" in text
-    assert "schedulerRightsizedCpuH" in text
-    assert "vmPackingSlackCpuH" in text
-    assert 'target="_blank" rel="noopener noreferrer"' in text
-    assert "r.runUrl ? '<a href=\"' + r.runUrl" in text
 
 
 def test_render_includes_combined_runtime_section(tmp_path, minimal_report_data):

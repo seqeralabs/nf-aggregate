@@ -86,6 +86,8 @@ def render_html(
 ) -> None:
     brand = brand or load_brand()
     template = Environment(loader=BaseLoader()).from_string(REPORT_TEMPLATE)
+    run_metrics = data.get("run_metrics") or []
+    has_performance_gains = any((row or {}).get("vmCpuH") for row in run_metrics)
     html = template.render(
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         data_json=json.dumps(data, default=str),
@@ -99,6 +101,7 @@ def render_html(
         brand_white=brand["white"],
         brand_palette=brand["palette"],
         logo_svg=logo_svg or "",
+        has_performance_gains=has_performance_gains,
         **data,
     )
     output_path.write_text(html)
