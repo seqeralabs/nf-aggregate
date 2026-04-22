@@ -51,22 +51,22 @@ Input CSV (id, workspace, group, logs, platform, token_env)
 | Process                           | Container                       | Input                                       | Output                      |
 | --------------------------------- | ------------------------------- | ------------------------------------------- | --------------------------- |
 | `EXTRACT_TARBALL`                 | ubuntu:22.04                    | `(meta, tarball)`                           | `(meta, dir)` of JSON files |
-| `NORMALIZE_BENCHMARK_JSONL`       | wave python/duckdb/jinja2/typer | `data_dir`, `cur_parquet`, `cur_label_map` | `jsonl_bundle/`             |
+| `NORMALIZE_BENCHMARK_JSONL`       | wave python/duckdb/jinja2/typer | `data_dir`, `cur_parquet`, `cur_label_map`  | `jsonl_bundle/`             |
 | `AGGREGATE_BENCHMARK_REPORT_DATA` | wave python/duckdb/jinja2/typer | `jsonl_bundle/`                             | `report_data.json`          |
 | `RENDER_BENCHMARK_REPORT`         | wave python/duckdb/jinja2/typer | `report_data.json`, `brand.yml`, `logo.svg` | `benchmark_report.html`     |
 
 ## Key Parameters
 
-| Parameter                   | Default                       | Purpose                                     |
-| --------------------------- | ----------------------------- | ------------------------------------------- |
-| `input`                     | required                      | CSV samplesheet of run IDs / external paths |
-| `outdir`                    | `results`                     | Output directory                            |
-| `generate_benchmark_report` | `false`                       | Enable the benchmark pipeline               |
-| `benchmark_aws_cur_report`  | `null`                        | AWS CUR parquet for cost analysis           |
-| `benchmark_aws_cur_label_map` | `null`                      | Optional YAML alias map for CUR resource labels |
-| `seqera_api_endpoint`       | `https://api.cloud.seqera.io` | Platform API base URL                       |
-| `java_truststore_path`      | `null`                        | Custom Java truststore for private certs    |
-| `java_truststore_password`  | `null`                        | Truststore password                         |
+| Parameter                     | Default                       | Purpose                                         |
+| ----------------------------- | ----------------------------- | ----------------------------------------------- |
+| `input`                       | required                      | CSV samplesheet of run IDs / external paths     |
+| `outdir`                      | `results`                     | Output directory                                |
+| `generate_benchmark_report`   | `false`                       | Enable the benchmark pipeline                   |
+| `benchmark_aws_cur_report`    | `null`                        | AWS CUR parquet for cost analysis               |
+| `benchmark_aws_cur_label_map` | `null`                        | Optional YAML alias map for CUR resource labels |
+| `seqera_api_endpoint`         | `https://api.cloud.seqera.io` | Platform API base URL                           |
+| `java_truststore_path`        | `null`                        | Custom Java truststore for private certs        |
+| `java_truststore_password`    | `null`                        | Truststore password                             |
 
 ## Input Schema
 
