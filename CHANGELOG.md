@@ -15,6 +15,7 @@ Thank you to everyone else that has contributed by reporting bugs, enhancements 
 
 ### Enhancements & fixes
 
+- Improve Seqera API preflight errors for invalid API endpoints and access tokens
 - [PR #88](https://github.com/seqeralabs/nf-aggregate/pull/88) - Update tw cli container version to 0.11.2 and allow .nextflow.log to be missing from tw call
 - [PR #89](https://github.com/seqeralabs/nf-aggregate/pull/89) - Enable usage of external run dumps with nf-aggregate & update devcontainer specifications
 - [PR #91](https://github.com/seqeralabs/nf-aggregate/pull/91) - Update benchmark report image to include a fix causing large memory footprint for reshaping large AWS cost report files

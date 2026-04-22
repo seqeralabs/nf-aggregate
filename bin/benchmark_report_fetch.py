@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import json
+from functools import lru_cache
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
@@ -19,6 +21,62 @@ def _api_get(url: str, headers: dict[str, str], params: dict[str, str] | None = 
     req = Request(url, headers=headers)
     with urlopen(req) as resp:
         return json.loads(resp.read())
+
+
+def _format_http_error(exc: HTTPError) -> str:
+    return f"API request failed: {exc.url} → HTTP {exc.code}"
+
+
+@lru_cache(maxsize=None)
+def _validate_api_access_cached(api_endpoint: str, authorization: str, token_env_var: str) -> None:
+    headers = {"Authorization": authorization}
+
+    try:
+        _api_get(f"{api_endpoint}/service-info", headers=headers)
+    except HTTPError as exc:
+        raise RuntimeError(
+            "Seqera Platform API preflight failed at "
+            f"'{api_endpoint}/service-info'. Check the API endpoint URL from "
+            "--api-endpoint or the input samplesheet platform column. "
+            f"Original error: {_format_http_error(exc)}"
+        ) from exc
+    except URLError as exc:
+        raise RuntimeError(
+            "Could not reach Seqera Platform API preflight endpoint "
+            f"'{api_endpoint}/service-info'. Check the API endpoint URL, network "
+            f"access, and TLS configuration. Original error: {exc.reason}"
+        ) from exc
+
+    try:
+        _api_get(f"{api_endpoint}/user-info", headers=headers)
+    except HTTPError as exc:
+        if exc.code in {401, 403}:
+            raise RuntimeError(
+                "Authentication failed at "
+                f"'{api_endpoint}/user-info'. Check the access token stored in "
+                f"'{token_env_var}'. Original error: {_format_http_error(exc)}"
+            ) from exc
+        raise RuntimeError(
+            "Seqera Platform API auth preflight failed at "
+            f"'{api_endpoint}/user-info'. Check the API endpoint URL and the "
+            f"access token stored in '{token_env_var}'. Original error: "
+            f"{_format_http_error(exc)}"
+        ) from exc
+    except URLError as exc:
+        raise RuntimeError(
+            "Could not complete Seqera Platform auth preflight at "
+            f"'{api_endpoint}/user-info'. Check network access and the access "
+            f"token stored in '{token_env_var}'. Original error: {exc.reason}"
+        ) from exc
+
+
+def validate_api_access(
+    api_endpoint: str,
+    headers: dict[str, str],
+    token_env_var: str = "TOWER_ACCESS_TOKEN",
+) -> None:
+    authorization = headers.get("Authorization", "")
+    _validate_api_access_cached(api_endpoint, authorization, token_env_var)
 
 
 def resolve_workspace_id(workspace: str, api_endpoint: str, headers: dict[str, str]) -> int:
@@ -67,6 +125,7 @@ def fetch_all_tasks(base_url: str, headers: dict[str, str]) -> list[dict]:
 
 def fetch_run_data(run_id: str, workspace: str, api_endpoint: str, token: str) -> dict:
     headers = {"Authorization": f"Bearer {token}"}
+    validate_api_access(api_endpoint, headers=headers)
     ws_id = resolve_workspace_id(workspace, api_endpoint, headers)
 
     workflow_data = _api_get(
