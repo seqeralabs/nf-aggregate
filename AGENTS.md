@@ -23,8 +23,8 @@ input CSV (id, workspace, group, logs, fusion)
 
 ## Plugins
 
-- `nf-schema@2.3.0` — param validation, samplesheet parsing
-- `nf-boost@0.6.0` — `request()`, `fromJson`/`toJson` for API calls
+- `nf-core-utils@0.4.0` — utility helpers such as Conda checks and software-version reporting
+- `nf-schema@2.3.0` — param validation and samplesheet parsing
 
 ## Env Requirements
 
@@ -62,7 +62,8 @@ uv run --with typer --with pyyaml \
 - `commit.gpgsign` must be true (SSH signing via 1Password)
 - RTK `buildOutputFiltering` / `testOutputAggregation` can swallow nf-test output — disable to debug
 - **Nextflow `include` statements in `main.nf` must be single-line.** `adamrtalbot/detect-nf-test-changes@v0.0.3` (used by CI) parses include lines and crashes on multi-line blocks. Write `include { A ; B ; C } from '...'` not multi-line blocks.
-- **No `.nf-core.yml` in this repo.** The nf-core pipelines lint CI job has been removed because it depends on `.nf-core.yml` which was dropped. Do not re-add the `nf-core` job to `.github/workflows/linting.yml` without also restoring `.nf-core.yml`.
+- **Repository hygiene:** `.nf-core.yml` should stay absent unless nf-core linting is intentionally restored alongside the required config. When changing CI, docs, or plugin declarations, remove stale nf-core-template remnants and keep labels/docs accurate.
+- **Plugin references must stay synchronized.** If `nextflow.config` plugin entries change, update `CITATIONS.md`, `README.md`, and agent/context files in the same change so pinned plugins such as `nf-core-utils` and `nf-schema` are cited consistently.
 
 ## Cursor Cloud specific instructions
 
