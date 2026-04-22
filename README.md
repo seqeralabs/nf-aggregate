@@ -102,6 +102,27 @@ nextflow run seqeralabs/nf-aggregate \
 
 The benchmark report can be generated without cost data - simply omit the `--benchmark_aws_cur_report` parameter if cost analysis is not needed.
 
+When CUR data is provided, nf-aggregate only joins cost rows that carry the resource labels needed to match a Nextflow task back to a benchmark run. The required keys are:
+
+- run ID: `user_unique_run_id` or `user_nf_unique_run_id`
+- process name: `user_pipeline_process`
+- task hash: `user_task_hash`
+
+The normalizer accepts both of the common CUR layouts:
+
+- flattened CUR columns such as `resource_tags_user_unique_run_id`, `resource_tags_user_pipeline_process`, and `resource_tags_user_task_hash`
+- map-style `resource_tags` entries containing `user_unique_run_id`, `user_pipeline_process`, and `user_task_hash`
+
+If those labels are missing from the CUR export, the benchmark report still renders, but CUR-backed cost rows cannot be associated with runs or tasks.
+
+For AWS Batch or other cloud executors that propagate resource labels into CUR tags, configure labels equivalent to:
+
+```
+user_unique_run_id=${workflow.runId}
+user_pipeline_process=${task.process}
+user_task_hash=${task.hash}
+```
+
 For a checked-in real-world example that exercises external run JSON directories plus a tiny filtered cost parquet, see:
 
 - `workflows/nf_aggregate/assets/test_benchmark_realworld_costs.csv`
