@@ -1,18 +1,18 @@
 // Seqera Platform API client using plain java.net HTTP
 
-class SeqeraApiRequestException extends RuntimeException {
-    final String url
-    final int statusCode
-
-    SeqeraApiRequestException(String url, int statusCode) {
-        super("API request failed: ${url} → HTTP ${statusCode}")
-        this.url = url
-        this.statusCode = statusCode
-    }
-}
-
 class SeqeraApi {
     private static final Set<String> validatedApiSessions = Collections.synchronizedSet(new HashSet<String>())
+
+    static class ApiRequestException extends RuntimeException {
+        final String url
+        final int statusCode
+
+        ApiRequestException(String url, int statusCode) {
+            super("API request failed: ${url} → HTTP ${statusCode}")
+            this.url = url
+            this.statusCode = statusCode
+        }
+    }
 
     static Map apiGet(String url, Map headers) {
         def conn = (HttpURLConnection) new URL(url).openConnection()
@@ -21,7 +21,7 @@ class SeqeraApi {
             headers.each { k, v -> conn.setRequestProperty(k, v) }
             def code = conn.getResponseCode()
             if (code != 200) {
-                throw new SeqeraApiRequestException(url, code)
+                throw new ApiRequestException(url, code)
             }
             def stream = conn.getInputStream()
             try {
@@ -48,7 +48,7 @@ class SeqeraApi {
 
             try {
                 apiGet("${apiEndpoint}/service-info", headers)
-            } catch (SeqeraApiRequestException e) {
+            } catch (ApiRequestException e) {
                 throw new RuntimeException(
                     "Seqera Platform API preflight failed at '${apiEndpoint}/service-info'. " +
                     "Check the API endpoint URL from --seqera_api_endpoint or the input samplesheet platform column. " +
@@ -66,7 +66,7 @@ class SeqeraApi {
 
             try {
                 apiGet("${apiEndpoint}/user-info", headers)
-            } catch (SeqeraApiRequestException e) {
+            } catch (ApiRequestException e) {
                 if (e.statusCode in [401, 403]) {
                     throw new RuntimeException(
                         "Authentication failed at '${apiEndpoint}/user-info'. " +
