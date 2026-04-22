@@ -17,5 +17,5 @@ Learn more about contributing: [CONTRIBUTING.md](https://github.com/seqeralabs/n
 - [ ] If plugin declarations changed, update `CITATIONS.md`, `README.md`, and agent/context guidance in the same PR.
 - [ ] Ensure the test suite passes (`nextflow run . -profile test,docker --outdir <OUTDIR>`).
 - [ ] Check for unexpected warnings in debug mode (`nextflow run . -profile debug,test,docker --outdir <OUTDIR>`).
-- [ ] `CHANGELOG.md` is updated.
+- [ ] A release label (`bug`, `enhancement`, `documentation`, `renovate-actions`) is applied if this PR should appear in the automated changelog.
 - [ ] `README.md` is updated (including new tool citations and authors/contributors).

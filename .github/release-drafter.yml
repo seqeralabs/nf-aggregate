@@ -1,0 +1,42 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+category-template: "### $TITLE"
+change-template: "- [PR #$NUMBER](https://github.com/seqeralabs/nf-aggregate/pull/$NUMBER) - $TITLE"
+change-title-escapes: "\\<*_&"
+no-changes-template: "- No user-facing changes."
+template: |
+  $CHANGES
+
+  ### Contributors
+
+  $CONTRIBUTORS
+categories:
+  - title: "Enhancements"
+    labels:
+      - "enhancement"
+  - title: "Fixes"
+    labels:
+      - "bug"
+  - title: "Documentation"
+    labels:
+      - "documentation"
+  - title: "Maintenance"
+    labels:
+      - "renovate-actions"
+exclude-labels:
+  - "duplicate"
+  - "invalid"
+  - "question"
+  - "wontfix"
+version-resolver:
+  minor:
+    labels:
+      - "enhancement"
+  patch:
+    labels:
+      - "bug"
+      - "documentation"
+      - "renovate-actions"
+  default: patch
+sort-by: "merged_at"
+sort-direction: "descending"
