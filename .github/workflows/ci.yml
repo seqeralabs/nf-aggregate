@@ -248,7 +248,14 @@ jobs:
 
       - name: Run offline benchmark smoke test
         run: |
-          nextflow run . --input workflows/nf_aggregate/assets/test_benchmark.csv --generate_benchmark_report --outdir benchmark-smoke-results -profile docker
+          cat > benchmark-smoke-params.json <<'JSON'
+          {
+            "input": "workflows/nf_aggregate/assets/test_benchmark.csv",
+            "generate_benchmark_report": true,
+            "outdir": "benchmark-smoke-results"
+          }
+          JSON
+          nextflow run . -params-file benchmark-smoke-params.json -profile docker
 
   confirm-pass:
     runs-on: ubuntu-latest
