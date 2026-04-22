@@ -10,11 +10,11 @@
 
 ## Nextflow plugins used by this pipeline
 
-- [`nf-core-utils@0.4.0`](https://github.com/nf-core/nf-utils)
+- [`nf-core-utils`](https://github.com/nf-core/nf-utils)
 
   Software source pinned in `nextflow.config`: `https://github.com/nf-core/nf-utils` (version `0.4.0`).
 
-- [`nf-schema@2.3.0`](https://github.com/nextflow-io/nf-schema)
+- [`nf-schema`](https://github.com/nextflow-io/nf-schema)
 
   Software source pinned in `nextflow.config`: `https://github.com/nextflow-io/nf-schema` (version `2.3.0`).
 
