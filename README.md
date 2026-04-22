@@ -143,4 +143,4 @@ nf-aggregate was written by the Scientific Development team at [Seqera Labs](htt
 
 ## Citations
 
-See [CITATIONS.md](CITATIONS.md).
+See [CITATIONS.md](CITATIONS.md), including the pinned plugin references for `nf-core-utils@0.4.0` and `nf-schema@2.3.0` used by this pipeline.

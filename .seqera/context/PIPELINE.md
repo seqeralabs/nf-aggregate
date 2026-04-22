@@ -7,7 +7,7 @@
 - **Repository:** [https://github.com/seqeralabs/nf-aggregate](https://github.com/seqeralabs/nf-aggregate)
 - **Latest released version:** 0.7.0 (2025-05-05)
 - **Current branch:** `edmundmiller/seqera-context` (active development)
-- **Plugins:** [nf-schema@2.3.0](mailto:nf-schema@2.3.0) (param validation, samplesheet parsing), [nf-boost@0.6.0](mailto:nf-boost@0.6.0) (request(), JSON helpers)
+- **Plugins:** `nf-core-utils@0.4.0` (Conda checks, params dump, software version helpers), `nf-schema@2.3.0` (param validation, samplesheet parsing)
 - **Required env:** `TOWER_ACCESS_TOKEN` for API-mode runs
 
 ## Architecture

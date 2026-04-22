@@ -14,6 +14,7 @@ Learn more about contributing: [CONTRIBUTING.md](https://github.com/seqeralabs/n
 - [ ] This comment contains a description of changes (with reason).
 - [ ] If you've fixed a bug or added code that should be tested, add tests!
 - [ ] If you've added a new tool, parameter, or workflow path, update the relevant docs.
+- [ ] If plugin declarations changed, update `CITATIONS.md`, `README.md`, and agent/context guidance in the same PR.
 - [ ] Ensure the test suite passes (`nextflow run . -profile test,docker --outdir <OUTDIR>`).
 - [ ] Check for unexpected warnings in debug mode (`nextflow run . -profile debug,test,docker --outdir <OUTDIR>`).
 - [ ] `CHANGELOG.md` is updated.
