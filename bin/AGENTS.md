@@ -14,12 +14,10 @@ Thin Typer CLI wrapper around focused modules.
 | `report` | Convenience wrapper (`aggregate-report-data` + `render-html`) |
 | `fetch` | Calls Seqera Platform API → writes run JSON files (standalone use) |
 
-## Focused modules
+## Remaining root-bin modules
 
-- `benchmark_report_normalize.py` — normalization stage
-- `benchmark_report_aggregate.py` — report aggregation stage
-- `benchmark_report_render.py` — HTML rendering stage
-- `benchmark_report_fetch.py` — Seqera API fetch helpers
+- `benchmark_report.py` — repo-root convenience wrapper that dispatches into module-local stage implementations
+- `benchmark_report_fetch.py` — Seqera API fetch helpers for the standalone `fetch` subcommand
 
 ### Test ownership
 

@@ -8,9 +8,15 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parent
-BIN_DIR = REPO_ROOT / "bin"
-if str(BIN_DIR) not in sys.path:
-    sys.path.insert(0, str(BIN_DIR))
+BIN_DIRS = [
+    REPO_ROOT / "bin",
+    REPO_ROOT / "modules" / "local" / "normalize_benchmark_jsonl" / "bin",
+    REPO_ROOT / "modules" / "local" / "aggregate_benchmark_report_data" / "bin",
+    REPO_ROOT / "modules" / "local" / "render_benchmark_report" / "bin",
+]
+for bin_dir in BIN_DIRS:
+    if str(bin_dir) not in sys.path:
+        sys.path.insert(0, str(bin_dir))
 
 
 @pytest.fixture
@@ -88,6 +94,12 @@ def write_run_json():
             (data_dir / f"run_{i}.json").write_text(json.dumps(run))
 
     return _write_run_json
+
+
+@pytest.fixture
+def pr132_scheduler_vm_report_data():
+    fixture_path = REPO_ROOT / "modules" / "local" / "render_benchmark_report" / "tests" / "fixtures" / "pr132_scheduler_vm_report_data.json"
+    return json.loads(fixture_path.read_text())
 
 
 @pytest.fixture

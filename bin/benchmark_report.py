@@ -5,11 +5,22 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 import typer
 
 app = typer.Typer(add_completion=False)
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+MODULE_BIN_DIRS = [
+    REPO_ROOT / "modules" / "local" / "normalize_benchmark_jsonl" / "bin",
+    REPO_ROOT / "modules" / "local" / "aggregate_benchmark_report_data" / "bin",
+    REPO_ROOT / "modules" / "local" / "render_benchmark_report" / "bin",
+]
+for _d in MODULE_BIN_DIRS:
+    if str(_d) not in sys.path:
+        sys.path.insert(0, str(_d))
 
 
 @app.command("normalize-jsonl")
@@ -17,11 +28,12 @@ def normalize_jsonl_cmd(
     data_dir: Path = typer.Option(..., exists=True, help="Directory containing run JSON files"),
     output_dir: Path = typer.Option(Path("jsonl_bundle"), help="Output JSONL bundle directory"),
     costs: Path = typer.Option(None, help="Optional AWS CUR parquet file"),
+    machines_dir: Path = typer.Option(None, help="Optional machine metrics CSV directory"),
 ) -> None:
     """Normalize raw run JSON into runs/tasks/metrics JSONL files."""
     from benchmark_report_normalize import normalize_jsonl
 
-    normalize_jsonl(data_dir=data_dir, output_dir=output_dir, costs_parquet=costs)
+    normalize_jsonl(data_dir=data_dir, output_dir=output_dir, costs_parquet=costs, machines_dir=machines_dir)
 
 
 @app.command("aggregate-report-data")

@@ -3,7 +3,7 @@ import json
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from benchmark_report_normalize import _normalize_cost_rows, extract_runs, extract_tasks, load_run_data, normalize_jsonl
+from benchmark_report_normalize import _normalize_cost_rows, _summarise_machines, extract_runs, extract_tasks, load_run_data, normalize_jsonl
 
 
 def test_cached_count_extracted(make_run, flat_task):
@@ -39,6 +39,45 @@ def test_normalize_writes_jsonl_bundle(tmp_path, make_run, flat_task, write_run_
     task_lines = (out_dir / "tasks.jsonl").read_text().strip().splitlines()
     task = json.loads(task_lines[0])
     assert task["process_short"] == "PROCESS_A"
+
+    run_lines = (out_dir / "runs.jsonl").read_text().strip().splitlines()
+    run = json.loads(run_lines[0])
+    assert run["workspace"] == "org/ws"
+    assert run["platform"] == ""
+
+
+def test_normalize_preserves_platform_and_run_url(tmp_path, make_run, flat_task, write_run_json):
+    data_dir = tmp_path / "data"
+    out_dir = tmp_path / "jsonl_bundle"
+    run = make_run(tasks=[flat_task()])
+    run["meta"]["workspace"] = "unified-compute/sched-testing"
+    run["meta"]["platform"] = "https://cloud.dev-seqera.io"
+    run["workflow"]["runUrl"] = "https://cloud.dev-seqera.io/orgs/unified-compute/workspaces/sched-testing/watch/run1"
+    write_run_json(data_dir, [run])
+
+    normalize_jsonl(data_dir, out_dir)
+
+    run_line = json.loads((out_dir / "runs.jsonl").read_text().strip().splitlines()[0])
+    assert run_line["workspace"] == "unified-compute/sched-testing"
+    assert run_line["platform"] == "https://cloud.dev-seqera.io"
+    assert run_line["run_url"].endswith("/watch/run1")
+
+
+def test_summarise_machines_handles_mixed_scheduler_and_batch_rows(tmp_path):
+    machines_dir = tmp_path / "machines"
+    machines_dir.mkdir()
+    (machines_dir / "machine_metrics.csv").write_text(
+        "run_id,instance_id,vcpus,memory_gib,machine_hours,avg_cpu_utilization,avg_memory_utilization,ecs_instance_id,total_vcpu_hours,total_memory_gib_hours,total_requested_vcpu_hours,total_requested_memory_gib_hours\n"
+        "sched1,i-123,8,32,2,50,25,,,,,\n"
+        "batch1,,,,,, ,ecs-456,6,24,3,12\n".replace(", ,", ",,")
+    )
+
+    rows = {row["run_id"]: row for row in _summarise_machines(machines_dir)}
+    assert rows["sched1"]["vm_cpu_h"] == 16.0
+    assert rows["sched1"]["sched_alloc_cpu_efficiency"] == 50.0
+    assert rows["batch1"]["vm_cpu_h"] == 6.0
+    assert rows["batch1"]["sched_alloc_cpu_efficiency"] == 50.0
+    assert rows["batch1"]["sched_alloc_mem_efficiency"] == 50.0
 
 
 def test_normalize_cost_rows_reads_parquet_in_batches(tmp_path):

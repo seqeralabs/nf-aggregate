@@ -102,6 +102,24 @@ nextflow run seqeralabs/nf-aggregate \
 
 The benchmark report can be generated without cost data - simply omit the `--benchmark_aws_cur_report` parameter if cost analysis is not needed.
 
+For a checked-in real-world example that exercises external run JSON directories plus a tiny filtered cost parquet, see:
+
+- `workflows/nf_aggregate/assets/test_benchmark_realworld_costs.csv`
+- `workflows/nf_aggregate/assets/realworld_log_dirs/`
+- `workflows/nf_aggregate/assets/test_benchmark_realworld_costs.parquet`
+- `tests/pipeline_benchmark_realworld_costs/main.nf.test`
+
+If you want to regenerate the tiny parquet locally from a monthly CUR export while stripping out every non-benchmark real cost row, run:
+
+```
+python scripts/build_filtered_cost_sidecar.py \
+    /path/to/scidev-detailed-usage-YYYY-MM.snappy.parquet \
+    --run-ids-csv workflows/nf_aggregate/assets/test_benchmark_realworld_costs.csv \
+    --output workflows/nf_aggregate/assets/test_benchmark_realworld_costs.parquet
+```
+
+Add `--include-red-herring` only if you want one synthetic non-benchmark row for robustness testing.
+
 ## Output
 
 The results from the pipeline will be published in the path specified by the `--outdir` and will consist of the following contents:

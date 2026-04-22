@@ -8,7 +8,7 @@ Owns
 
 - `NORMALIZE_BENCHMARK_JSONL` in `main.nf`
 - Module-local CLI entrypoint in `bin/benchmark_report.py`
-- Shared normalization logic in repo-root `bin/benchmark_report_normalize.py`
+- Module-local normalization logic in `bin/benchmark_report_normalize.py`
 - Stage-scoped tests under `tests/`
 
 Run directly
