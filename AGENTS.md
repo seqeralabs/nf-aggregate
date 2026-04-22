@@ -17,9 +17,10 @@ input CSV (id, workspace, group, logs, fusion)
 
 | Param                       | Default                       | Purpose                           |
 | --------------------------- | ----------------------------- | --------------------------------- |
-| `generate_benchmark_report` | false                         | Enable benchmark report           |
-| `benchmark_aws_cur_report`  | null                          | AWS CUR parquet for cost analysis |
-| `seqera_api_endpoint`       | `https://api.cloud.seqera.io` | Platform API URL                  |
+| `generate_benchmark_report`   | false                         | Enable benchmark report                           |
+| `benchmark_aws_cur_report`    | null                          | AWS CUR parquet for cost analysis                 |
+| `benchmark_aws_cur_label_map` | null                          | YAML aliases for custom CUR resource label names  |
+| `seqera_api_endpoint`         | `https://api.cloud.seqera.io` | Platform API URL                                  |
 
 ## Plugins
 
@@ -37,6 +38,13 @@ input CSV (id, workspace, group, logs, fusion)
 uv run --with typer --with pyyaml --with pyarrow \
   python bin/benchmark_report.py normalize-jsonl \
   --data-dir /path/to/json_data --output-dir /tmp/jsonl_bundle
+
+# Normalize raw run JSON with CUR cost enrichment + custom label aliases:
+uv run --with typer --with pyyaml --with pyarrow \
+  python bin/benchmark_report.py normalize-jsonl \
+  --data-dir /path/to/json_data --costs /path/to/cur.parquet \
+  --cost-label-map /path/to/cur_label_map.yml \
+  --output-dir /tmp/jsonl_bundle
 
 # Aggregate JSONL bundle to report data:
 uv run --with typer --with pyyaml \

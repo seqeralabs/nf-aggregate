@@ -37,6 +37,7 @@ Use those boundaries to isolate failures instead of re-running everything.
 uv run --with typer --with pyyaml --with pyarrow \
   python bin/benchmark_report.py normalize-jsonl \
   --data-dir /path/to/json_data \
+  --cost-label-map /path/to/cur_label_map.yml \
   --output-dir /tmp/jsonl_bundle
 ```
 
@@ -47,6 +48,7 @@ uv run --with typer --with pyyaml --with pyarrow \
   python bin/benchmark_report.py normalize-jsonl \
   --data-dir /path/to/json_data \
   --costs /path/to/cur.parquet \
+  --cost-label-map /path/to/cur_label_map.yml \
   --output-dir /tmp/jsonl_bundle
 ```
 

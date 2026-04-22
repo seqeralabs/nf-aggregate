@@ -67,6 +67,13 @@
                     "description": "AWS CUR report from data exports.",
                     "pattern": "^\\S+\\.parquet",
                     "format": "file-path"
+                },
+                "benchmark_aws_cur_label_map": {
+                    "type": "string",
+                    "fa_icon": "fas fa-tags",
+                    "description": "Optional YAML file mapping logical benchmark cost labels to one or more CUR resource tag aliases.",
+                    "pattern": "^\\S+\\.(ya?ml)$",
+                    "format": "file-path"
                 }
             },
             "required": ["seqera_api_endpoint"]

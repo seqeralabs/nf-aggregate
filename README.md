@@ -100,18 +100,45 @@ nextflow run seqeralabs/nf-aggregate \
     --benchmark_aws_cur_report ./aws_cost_report.parquet
 ```
 
+If your CUR export uses custom resource label names, pass an optional YAML alias map with `benchmark_aws_cur_label_map`:
+
+```
+nextflow run seqeralabs/nf-aggregate \
+    --input run_ids.csv \
+    --outdir ./results \
+    --generate_benchmark_report \
+    --benchmark_aws_cur_report ./aws_cost_report.parquet \
+    --benchmark_aws_cur_label_map ./cur_label_map.yml
+```
+
 The benchmark report can be generated without cost data - simply omit the `--benchmark_aws_cur_report` parameter if cost analysis is not needed.
 
-When CUR data is provided, nf-aggregate only joins cost rows that carry the resource labels needed to match a Nextflow task back to a benchmark run. The required keys are:
+When CUR data is provided, nf-aggregate only joins cost rows that carry the resource labels needed to match a Nextflow task back to a benchmark run. By default the logical fields map to:
 
 - run ID: `user_unique_run_id` or `user_nf_unique_run_id`
 - process name: `user_pipeline_process`
 - task hash: `user_task_hash`
 
+To accept manual/custom label names, create a YAML file listing aliases for the logical fields:
+
+```
+run_id:
+  - my_team_run_id
+  - user_unique_run_id
+process:
+  - my_process_label
+  - user_pipeline_process
+task_hash:
+  - my_task_hash_label
+  - user_task_hash
+```
+
+Aliases are tried in order, then the built-in defaults are still checked as a fallback.
+
 The normalizer accepts both of the common CUR layouts:
 
-- flattened CUR columns such as `resource_tags_user_unique_run_id`, `resource_tags_user_pipeline_process`, and `resource_tags_user_task_hash`
-- map-style `resource_tags` entries containing `user_unique_run_id`, `user_pipeline_process`, and `user_task_hash`
+- flattened CUR columns such as `resource_tags_user_unique_run_id`, `resource_tags_my_process_label`, and `resource_tags_user_task_hash`
+- map-style `resource_tags` entries containing `user_unique_run_id`, `my_process_label`, and `user_task_hash`
 
 If those labels are missing from the CUR export, the benchmark report still renders, but CUR-backed cost rows cannot be associated with runs or tasks.
 
@@ -138,6 +165,8 @@ python scripts/build_filtered_cost_sidecar.py \
     --run-ids-csv workflows/nf_aggregate/assets/test_benchmark_realworld_costs.csv \
     --output workflows/nf_aggregate/assets/test_benchmark_realworld_costs.parquet
 ```
+
+The helper script also accepts `--cost-label-map ./cur_label_map.yml` when the monthly CUR export uses custom run-id label aliases.
 
 Add `--include-red-herring` only if you want one synthetic non-benchmark row for robustness testing.
 

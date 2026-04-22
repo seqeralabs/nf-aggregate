@@ -11,6 +11,12 @@ from typing import Any
 
 import typer
 
+DEFAULT_COST_LABEL_ALIASES: dict[str, list[str]] = {
+    "run_id": ["user_unique_run_id", "user_nf_unique_run_id"],
+    "process": ["user_pipeline_process"],
+    "task_hash": ["user_task_hash"],
+}
+
 
 def _run_group(run: dict[str, Any]) -> str:
     return run["meta"]["group"]
@@ -239,22 +245,78 @@ def _iter_parquet_rows(costs_parquet: Path):
             yield cols, row
 
 
-def _normalize_cost_rows(costs_parquet: Path) -> list[dict[str, Any]]:
+def _dedupe_aliases(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    aliases: list[str] = []
+    for value in values:
+        alias = str(value).strip()
+        if not alias or alias in seen:
+            continue
+        seen.add(alias)
+        aliases.append(alias)
+    return aliases
+
+
+def _normalise_label_aliases(value: Any, field: str) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return _dedupe_aliases([value])
+    if isinstance(value, list):
+        if not all(isinstance(item, str) for item in value):
+            raise ValueError(f"benchmark_aws_cur_label_map field '{field}' must contain only strings")
+        return _dedupe_aliases(value)
+    raise ValueError(f"benchmark_aws_cur_label_map field '{field}' must be a string or list of strings")
+
+
+def _load_cost_label_aliases(cost_label_map: Path | None = None) -> dict[str, list[str]]:
+    aliases = {field: list(defaults) for field, defaults in DEFAULT_COST_LABEL_ALIASES.items()}
+    if cost_label_map is None or cost_label_map.name in {"NO_FILE", "NO_FILE_CUR_LABEL_MAP"}:
+        return aliases
+
+    try:
+        import yaml
+    except ImportError as exc:
+        raise RuntimeError("pyyaml is required to read benchmark_aws_cur_label_map") from exc
+
+    with cost_label_map.open() as handle:
+        raw_config = yaml.safe_load(handle) or {}
+
+    if not isinstance(raw_config, dict):
+        raise ValueError("benchmark_aws_cur_label_map must contain a YAML mapping")
+
+    unknown_fields = set(raw_config) - set(DEFAULT_COST_LABEL_ALIASES)
+    if unknown_fields:
+        unknown_fields_csv = ", ".join(sorted(unknown_fields))
+        raise ValueError(f"benchmark_aws_cur_label_map contains unsupported fields: {unknown_fields_csv}")
+
+    for field, defaults in DEFAULT_COST_LABEL_ALIASES.items():
+        user_aliases = _normalise_label_aliases(raw_config.get(field), field)
+        aliases[field] = _dedupe_aliases(user_aliases + defaults)
+
+    return aliases
+
+
+def _resolve_cost_label_value(row: dict[str, Any], tags: dict[str, Any], aliases: list[str]) -> Any:
+    for alias in aliases:
+        flat_value = row.get(f"resource_tags_{alias}")
+        if flat_value not in (None, ""):
+            return flat_value
+        tag_value = tags.get(alias)
+        if tag_value not in (None, ""):
+            return tag_value
+    return None
+
+
+def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None) -> list[dict[str, Any]]:
     grouped: dict[tuple[str, str, str], dict[str, float | str]] = {}
-    is_map: bool | None = None
+    label_aliases = _load_cost_label_aliases(cost_label_map)
 
     for cols, row in _iter_parquet_rows(costs_parquet):
-        if is_map is None:
-            is_map = "resource_tags" in cols and "resource_tags_user_unique_run_id" not in cols
-        if is_map:
-            tags = _to_tags_dict(row.get("resource_tags"))
-            run_id = tags.get("user_unique_run_id") or tags.get("user_nf_unique_run_id")
-            process = tags.get("user_pipeline_process")
-            hash_val = tags.get("user_task_hash")
-        else:
-            run_id = row.get("resource_tags_user_unique_run_id") or row.get("resource_tags_user_nf_unique_run_id")
-            process = row.get("resource_tags_user_pipeline_process")
-            hash_val = row.get("resource_tags_user_task_hash")
+        tags = _to_tags_dict(row.get("resource_tags")) if "resource_tags" in cols else {}
+        run_id = _resolve_cost_label_value(row, tags, label_aliases["run_id"])
+        process = _resolve_cost_label_value(row, tags, label_aliases["process"])
+        hash_val = _resolve_cost_label_value(row, tags, label_aliases["task_hash"])
 
         if not run_id:
             continue
@@ -434,7 +496,13 @@ def _summarise_machines(machines_dir: Path) -> list[dict[str, Any]]:
     return results
 
 
-def normalize_jsonl(data_dir: Path, output_dir: Path, costs_parquet: Path | None = None, machines_dir: Path | None = None) -> None:
+def normalize_jsonl(
+    data_dir: Path,
+    output_dir: Path,
+    costs_parquet: Path | None = None,
+    machines_dir: Path | None = None,
+    cost_label_map: Path | None = None,
+) -> None:
     runs = load_run_data(data_dir)
     if not runs:
         typer.echo("No run data found", err=True)
@@ -451,7 +519,7 @@ def normalize_jsonl(data_dir: Path, output_dir: Path, costs_parquet: Path | None
     _write_jsonl(output_dir / "metrics.jsonl", metric_rows)
 
     if costs_parquet and costs_parquet.exists() and costs_parquet.name != "NO_FILE":
-        cost_rows = _normalize_cost_rows(costs_parquet)
+        cost_rows = _normalize_cost_rows(costs_parquet, cost_label_map=cost_label_map)
         _write_jsonl(output_dir / "costs.jsonl", cost_rows)
 
     if machines_dir and machines_dir.exists() and any(machines_dir.glob("*.csv")):
