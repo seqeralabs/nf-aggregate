@@ -125,6 +125,10 @@ workflow NF_AGGREGATE {
             ? Channel.fromPath(params.benchmark_aws_cur_report)
             : Channel.fromPath("${projectDir}/assets/NO_FILE_CUR", checkIfExists: false).ifEmpty(file("${projectDir}/assets/NO_FILE_CUR"))
 
+        ch_cur_label_map = params.benchmark_aws_cur_label_map
+            ? Channel.fromPath(params.benchmark_aws_cur_label_map)
+            : Channel.fromPath("${projectDir}/assets/NO_FILE_CUR_LABEL_MAP", checkIfExists: false).ifEmpty(file("${projectDir}/assets/NO_FILE_CUR_LABEL_MAP"))
+
         // Collect machine metrics CSVs from external runs (if present)
         ch_machines_dir = ch_split.external
             .filter { it.machines }
@@ -146,6 +150,7 @@ workflow NF_AGGREGATE {
         NORMALIZE_BENCHMARK_JSONL(
             ch_data_dir,
             ch_cur.ifEmpty(file("${projectDir}/assets/NO_FILE_CUR")),
+            ch_cur_label_map.ifEmpty(file("${projectDir}/assets/NO_FILE_CUR_LABEL_MAP")),
             ch_machines_dir,
         )
         ch_versions = ch_versions.mix(NORMALIZE_BENCHMARK_JSONL.out.versions)

@@ -2,8 +2,17 @@ import json
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 
-from benchmark_report_normalize import _normalize_cost_rows, _summarise_machines, extract_runs, extract_tasks, load_run_data, normalize_jsonl
+from benchmark_report_normalize import (
+    _load_cost_label_aliases,
+    _normalize_cost_rows,
+    _summarise_machines,
+    extract_runs,
+    extract_tasks,
+    load_run_data,
+    normalize_jsonl,
+)
 
 
 def test_cached_count_extracted(make_run, flat_task):
@@ -105,6 +114,108 @@ def test_normalize_cost_rows_reads_parquet_in_batches(tmp_path):
             "unused_cost": 1.0,
         }
     ]
+
+
+def test_normalize_cost_rows_accepts_custom_flat_aliases(tmp_path):
+    parquet_path = tmp_path / "costs-flat-custom.parquet"
+    label_map_path = tmp_path / "cur_label_map.yml"
+    label_map_path.write_text(
+        "run_id:\n"
+        "  - manual_run_label\n"
+        "process:\n"
+        "  - manual_process_label\n"
+        "task_hash:\n"
+        "  - manual_hash_label\n"
+    )
+    table = pa.table(
+        {
+            "resource_tags_manual_run_label": ["run9", "run9"],
+            "resource_tags_manual_process_label": ["PROC_Z", "PROC_Z"],
+            "resource_tags_manual_hash_label": ["1122334455aa", "1122334455aa"],
+            "split_line_item_split_cost": [1.0, 2.0],
+            "split_line_item_unused_cost": [0.5, 0.25],
+        }
+    )
+    pq.write_table(table, parquet_path, row_group_size=1)
+
+    rows = _normalize_cost_rows(parquet_path, cost_label_map=label_map_path)
+
+    assert rows == [
+        {
+            "run_id": "run9",
+            "process": "PROC_Z",
+            "hash": "11223344",
+            "cost": 3.75,
+            "used_cost": 3.0,
+            "unused_cost": 0.75,
+        }
+    ]
+
+
+def test_normalize_cost_rows_accepts_custom_resource_tag_aliases(tmp_path):
+    parquet_path = tmp_path / "costs-map-custom.parquet"
+    label_map_path = tmp_path / "cur_label_map.yml"
+    label_map_path.write_text(
+        "run_id: manual_run_label\n"
+        "process: manual_process_label\n"
+        "task_hash: manual_hash_label\n"
+    )
+    table = pa.table(
+        {
+            "resource_tags": [
+                [
+                    ("manual_run_label", "run-map"),
+                    ("manual_process_label", "PROC_MAP"),
+                    ("manual_hash_label", "aa11bb22cc33"),
+                ]
+            ],
+            "split_line_item_split_cost": [2.5],
+            "split_line_item_unused_cost": [0.5],
+        }
+    )
+    pq.write_table(table, parquet_path)
+
+    rows = _normalize_cost_rows(parquet_path, cost_label_map=label_map_path)
+
+    assert rows == [
+        {
+            "run_id": "run-map",
+            "process": "PROC_MAP",
+            "hash": "aa11bb22",
+            "cost": 3.0,
+            "used_cost": 2.5,
+            "unused_cost": 0.5,
+        }
+    ]
+
+
+def test_normalize_cost_rows_prefers_user_aliases_before_defaults(tmp_path):
+    parquet_path = tmp_path / "costs-prefer-custom.parquet"
+    label_map_path = tmp_path / "cur_label_map.yml"
+    label_map_path.write_text("run_id: manual_run_label\n")
+    table = pa.table(
+        {
+            "resource_tags_manual_run_label": ["run-custom"],
+            "resource_tags_user_unique_run_id": ["run-default"],
+            "resource_tags_user_pipeline_process": ["PROC_A"],
+            "resource_tags_user_task_hash": ["abcdef123456"],
+            "split_line_item_split_cost": [1.0],
+            "split_line_item_unused_cost": [0.0],
+        }
+    )
+    pq.write_table(table, parquet_path)
+
+    rows = _normalize_cost_rows(parquet_path, cost_label_map=label_map_path)
+
+    assert rows[0]["run_id"] == "run-custom"
+
+
+def test_load_cost_label_aliases_rejects_unknown_fields(tmp_path):
+    label_map_path = tmp_path / "invalid_cur_label_map.yml"
+    label_map_path.write_text("unexpected: value\n")
+
+    with pytest.raises(ValueError, match="unsupported fields"):
+        _load_cost_label_aliases(label_map_path)
 
 
 def test_load_run_data(tmp_path, make_run, write_run_json):

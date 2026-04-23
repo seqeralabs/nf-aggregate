@@ -33,6 +33,7 @@ Command:
 
 ```bash
 python bin/benchmark_report.py normalize-jsonl --data-dir <run_json_dir> --output-dir <jsonl_bundle>
+python bin/benchmark_report.py normalize-jsonl --data-dir <run_json_dir> --costs <cur.parquet> --cost-label-map <cur_label_map.yml> --output-dir <jsonl_bundle>
 ```
 
 Responsibilities:
@@ -119,6 +120,13 @@ results/benchmark_report/
 uv run --with typer --with pyyaml --with pyarrow \
   python bin/benchmark_report.py normalize-jsonl \
   --data-dir /path/to/json_data --output-dir /tmp/jsonl_bundle
+
+uv run --with typer --with pyyaml --with pyarrow \
+  python bin/benchmark_report.py normalize-jsonl \
+  --data-dir /path/to/json_data \
+  --costs /path/to/cur.parquet \
+  --cost-label-map /path/to/cur_label_map.yml \
+  --output-dir /tmp/jsonl_bundle
 
 uv run --with typer --with pyyaml \
   python bin/benchmark_report.py aggregate-report-data \
