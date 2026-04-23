@@ -67,6 +67,12 @@
                     "description": "AWS CUR report from data exports.",
                     "pattern": "^\\S+\\.parquet",
                     "format": "file-path"
+                },
+                "include_failed_runs": {
+                    "type": "boolean",
+                    "default": false,
+                    "fa_icon": "fas fa-exclamation-triangle",
+                    "description": "Include workflow-level failed runs in downstream benchmark sections and charts. Cancelled workflows remain excluded."
                 }
             },
             "required": ["seqera_api_endpoint"]

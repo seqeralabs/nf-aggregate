@@ -78,10 +78,10 @@ def _is_highlight_process(process: str) -> bool:
     return any(keyword in process_lc for keyword in _HIGHLIGHT_KEYWORDS)
 
 
-def _classify_workflow_status(status: str | None) -> tuple[str, str, bool]:
+def _classify_workflow_status(status: str | None, include_failed_runs: bool = False) -> tuple[str, str, bool]:
     normalized = (status or "").strip().upper()
     if normalized in {"FAILED", "ERROR", "FAILING"}:
-        return ("Failed", "failed", False)
+        return ("Failed", "failed", include_failed_runs)
     if normalized in {"CANCELLED", "CANCELED", "ABORTED", "ABORT", "STOPPED"}:
         return ("Cancelled", "cancelled", False)
     if normalized in {"SUCCEEDED", "SUCCESS", "COMPLETED"}:
@@ -135,7 +135,7 @@ def _load_machines_index(jsonl_dir: Path) -> dict[str, dict[str, Any]]:
     return index
 
 
-def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
+def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dict[str, Any]:
     benchmark_overview: list[dict[str, Any]] = []
     run_summary: list[dict[str, Any]] = []
     run_metrics: list[dict[str, Any]] = []
@@ -149,7 +149,9 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
         run_id = str(r.get("run_id", ""))
         group = str(r.get("group", ""))
         run_pipeline[run_id] = str(r.get("pipeline") or "unknown")
-        status_label, status_category, report_included = _classify_workflow_status(r.get("status"))
+        status_label, status_category, report_included = _classify_workflow_status(
+            r.get("status"), include_failed_runs=include_failed_runs
+        )
 
         benchmark_overview.append(
             {
@@ -601,6 +603,6 @@ def build_report_data(jsonl_dir: Path) -> dict[str, Any]:
     }
 
 
-def aggregate_report_data(jsonl_dir: Path, output: Path) -> None:
-    data = build_report_data(jsonl_dir)
+def aggregate_report_data(jsonl_dir: Path, output: Path, include_failed_runs: bool = False) -> None:
+    data = build_report_data(jsonl_dir, include_failed_runs=include_failed_runs)
     output.write_text(json.dumps(data, default=str))

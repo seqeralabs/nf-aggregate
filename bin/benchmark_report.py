@@ -40,11 +40,12 @@ def normalize_jsonl_cmd(
 def aggregate_report_data_cmd(
     jsonl_dir: Path = typer.Option(..., exists=True, help="Directory containing JSONL bundle"),
     output: Path = typer.Option(Path("report_data.json"), help="Output report_data.json path"),
+    include_failed_runs: bool = typer.Option(False, help="Include workflow-level failed runs in downstream report sections and charts"),
 ) -> None:
     """Aggregate JSONL bundle into report_data.json."""
     from benchmark_report_aggregate import aggregate_report_data
 
-    aggregate_report_data(jsonl_dir=jsonl_dir, output=output)
+    aggregate_report_data(jsonl_dir=jsonl_dir, output=output, include_failed_runs=include_failed_runs)
     typer.echo(f"Report data written to {output}")
 
 
@@ -69,12 +70,13 @@ def report(
     data_output: Path = typer.Option(Path("report_data.json"), help="Intermediate report_data.json output"),
     brand: Path = typer.Option(None, help="Brand YAML file"),
     logo: Path = typer.Option(None, help="SVG logo file"),
+    include_failed_runs: bool = typer.Option(False, help="Include workflow-level failed runs in downstream report sections and charts"),
 ) -> None:
     """Convenience wrapper: aggregate-report-data + render-html."""
     from benchmark_report_aggregate import aggregate_report_data
     from benchmark_report_render import render_report_from_json
 
-    aggregate_report_data(jsonl_dir=jsonl_dir, output=data_output)
+    aggregate_report_data(jsonl_dir=jsonl_dir, output=data_output, include_failed_runs=include_failed_runs)
     render_report_from_json(report_data_path=data_output, output=output, brand_path=brand, logo_path=logo)
     typer.echo(f"Report written to {output}")
 
