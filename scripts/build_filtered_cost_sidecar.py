@@ -82,19 +82,45 @@ def choose_run_id_column(schema: pa.Schema, aliases: list[str]) -> str | None:
     return None
 
 
+def _to_tags_dict(value: object) -> dict[str, object]:
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, list):
+        tags: dict[str, object] = {}
+        for item in value:
+            if isinstance(item, (tuple, list)) and len(item) == 2:
+                tags[str(item[0])] = item[1]
+        return tags
+    return {}
+
+
 def build_run_ids(table: pa.Table, run_id_column: str | None, aliases: list[str]) -> list[str | None]:
-    if run_id_column is not None:
-        return table[run_id_column].combine_chunks().to_pylist()
-    if 'resource_tags' not in table.schema.names:
+    flat_alias_values = {
+        alias: table[f'resource_tags_{alias}'].combine_chunks().to_pylist()
+        for alias in aliases
+        if f'resource_tags_{alias}' in table.schema.names
+    }
+    has_resource_tags = 'resource_tags' in table.schema.names
+    if not flat_alias_values and not has_resource_tags:
         raise SystemExit('No supported run-id column or resource_tags map found in parquet schema')
 
+    raw_tags_values = table['resource_tags'].to_pylist() if has_resource_tags else [None] * table.num_rows
     values: list[str | None] = []
-    for raw_tags in table['resource_tags'].to_pylist():
-        tag_map = dict(raw_tags or [])
+    for idx, raw_tags in enumerate(raw_tags_values):
+        tag_map = _to_tags_dict(raw_tags)
         run_id = None
-        for key in aliases:
-            if key in tag_map:
-                run_id = tag_map[key]
+        for alias in aliases:
+            flat_values = flat_alias_values.get(alias)
+            if flat_values is not None:
+                flat_value = flat_values[idx]
+                if flat_value not in (None, ''):
+                    run_id = flat_value
+                    break
+            tag_value = tag_map.get(alias)
+            if tag_value not in (None, ''):
+                run_id = tag_value
                 break
         values.append(run_id)
     return values
