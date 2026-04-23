@@ -28,12 +28,19 @@ def normalize_jsonl_cmd(
     data_dir: Path = typer.Option(..., exists=True, help="Directory containing run JSON files"),
     output_dir: Path = typer.Option(Path("jsonl_bundle"), help="Output JSONL bundle directory"),
     costs: Path = typer.Option(None, help="Optional AWS CUR parquet file"),
+    cost_label_map: Path = typer.Option(None, help="Optional YAML file mapping logical CUR labels to custom tag aliases"),
     machines_dir: Path = typer.Option(None, help="Optional machine metrics CSV directory"),
 ) -> None:
     """Normalize raw run JSON into runs/tasks/metrics JSONL files."""
     from benchmark_report_normalize import normalize_jsonl
 
-    normalize_jsonl(data_dir=data_dir, output_dir=output_dir, costs_parquet=costs, machines_dir=machines_dir)
+    normalize_jsonl(
+        data_dir=data_dir,
+        output_dir=output_dir,
+        costs_parquet=costs,
+        cost_label_map=cost_label_map,
+        machines_dir=machines_dir,
+    )
 
 
 @app.command("aggregate-report-data")
