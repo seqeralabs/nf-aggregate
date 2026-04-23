@@ -150,6 +150,8 @@ user_pipeline_process=${task.process}
 user_task_hash=${task.hash}
 ```
 
+If you want workflow-level failed runs to appear in downstream benchmark sections (run metrics, charts, task tables), pass `--include_failed_runs`. By default, failed workflows are listed in the run summary but excluded from downstream metrics. Cancelled workflows remain excluded.
+
 For a checked-in real-world example that exercises external run JSON directories plus a tiny filtered cost parquet, see:
 
 - `workflows/nf_aggregate/assets/test_benchmark_realworld_costs.csv`

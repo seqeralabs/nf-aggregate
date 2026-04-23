@@ -13,8 +13,17 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--jsonl-dir", type=Path, required=True, help="Directory containing JSONL bundle")
     parser.add_argument("--output", type=Path, default=Path("report_data.json"), help="Output report_data.json path")
+    parser.add_argument(
+        "--include-failed-runs",
+        action="store_true",
+        help="Include workflow-level failed runs in downstream report sections and charts",
+    )
     args = parser.parse_args(argv)
-    aggregate_report_data(jsonl_dir=args.jsonl_dir, output=args.output)
+    aggregate_report_data(
+        jsonl_dir=args.jsonl_dir,
+        output=args.output,
+        include_failed_runs=args.include_failed_runs,
+    )
     print(f"Report data written to {args.output}")
 
 

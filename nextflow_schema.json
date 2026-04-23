@@ -68,6 +68,12 @@
                     "pattern": "^\\S+\\.parquet",
                     "format": "file-path"
                 },
+                "include_failed_runs": {
+                    "type": "boolean",
+                    "default": false,
+                    "fa_icon": "fas fa-exclamation-triangle",
+                    "description": "Include workflow-level failed runs in downstream benchmark sections and charts. Cancelled workflows remain excluded."
+                },
                 "benchmark_aws_cur_label_map": {
                     "type": "string",
                     "fa_icon": "fas fa-tags",
