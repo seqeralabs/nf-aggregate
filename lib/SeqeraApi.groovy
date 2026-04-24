@@ -36,7 +36,11 @@ class SeqeraApi {
     }
 
     static void validateApiAccess(String apiEndpoint, Map headers, String tokenEnvVar, String token) {
-        def validationKey = "${apiEndpoint}|${tokenEnvVar}|${token.hashCode()}"
+        def tokenDigest = java.security.MessageDigest.getInstance('SHA-256')
+            .digest(token.getBytes('UTF-8'))
+            .collect { String.format('%02x', it) }
+            .join()
+        def validationKey = "${apiEndpoint}|${tokenEnvVar}|${tokenDigest}"
         if (validatedApiSessions.contains(validationKey)) {
             return
         }
