@@ -1,0 +1,89 @@
+nextflow_function {
+    name "SeqeraApi helper functions"
+
+    test("apiGetAllTasks paginates until the final short page") {
+        function "SeqeraApi.apiGetAllTasks"
+
+        when {
+            function {
+                """
+                SeqeraApi.metaClass.'static'.apiGet = { String url, Map headers ->
+                    if (url.contains('offset=0')) {
+                        return [tasks: (1..100).collect { [taskId: it] }]
+                    }
+                    if (url.contains('offset=100')) {
+                        return [tasks: [[taskId: 101], [taskId: 102]]]
+                    }
+                    throw new RuntimeException("Unexpected URL: \${url}")
+                }
+
+                input[0] = 'https://example.com/tasks?workspaceId=55'
+                input[1] = [Authorization: 'Bearer test-token']
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result*.taskId == (1..102).toList()
+        }
+    }
+
+    test("resolveWorkspaceId returns the matching workspace id") {
+        function "SeqeraApi.resolveWorkspaceId"
+
+        when {
+            function {
+                """
+                SeqeraApi.metaClass.'static'.apiGet = { String url, Map headers ->
+                    if (url == 'https://api.example.com/orgs') {
+                        return [organizations: [[name: 'acme', orgId: 7], [name: 'other', orgId: 8]]]
+                    }
+                    if (url == 'https://api.example.com/orgs/7/workspaces') {
+                        return [workspaces: [[name: 'workspace-a', id: 11], [name: 'workspace-b', id: 42]]]
+                    }
+                    throw new RuntimeException("Unexpected URL: \${url}")
+                }
+
+                input[0] = 'acme/workspace-b'
+                input[1] = 'https://api.example.com'
+                input[2] = [Authorization: 'Bearer test-token']
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == 42L
+        }
+    }
+
+    test("resolveWorkspaceId fails when the workspace is missing") {
+        function "SeqeraApi.resolveWorkspaceId"
+
+        when {
+            function {
+                """
+                SeqeraApi.metaClass.'static'.apiGet = { String url, Map headers ->
+                    if (url == 'https://api.example.com/orgs') {
+                        return [organizations: [[name: 'acme', orgId: 7]]]
+                    }
+                    if (url == 'https://api.example.com/orgs/7/workspaces') {
+                        return [workspaces: [[name: 'workspace-a', id: 11]]]
+                    }
+                    throw new RuntimeException("Unexpected URL: \${url}")
+                }
+
+                input[0] = 'acme/workspace-b'
+                input[1] = 'https://api.example.com'
+                input[2] = [Authorization: 'Bearer test-token']
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            assert function.stdout.any { it.contains("Workspace 'workspace-b' not found in org 'acme'") }
+        }
+    }
+}

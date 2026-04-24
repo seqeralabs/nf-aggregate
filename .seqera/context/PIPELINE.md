@@ -89,7 +89,7 @@ results/
 
 ## Data Flow Details
 
-1. **API path:** `SeqeraApi.fetchRunData()` runs in Groovy process memory (not a Nextflow task). It resolves workspace name → ID, then fetches `/workflow/{id}`, `/workflow/{id}/metrics`, `/workflow/{id}/tasks` (paginated), and `/workflow/{id}/progress`. Results are written to temp JSON files.
+1. **API path:** `SeqeraApi.fetchRunData()` runs in Groovy process memory (not a Nextflow task). It first validates the configured Platform endpoint with `/service-info` and the bearer token with `/user-info`, then resolves workspace name → ID and fetches `/workflow/{id}`, `/workflow/{id}/metrics`, `/workflow/{id}/tasks` (paginated), and `/workflow/{id}/progress`. Results are written to temp JSON files.
 2. **External path:** EXTRACT_TARBALL unpacks `.tar.gz` into a directory of JSON files. Directories are used directly.
 3. **All JSON files** are collected into a single temp directory and passed to the 3-stage Python pipeline: normalize → aggregate → render.
 4. The Python stages are separate Nextflow processes sharing one Wave container image (`python_duckdb_jinja2_typer_pruned`).

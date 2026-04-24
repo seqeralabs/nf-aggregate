@@ -15,6 +15,8 @@
 
 The pipeline fetches run data from the Seqera Platform API and generates benchmark reports comparing pipeline runs.
 
+Before the pipeline resolves workspaces or fetches run details, it performs API preflight checks against `/service-info` and `/user-info`. This helps surface misconfigured API endpoints, missing truststore configuration, and invalid access tokens with explicit error messages.
+
 ## Prerequisites
 
 - [Nextflow](https://www.nextflow.io/docs/latest/getstarted.html#installation) >=25.10.0
