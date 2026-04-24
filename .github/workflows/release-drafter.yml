@@ -1,0 +1,23 @@
+name: Update release draft
+on:
+  push:
+    branches:
+      - main
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - labeled
+      - unlabeled
+      - edited
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  update_release_draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@5de93583980a40bd78603b6dfdcda5b4df377b32 # v7.2.0

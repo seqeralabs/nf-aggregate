@@ -26,6 +26,15 @@ If you're not used to this workflow with git, you can start with some [docs from
 When you create a pull request with changes, [GitHub Actions](https://github.com/features/actions) will run automatic tests.
 Typically, pull-requests are only fully reviewed when these tests are passing, though of course we can help out before then.
 
+## Changelog and release notes
+
+Release notes are drafted automatically from merged pull requests using GitHub labels.
+
+- Apply `bug`, `enhancement`, or `documentation` to have your PR included under the matching release notes section.
+- Apply `renovate-actions` for GitHub Actions and dependency-maintenance changes.
+- PRs without one of the release labels above are excluded from the automated changelog draft.
+- `CHANGELOG.md` is maintained at release time, so PR authors do not need to edit it for routine changes.
+
 ## Patch
 
 :warning: Only in the unlikely and regretful event of a release happening with a bug.
