@@ -88,6 +88,25 @@ uv run --with typer --with pyyaml \
 - **nf-test (pipeline integration tests):** `nf-test test --profile=+docker --verbose`
 - **Lint:** `pre-commit run --all-files`
 
+### Running on Apple Silicon (ARM64)
+
+All pipeline containers are `linux/amd64` only (the Wave community image has no ARM64 variant). On ARM Macs, Docker runs these via QEMU/Rosetta emulation — tests and the pipeline work without any changes.
+
+For explicit x86_64 emulation (recommended on ARM Macs to avoid Docker platform-mismatch warnings), combine the `arm` profile with `docker`:
+
+```bash
+# nf-test
+nf-test test --profile=+docker,+arm --verbose
+
+# direct nextflow run
+nextflow run . --input workflows/nf_aggregate/assets/test_benchmark.csv \
+  --generate_benchmark_report --outdir results -profile docker,arm
+```
+
+The `arm` profile adds `--platform=linux/amd64` to Docker run options so the container engine picks the correct image manifest instead of silently falling back.
+
+Python unit tests (`pytest`) run natively on ARM — no `arm` profile needed for those.
+
 ### Agent quick verify (offline)
 
 Run this exact sequence when validating split benchmark-report changes in Cursor Cloud:
