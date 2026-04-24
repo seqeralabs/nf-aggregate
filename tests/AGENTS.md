@@ -2,7 +2,7 @@
 
 ## Layout
 
-Each pipeline-level scenario lives in its own directory:
+Pipeline-level scenarios live in their own directories:
 
 - `pipeline_api_only/`
 - `pipeline_mixed_no_benchmark/`
@@ -16,13 +16,21 @@ Each scenario directory contains:
 - `main.nf.test.snap` — the snapshot for that scenario
 - `AGENTS.md` — scenario-specific guidance for future edits
 
+Function-level nf-test coverage for `lib/` helpers lives separately under:
+
+- `lib/`
+
+Reference: nf-test Function Testing docs — https://www.nf-test.com/docs/testcases/nextflow_function/
+
 ## Conventions
 
 - One scenario per directory.
 - Keep assertions local and explicit rather than heavily abstracted.
 - Prefer stable fixture files under `workflows/nf_aggregate/assets/`.
 - If routing behavior changes, update the scenario-specific `AGENTS.md` along with the test.
-- This directory is for pipeline routing/integration scenarios only; stage-specific pytest tests now live beside the relevant module under `modules/local/*/tests/`.
+- Pipeline routing/integration scenarios live under `tests/pipeline_*/`.
+- Function-level nf-test coverage for Groovy helpers under `lib/` lives under `tests/lib/`.
+- Stage-specific pytest tests live beside the relevant module under `modules/local/*/tests/`.
 
 ## Running tests
 
