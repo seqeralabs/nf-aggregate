@@ -179,7 +179,7 @@ def extract_tasks(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "peak_rss": task.get("peakRss", 0),
                     "read_bytes": task.get("readBytes", 0),
                     "write_bytes": task.get("writeBytes", 0),
-                    "cost": task.get("cost"),
+                    "cost": None,
                     "executor": task.get("executor", ""),
                     "machine_type": task.get("machineType", ""),
                     "cloud_zone": task.get("cloudZone", ""),

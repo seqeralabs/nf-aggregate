@@ -31,14 +31,14 @@ def test_build_report_data_has_all_sections(tmp_path, make_run, flat_task, write
     }
 
 
-def test_run_costs_without_cur_uses_task_cost(tmp_path, make_run, flat_task, write_run_json):
+def test_run_costs_without_cur_are_zero(tmp_path, make_run, flat_task, write_run_json):
     data_dir = tmp_path / "data"
     jsonl_dir = tmp_path / "jsonl_bundle"
     write_run_json(data_dir, [make_run(tasks=[flat_task(cost=4.2)])])
     normalize_jsonl(data_dir, jsonl_dir)
 
     data = build_report_data(jsonl_dir)
-    assert data["run_costs"][0]["cost"] == 4.2
+    assert data["run_costs"][0]["cost"] == 0.0
     assert data["run_costs"][0]["used_cost"] is None
 
 

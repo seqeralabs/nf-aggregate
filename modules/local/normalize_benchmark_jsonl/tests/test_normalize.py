@@ -24,7 +24,7 @@ def test_cached_count_extracted(make_run, flat_task):
 def test_nested_tasks_unwrapped(make_run, nested_task):
     run = make_run(tasks=[nested_task(cost=2.0), nested_task(cost=3.0)])
     rows = extract_tasks([run])
-    assert sum(r["cost"] for r in rows) == 5.0
+    assert all(r["cost"] is None for r in rows)
 
 
 def test_failed_tasks_filtered(make_run, flat_task):
