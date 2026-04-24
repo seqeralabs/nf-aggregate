@@ -1,5 +1,5 @@
-name-template: "v$RESOLVED_VERSION"
-tag-template: "v$RESOLVED_VERSION"
+name-template: "$RESOLVED_VERSION"
+tag-template: "$RESOLVED_VERSION"
 category-template: "### $TITLE"
 change-template: "- [PR #$NUMBER](https://github.com/seqeralabs/nf-aggregate/pull/$NUMBER) - $TITLE"
 change-title-escapes: "\\<*_&"
