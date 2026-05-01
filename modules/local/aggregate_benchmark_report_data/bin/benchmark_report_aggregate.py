@@ -73,6 +73,26 @@ def _cost_or_task(cost_row: dict[str, Any] | None, key: str, default: float = 0.
     return float(value)
 
 
+def _summarize_missing_processes(
+    missing_process_counts: dict[str, int], preview_limit: int = 3
+) -> tuple[list[dict[str, Any]], str]:
+    ordered = sorted(missing_process_counts.items(), key=lambda item: (-item[1], item[0]))
+    preview = [
+        {"process_short": process_short, "missing_tasks": missing_tasks}
+        for process_short, missing_tasks in ordered[:preview_limit]
+    ]
+    parts = [
+        f"{item['process_short']} ({item['missing_tasks']})"
+        if item["missing_tasks"] != 1
+        else item["process_short"]
+        for item in preview
+    ]
+    hidden_count = max(len(ordered) - preview_limit, 0)
+    if hidden_count:
+        parts.append(f"+{hidden_count} more")
+    return preview, ", ".join(parts)
+
+
 def _is_highlight_process(process: str) -> bool:
     process_lc = process.lower()
     return any(keyword in process_lc for keyword in _HIGHLIGHT_KEYWORDS)
@@ -240,9 +260,11 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
             "unused_cost": 0.0,
         }
 
+    costs_jsonl_path = jsonl_dir / "costs.jsonl"
+    cur_supplied = costs_jsonl_path.exists()
     costs_index: dict[tuple[str, str, str], dict[str, Any]] = {}
     has_cost_rows = False
-    for c in _iter_jsonl(jsonl_dir / "costs.jsonl"):
+    for c in _iter_jsonl(costs_jsonl_path):
         has_cost_rows = True
         run_id = str(c.get("run_id", ""))
         process = str(c.get("process", ""))
@@ -289,6 +311,10 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
     task_run_acc: dict[str, dict[str, float]] = defaultdict(
         lambda: {"requested_cpu_h": 0.0, "requested_mem_gib_h": 0.0, "real_cpu_h": 0.0, "real_mem_gib_h": 0.0}
     )
+    cost_coverage_runs: dict[tuple[str, str], dict[str, Any]] = {}
+    total_cost_tasks = 0
+    matched_cost_tasks = 0
+    missing_cost_tasks = 0
 
     for t in _iter_jsonl(jsonl_dir / "tasks.jsonl"):
         run_id = str(t.get("run_id", ""))
@@ -311,6 +337,29 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
             }
 
         cost_row = _lookup_cost(costs_index, run_id=run_id, process=process, process_short=process_short, hash_short=hash_short)
+
+        if cur_supplied:
+            total_cost_tasks += 1
+            coverage = cost_coverage_runs.setdefault(
+                run_group_key,
+                {
+                    "run_id": run_id,
+                    "group": group,
+                    "total_tasks": 0,
+                    "matched_tasks": 0,
+                    "missing_tasks": 0,
+                    "missing_process_counts": defaultdict(int),
+                },
+            )
+            coverage["total_tasks"] += 1
+            if cost_row:
+                matched_cost_tasks += 1
+                coverage["matched_tasks"] += 1
+            else:
+                missing_cost_tasks += 1
+                coverage["missing_tasks"] += 1
+                missing_process = process_short or process or "unknown"
+                coverage["missing_process_counts"][missing_process] += 1
 
         if cost_row:
             run_cost_acc[run_group_key]["cost"] += _cost_or_task(cost_row, "cost")
@@ -527,6 +576,34 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
         ]
         cost_overview.sort(key=lambda x: float(x.get("total_cost") or 0), reverse=True)
 
+    runs_with_missing_costs = []
+    for row in cost_coverage_runs.values():
+        if int(row["missing_tasks"]) <= 0:
+            continue
+        missing_processes, missing_process_summary = _summarize_missing_processes(row["missing_process_counts"])
+        runs_with_missing_costs.append(
+            {
+                "run_id": row["run_id"],
+                "group": row["group"],
+                "total_tasks": int(row["total_tasks"]),
+                "matched_tasks": int(row["matched_tasks"]),
+                "missing_tasks": int(row["missing_tasks"]),
+                "missing_processes": missing_processes,
+                "missing_process_summary": missing_process_summary,
+            }
+        )
+    runs_with_missing_costs.sort(key=lambda row: (-row["missing_tasks"], str(row["group"]), str(row["run_id"])))
+
+    cost_coverage = {
+        "cur_supplied": cur_supplied,
+        "has_any_cost_rows": has_cost_rows,
+        "total_included_tasks": total_cost_tasks,
+        "matched_task_count": matched_cost_tasks,
+        "missing_task_count": missing_cost_tasks,
+        "coverage_pct": _round((matched_cost_tasks / total_cost_tasks) * 100.0, 1) if total_cost_tasks else None,
+        "runs_with_missing_costs": runs_with_missing_costs,
+    }
+
     combined_task_runtime = []
     for (pipeline, group), panel_acc in sorted(combined_runtime_acc.items(), key=lambda x: (x[0][0], x[0][1])):
         process_runtime_ms = panel_acc["process_runtime_ms"]
@@ -596,6 +673,7 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
         "task_table": task_table,
         "task_scatter": task_scatter,
         "cost_overview": cost_overview,
+        "cost_coverage": cost_coverage,
     }
 
 

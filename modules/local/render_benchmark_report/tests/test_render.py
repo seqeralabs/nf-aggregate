@@ -61,6 +61,8 @@ def test_render_html(tmp_path, minimal_report_data):
     assert 'id="chart-pg-cpu-savings"' not in text
     assert 'target="_blank" rel="noopener noreferrer"' in text
     assert "r.runUrl ? '<a href=\"' + r.runUrl" in text
+    assert 'id="cost-coverage-warning"' in text
+    assert "CUR coverage warning" not in text
 
 
 def test_render_performance_gains_with_vm_data(tmp_path, minimal_report_data):
@@ -79,6 +81,42 @@ def test_render_performance_gains_with_vm_data(tmp_path, minimal_report_data):
     assert "Scheduler rightsize will be zero by construction" in text
     assert "CPU capacity mix" in text
     assert "Savings attribution (CPU) by layer" in text
+
+
+def test_render_cost_coverage_warning(tmp_path, minimal_report_data):
+    data = dict(minimal_report_data)
+    data["cost_coverage"] = {
+        "cur_supplied": True,
+        "has_any_cost_rows": True,
+        "total_included_tasks": 5,
+        "matched_task_count": 3,
+        "missing_task_count": 2,
+        "coverage_pct": 60.0,
+        "runs_with_missing_costs": [
+            {
+                "run_id": "run1",
+                "group": "cpu",
+                "total_tasks": 5,
+                "matched_tasks": 3,
+                "missing_tasks": 2,
+                "missing_processes": [
+                    {"process_short": "PROC_B", "missing_tasks": 1},
+                    {"process_short": "PROC_C", "missing_tasks": 1},
+                ],
+                "missing_process_summary": "PROC_B, PROC_C",
+            }
+        ],
+    }
+    out = tmp_path / "report.html"
+    render_html(data, out)
+    text = out.read_text()
+    assert 'id="cost-coverage-warning"' in text
+    assert "CUR coverage warning" in text
+    assert "Some included tasks do not have a matching CUR cost row." in text
+    assert "Missing cost rows by run" in text
+    assert "const costCoverage = DATA.cost_coverage || {};" in text
+    assert "fmtCoverageCount(run.matched_tasks, run.total_tasks)" in text
+    assert "PROC_B, PROC_C" in text
 
 
 def test_render_pr132_style_scheduler_vm_fixture(tmp_path, pr132_scheduler_vm_report_data):

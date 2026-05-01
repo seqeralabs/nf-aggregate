@@ -28,6 +28,7 @@ def test_build_report_data_has_all_sections(tmp_path, make_run, flat_task, write
         "task_table",
         "task_scatter",
         "cost_overview",
+        "cost_coverage",
     }
 
 
@@ -40,6 +41,15 @@ def test_run_costs_without_cur_are_zero(tmp_path, make_run, flat_task, write_run
     data = build_report_data(jsonl_dir)
     assert data["run_costs"][0]["cost"] == 0.0
     assert data["run_costs"][0]["used_cost"] is None
+    assert data["cost_coverage"] == {
+        "cur_supplied": False,
+        "has_any_cost_rows": False,
+        "total_included_tasks": 0,
+        "matched_task_count": 0,
+        "missing_task_count": 0,
+        "coverage_pct": None,
+        "runs_with_missing_costs": [],
+    }
 
 
 def test_cur_zero_costs_do_not_fall_back_to_task_cost(tmp_path):
@@ -101,6 +111,107 @@ def test_cur_zero_costs_do_not_fall_back_to_task_cost(tmp_path):
     assert data["run_costs"][0]["unused_cost"] == 0.0
     assert data["cost_overview"][0]["total_cost"] == 0.0
     assert data["cost_overview"][0]["used_cost"] == 0.0
+    assert data["cost_coverage"]["cur_supplied"] is True
+    assert data["cost_coverage"]["coverage_pct"] == 100.0
+    assert data["cost_coverage"]["missing_task_count"] == 0
+
+
+def test_partial_cur_coverage_is_reported_per_run_and_process(tmp_path):
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    jsonl_dir.mkdir(parents=True)
+
+    runs = [
+        {
+            "run_id": "run1",
+            "group": "cpu",
+            "pipeline": "pipe",
+            "username": "u",
+            "pipeline_version": "main",
+            "nextflow_version": "24.10.0",
+            "platform_version": "x",
+            "succeeded": 2,
+            "failed": 0,
+            "cached": 0,
+            "executor": "awsbatch",
+            "region": "us-east-1",
+            "fusion_enabled": False,
+            "wave_enabled": False,
+            "container_engine": "docker",
+            "duration_ms": 10,
+            "cpu_time_ms": 1000,
+            "cpu_efficiency": 50.0,
+            "memory_efficiency": 50.0,
+            "read_bytes": 0,
+            "write_bytes": 0,
+        }
+    ]
+    tasks = [
+        {
+            "run_id": "run1",
+            "group": "cpu",
+            "hash": "ab/cdef12",
+            "process": "foo:PROC_A",
+            "process_short": "PROC_A",
+            "name": "PROC_A",
+            "status": "COMPLETED",
+            "staging_ms": 0,
+            "realtime_ms": 1000,
+            "duration_ms": 1000,
+            "cost": None,
+        },
+        {
+            "run_id": "run1",
+            "group": "cpu",
+            "hash": "ab/cdef13",
+            "process": "foo:PROC_B",
+            "process_short": "PROC_B",
+            "name": "PROC_B",
+            "status": "COMPLETED",
+            "staging_ms": 0,
+            "realtime_ms": 1000,
+            "duration_ms": 1000,
+            "cost": None,
+        },
+        {
+            "run_id": "run1",
+            "group": "cpu",
+            "hash": "ab/cdef14",
+            "process": "foo:PROC_B",
+            "process_short": "PROC_B",
+            "name": "PROC_B_retry",
+            "status": "CACHED",
+            "staging_ms": 0,
+            "realtime_ms": 1000,
+            "duration_ms": 1000,
+            "cost": None,
+        },
+    ]
+    costs = [
+        {"run_id": "run1", "process": "foo:PROC_A", "hash": "abcdef12", "cost": 5.0, "used_cost": 4.0, "unused_cost": 1.0}
+    ]
+
+    (jsonl_dir / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in runs))
+    (jsonl_dir / "tasks.jsonl").write_text("".join(json.dumps(t) + "\n" for t in tasks))
+    (jsonl_dir / "costs.jsonl").write_text("".join(json.dumps(c) + "\n" for c in costs))
+
+    data = build_report_data(jsonl_dir)
+
+    assert data["run_costs"][0]["cost"] == 5.0
+    assert data["cost_coverage"]["cur_supplied"] is True
+    assert data["cost_coverage"]["has_any_cost_rows"] is True
+    assert data["cost_coverage"]["total_included_tasks"] == 3
+    assert data["cost_coverage"]["matched_task_count"] == 1
+    assert data["cost_coverage"]["missing_task_count"] == 2
+    assert data["cost_coverage"]["coverage_pct"] == 33.3
+
+    run_warning = data["cost_coverage"]["runs_with_missing_costs"][0]
+    assert run_warning["run_id"] == "run1"
+    assert run_warning["group"] == "cpu"
+    assert run_warning["total_tasks"] == 3
+    assert run_warning["matched_tasks"] == 1
+    assert run_warning["missing_tasks"] == 2
+    assert run_warning["missing_process_summary"] == "PROC_B (2)"
+    assert run_warning["missing_processes"] == [{"process_short": "PROC_B", "missing_tasks": 2}]
 
 
 def test_task_table_includes_cached(tmp_path, make_run, flat_task, write_run_json):
