@@ -53,6 +53,37 @@
   .callout-header:hover { background: {{ brand_accent_surface }}; }
   .callout-body { padding: 12px; display: none; }
   .callout-body.show { display: block; }
+  .warning-card {
+    border: 1px solid #f4b548;
+    background: #fff8eb;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+  }
+  .warning-card h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    color: {{ brand_heading }};
+  }
+  .warning-card p {
+    margin: 0;
+    font-size: 13px;
+    color: {{ brand_heading }};
+  }
+  .warning-card ul {
+    margin: 10px 0 0 18px;
+    padding: 0;
+  }
+  .warning-card li {
+    margin: 3px 0;
+    color: {{ brand_heading }};
+  }
+  .warning-card code {
+    background: rgba(255,255,255,0.65);
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 4px;
+    padding: 0 4px;
+  }
 
   .dl-row { display: flex; gap: 20px; font-size: 13px; margin-bottom: 8px; flex-wrap: wrap; }
   .dl-row dt { font-weight: 600; color: {{ brand_heading }}; }
@@ -229,6 +260,8 @@
       Failed or cancelled runs stay visible in the summary table, but downstream process,
       task, and cost sections only use included runs.
     </p>
+
+    <div id="cost-coverage-warning"></div>
 
     <h2 id="run-summary"><svg class="h-icon sm"><use href="#ic-table"/></svg> Run summary</h2>
     <p class="section-desc">Summary of pipeline execution and infrastructure settings.</p>
@@ -589,6 +622,37 @@ const overviewGroups = [...new Set((DATA.benchmark_overview||[]).map(r => r.grou
 const reportGroups = [...new Set((DATA.run_summary||[]).filter(r => r.report_included !== false).map(r => r.group))];
 const groupColor = {};
 overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
+
+// 1.1 CUR coverage warning
+(function() {
+  const coverage = DATA.cost_coverage || {};
+  if (!coverage.cur_supplied || (coverage.missing_task_count || 0) <= 0) return;
+  const mount = document.getElementById('cost-coverage-warning');
+  if (!mount) return;
+
+  const coveragePct = coverage.coverage_pct != null ? Number(coverage.coverage_pct).toFixed(1) + '%' : '\u2014';
+  const rows = (coverage.runs_with_missing_costs || []).slice(0, 6).map(row => {
+    const total = Number(row.total_tasks || 0);
+    const missing = Number(row.missing_tasks || 0);
+    const matched = Number(row.matched_tasks || 0);
+    const pct = total > 0 ? ((matched / total) * 100).toFixed(0) + '%' : '\u2014';
+    return '<li><strong>' + escapeHtml(row.group || row.run_id || 'run') + '</strong>: ' +
+      missing + ' missing of ' + total + ' task' + (total === 1 ? '' : 's') +
+      ' (' + pct + ' matched)' +
+      (row.missing_process_summary ? ' - ' + escapeHtml(row.missing_process_summary) : '') +
+      '</li>';
+  }).join('');
+
+  mount.innerHTML =
+    '<div class="warning-card">' +
+      '<h3>Warning: CUR coverage is incomplete</h3>' +
+      '<p>' +
+        'A CUR file was supplied, but only ' + coveragePct + ' of included tasks matched CUR cost rows. ' +
+        'Unmatched tasks stay out of the cost totals, so treat the dollar values as incomplete.' +
+      '</p>' +
+      '<ul>' + rows + '</ul>' +
+    '</div>';
+})();
 
 // 2.1 Run summary table (with cached tasks)
 (function() {
