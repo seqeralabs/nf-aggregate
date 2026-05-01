@@ -62,7 +62,7 @@ def test_render_html(tmp_path, minimal_report_data):
     assert 'target="_blank" rel="noopener noreferrer"' in text
     assert "r.runUrl ? '<a href=\"' + r.runUrl" in text
     assert 'id="cost-coverage-warning"' in text
-    assert "CUR coverage warning" not in text
+    assert "if (!coverage.cur_supplied || (coverage.missing_task_count || 0) <= 0) return;" in text
 
 
 def test_render_performance_gains_with_vm_data(tmp_path, minimal_report_data):
@@ -111,11 +111,11 @@ def test_render_cost_coverage_warning(tmp_path, minimal_report_data):
     render_html(data, out)
     text = out.read_text()
     assert 'id="cost-coverage-warning"' in text
-    assert "CUR coverage warning" in text
-    assert "Some included tasks do not have a matching CUR cost row." in text
-    assert "Missing cost rows by run" in text
-    assert "const costCoverage = DATA.cost_coverage || {};" in text
-    assert "fmtCoverageCount(run.matched_tasks, run.total_tasks)" in text
+    assert "Warning: CUR coverage is incomplete" in text
+    assert "A CUR file was supplied, but only " in text
+    assert "Unmatched tasks stay out of the cost totals, so treat the dollar values as incomplete." in text
+    assert "const coverage = DATA.cost_coverage || {};" in text
+    assert "missing + ' missing of ' + total + ' task'" in text
     assert "PROC_B, PROC_C" in text
 
 
