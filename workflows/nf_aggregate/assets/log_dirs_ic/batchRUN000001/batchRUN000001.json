@@ -1,0 +1,11 @@
+{
+  "workflow": {"id": "batchRUN000001", "status": "SUCCEEDED", "userName": "tester",
+    "runName": "demo-batch-run", "projectName": "example/demo-pipeline", "revision": "1.0.0",
+    "nextflow": {"version": "25.04.0"}, "duration": 3040821,
+    "stats": {"succeedCount": 3, "failedCount": 0, "cachedCount": 0}},
+  "platform": {"id": "aws-batch", "name": "AWS Batch"},
+  "progress": {"workflowProgress": {"cpuTime": 480392, "memoryRss": 13447421952,
+    "peakMemory": 32212254720, "cost": 0.006216994, "cpuEfficiency": 60.0, "memoryEfficiency": 6.0}},
+  "tasks": [], "metrics": [],
+  "meta": {"id": "batchRUN000001", "workspace": "myorg/myworkspace", "group": "batch"}
+}

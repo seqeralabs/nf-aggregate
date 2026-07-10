@@ -6,6 +6,8 @@ include { NORMALIZE_BENCHMARK_JSONL      } from '../../modules/local/normalize_b
 include { AGGREGATE_BENCHMARK_REPORT_DATA } from '../../modules/local/aggregate_benchmark_report_data'
 include { RENDER_BENCHMARK_REPORT         } from '../../modules/local/render_benchmark_report'
 include { EXTRACT_TARBALL                 } from '../../modules/local/extract_tarball'
+include { AGGREGATE_IC_REPORT_DATA } from '../../modules/local/aggregate_ic_report_data'
+include { RENDER_IC_REPORT          } from '../../modules/local/render_ic_report'
 include { softwareVersionsToYAML          } from 'plugin/nf-core-utils'
 
 workflow NF_AGGREGATE {
@@ -155,18 +157,34 @@ workflow NF_AGGREGATE {
         )
         ch_versions = ch_versions.mix(NORMALIZE_BENCHMARK_JSONL.out.versions)
 
-        AGGREGATE_BENCHMARK_REPORT_DATA(
-            NORMALIZE_BENCHMARK_JSONL.out.jsonl,
-            params.include_failed_runs,
-        )
-        ch_versions = ch_versions.mix(AGGREGATE_BENCHMARK_REPORT_DATA.out.versions)
+        if (params.report_type == 'intelligent_compute') {
+            AGGREGATE_IC_REPORT_DATA(
+                NORMALIZE_BENCHMARK_JSONL.out.jsonl,
+                params.seqera_web_url,
+            )
+            ch_versions = ch_versions.mix(AGGREGATE_IC_REPORT_DATA.out.versions)
 
-        RENDER_BENCHMARK_REPORT(
-            AGGREGATE_BENCHMARK_REPORT_DATA.out.data,
-            file("${projectDir}/assets/brand.yml", checkIfExists: true),
-            file("${projectDir}/assets/seqera_logo_color.svg", checkIfExists: true),
-        )
-        ch_versions = ch_versions.mix(RENDER_BENCHMARK_REPORT.out.versions)
+            RENDER_IC_REPORT(
+                AGGREGATE_IC_REPORT_DATA.out.data,
+                file("${projectDir}/assets/brand.yml", checkIfExists: true),
+                file("${projectDir}/assets/seqera_logo_color.svg", checkIfExists: true),
+            )
+            ch_versions = ch_versions.mix(RENDER_IC_REPORT.out.versions)
+        }
+        else {
+            AGGREGATE_BENCHMARK_REPORT_DATA(
+                NORMALIZE_BENCHMARK_JSONL.out.jsonl,
+                params.include_failed_runs,
+            )
+            ch_versions = ch_versions.mix(AGGREGATE_BENCHMARK_REPORT_DATA.out.versions)
+
+            RENDER_BENCHMARK_REPORT(
+                AGGREGATE_BENCHMARK_REPORT_DATA.out.data,
+                file("${projectDir}/assets/brand.yml", checkIfExists: true),
+                file("${projectDir}/assets/seqera_logo_color.svg", checkIfExists: true),
+            )
+            ch_versions = ch_versions.mix(RENDER_BENCHMARK_REPORT.out.versions)
+        }
     }
 
     //

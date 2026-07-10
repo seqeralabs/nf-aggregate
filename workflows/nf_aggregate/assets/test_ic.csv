@@ -1,0 +1,3 @@
+id,workspace,group,logs
+icRUN00000001,external,intelligent_compute,log_dirs_ic/icRUN00000001
+batchRUN000001,external,batch,log_dirs_ic/batchRUN000001

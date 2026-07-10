@@ -1,0 +1,13 @@
+{
+  "workflow": {"id": "icRUN00000001", "status": "SUCCEEDED", "userName": "tester",
+    "runName": "demo-ic-run", "projectName": "example/demo-pipeline", "revision": "1.0.0",
+    "nextflow": {"version": "25.04.0"}, "duration": 1717531,
+    "stats": {"succeedCount": 3, "failedCount": 0, "cachedCount": 0}},
+  "schedEnabled": true,
+  "schedConfig": {"provisioningModel": "spotFirst", "predictionModel": "qr/v2"},
+  "platform": {"id": "aws-cloud", "name": "AWS Cloud"},
+  "progress": {"workflowProgress": {"cpuTime": 1247429, "memoryRss": 12339093504,
+    "peakMemory": 32212254720, "cost": 0.0053921835, "cpuEfficiency": 41.6, "memoryEfficiency": 5.5}},
+  "tasks": [], "metrics": [],
+  "meta": {"id": "icRUN00000001", "workspace": "myorg/myworkspace", "group": "intelligent_compute"}
+}
