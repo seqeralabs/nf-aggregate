@@ -132,6 +132,11 @@ def extract_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "workspace": run.get("meta", {}).get("workspace", ""),
                 "platform": run.get("meta", {}).get("platform", ""),
                 "run_url": wf.get("runUrl") or wf.get("url") or "",
+                "memory_rss_bytes": prog.get("memoryRss", 0),
+                "peak_memory_bytes": prog.get("peakMemory", 0),
+                "run_cost": prog.get("cost"),
+                "sched_enabled": bool(run.get("schedEnabled", False)),
+                "platform_id": (run.get("platform") or {}).get("id", ""),
             }
         )
     return rows

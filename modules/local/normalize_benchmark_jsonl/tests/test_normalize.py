@@ -223,3 +223,35 @@ def test_load_run_data(tmp_path, make_run, write_run_json):
     write_run_json(data_dir, [make_run(), make_run(run_id="run2")])
     rows = load_run_data(data_dir)
     assert len(rows) == 2
+
+
+def _base_run(**over):
+    run = {
+        "workflow": {"id": "icRUN0000000001", "status": "SUCCEEDED", "duration": 1000},
+        "progress": {"workflowProgress": {
+            "cpuTime": 3600000, "memoryRss": 2147483648, "peakMemory": 4294967296,
+            "cost": 0.42, "cpuEfficiency": 50.0, "memoryEfficiency": 25.0,
+        }},
+        "tasks": [], "metrics": [],
+        "meta": {"id": "icRUN0000000001", "workspace": "myorg/myworkspace", "group": "ic"},
+    }
+    run.update(over)
+    return run
+
+
+def test_extract_runs_emits_ic_fields():
+    row = extract_runs([_base_run(
+        schedEnabled=True, schedConfig={"predictionModel": "qr/v2"},
+        platform={"id": "aws-cloud"},
+    )])[0]
+    assert row["memory_rss_bytes"] == 2147483648
+    assert row["peak_memory_bytes"] == 4294967296
+    assert row["run_cost"] == 0.42
+    assert row["sched_enabled"] is True
+    assert row["platform_id"] == "aws-cloud"
+
+
+def test_extract_runs_batch_defaults_when_sched_absent():
+    row = extract_runs([_base_run(platform={"id": "aws-batch"})])[0]
+    assert row["sched_enabled"] is False
+    assert row["platform_id"] == "aws-batch"
