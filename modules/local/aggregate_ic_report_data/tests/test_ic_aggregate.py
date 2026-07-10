@@ -1,4 +1,4 @@
-from benchmark_report_ic_aggregate import build_ic_report_data
+from benchmark_report_ic_aggregate import _compute_type, build_ic_report_data
 from benchmark_report_normalize import normalize_jsonl
 
 
@@ -40,3 +40,9 @@ def test_ic_run_summary_fields(tmp_path, make_ic_run, write_run_json):
 def test_batch_detected_when_sched_absent(tmp_path, make_batch_run, write_run_json):
     jsonl_dir = _bundle(tmp_path, [make_batch_run()], write_run_json)
     assert build_ic_report_data(jsonl_dir)["run_summary"][0]["compute_type"] == "batch"
+
+
+def test_compute_type_platform_id_fallback():
+    assert _compute_type({"sched_enabled": False, "platform_id": "aws-cloud"}) == "intelligent_compute"
+    assert _compute_type({"sched_enabled": False, "platform_id": "aws-batch"}) == "batch"
+    assert _compute_type({"sched_enabled": True, "platform_id": "aws-batch"}) == "intelligent_compute"
