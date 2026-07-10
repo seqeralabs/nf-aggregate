@@ -14,6 +14,7 @@ BIN_DIRS = [
     REPO_ROOT / "modules" / "local" / "aggregate_benchmark_report_data" / "bin",
     REPO_ROOT / "modules" / "local" / "render_benchmark_report" / "bin",
     REPO_ROOT / "modules" / "local" / "aggregate_ic_report_data" / "bin",
+    REPO_ROOT / "modules" / "local" / "render_ic_report" / "bin",
 ]
 for bin_dir in BIN_DIRS:
     if str(bin_dir) not in sys.path:

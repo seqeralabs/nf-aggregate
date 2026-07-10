@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intelligent Compute Report</title>
+<style>
+  body { font-family: Inter, -apple-system, Segoe UI, Roboto, sans-serif; color: {{ brand_heading }}; margin: 0; background: {{ brand_white }}; }
+  header { display: flex; align-items: center; gap: 12px; padding: 20px 28px; border-bottom: 1px solid {{ brand_border }}; }
+  header .title { font-size: 18px; font-weight: 600; }
+  main { padding: 24px 28px; }
+  .overview { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat { background: {{ brand_neutral }}; border: 1px solid {{ brand_border }}; border-radius: 8px; padding: 12px 16px; min-width: 120px; }
+  .stat .n { font-size: 22px; font-weight: 700; }
+  .stat .l { font-size: 12px; opacity: 0.7; }
+  table.gs-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.gs-table th, table.gs-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid {{ brand_border }}; white-space: nowrap; }
+  table.gs-table th { background: {{ brand_accent_surface }}; font-weight: 600; }
+  table.gs-table a { color: {{ brand_accent }}; text-decoration: none; }
+  table.gs-table a:hover { text-decoration: underline; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .badge.ic { background: {{ brand_accent_surface }}; color: {{ brand_accent }}; }
+  .badge.batch { background: {{ brand_neutral }}; color: {{ brand_heading }}; }
+  .muted { opacity: 0.45; }
+  .scroll { overflow-x: auto; }
+  footer { padding: 16px 28px; opacity: 0.6; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  {% if logo_svg %}{{ logo_svg }}{% else %}<span class="title">Seqera</span>{% endif %}
+  <span class="title">Intelligent Compute Report</span>
+</header>
+<main>
+  <section class="overview">
+    <div class="stat"><div class="n">{{ ic_overview.n_runs }}</div><div class="l">Runs</div></div>
+    <div class="stat"><div class="n">{{ ic_overview.n_intelligent_compute }}</div><div class="l">Intelligent Compute</div></div>
+    <div class="stat"><div class="n">{{ ic_overview.n_batch }}</div><div class="l">AWS Batch</div></div>
+  </section>
+  <section class="scroll">
+    <table class="gs-table">
+      <thead>
+        <tr>
+          <th>Run ID</th><th>Pipeline</th><th>Group</th><th>Compute type</th>
+          <th>Status</th><th>Compute hours</th><th>Memory used (GB)</th><th>Cost</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in run_summary %}
+        <tr>
+          <td>{% if row.run_url %}<a href="{{ row.run_url }}" target="_blank" rel="noopener">{{ row.run_id }}</a>{% else %}{{ row.run_id }}{% endif %}</td>
+          <td>{{ row.pipeline }}</td>
+          <td>{{ row.group }}</td>
+          <td>{% if row.compute_type == 'intelligent_compute' %}<span class="badge ic">Intelligent Compute</span>{% else %}<span class="badge batch">AWS Batch</span>{% endif %}</td>
+          <td>{{ row.status }}</td>
+          <td>{{ row.compute_hours }}</td>
+          <td>{{ row.memory_used_gb }}</td>
+          <td>{% if row.cost is none %}<span class="muted">&mdash;</span>{% else %}{{ row.cost }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</main>
+<footer>Generated {{ generated_at }}</footer>
+</body>
+</html>
