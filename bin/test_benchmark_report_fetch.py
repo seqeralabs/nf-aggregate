@@ -43,7 +43,15 @@ def test_fetch_run_data_keys():
                         {"progress": {"workflowProgress": {}}},
                     ]
                     data = fetch_run_data("run1", "org/ws", "https://api.example.com", "tok")
-                    assert set(data.keys()) == {"workflow", "metrics", "tasks", "progress"}
+                    assert set(data.keys()) == {
+                        "workflow",
+                        "schedEnabled",
+                        "schedConfig",
+                        "platform",
+                        "metrics",
+                        "tasks",
+                        "progress",
+                    }
                     mock_validate.assert_called_once_with("https://api.example.com", headers={"Authorization": "Bearer tok"})
 
 
@@ -63,3 +71,33 @@ def test_validate_api_access_bad_endpoint():
     with patch("benchmark_report_fetch._api_get", side_effect=error):
         with pytest.raises(RuntimeError, match="preflight failed at 'https://bad.example.com/service-info'"):
             validate_api_access("https://bad.example.com", headers={"Authorization": "Bearer tok"})
+
+
+def test_fetch_run_data_captures_sched_and_platform(monkeypatch):
+    import benchmark_report_fetch as f
+
+    def fake_api_get(url, headers, params=None):
+        if url.endswith("/orgs"):
+            return {"organizations": [{"name": "myorg", "orgId": 1}]}
+        if url.endswith("/workspaces"):
+            return {"workspaces": [{"name": "myworkspace", "id": 42}]}
+        if url.endswith("/metrics"):
+            return {"metrics": []}
+        if url.endswith("/progress"):
+            return {"progress": {"workflowProgress": {"cost": 0.01}}}
+        return {
+            "workflow": {"id": "icRUN0000000001", "status": "SUCCEEDED"},
+            "schedEnabled": True,
+            "schedConfig": {"predictionModel": "qr/v2"},
+            "platform": {"id": "aws-cloud", "name": "AWS Cloud"},
+        }
+
+    monkeypatch.setattr(f, "_api_get", fake_api_get)
+    monkeypatch.setattr(f, "validate_api_access", lambda *a, **k: None)
+    monkeypatch.setattr(f, "fetch_all_tasks", lambda base_url, headers: [])
+
+    out = f.fetch_run_data("icRUN0000000001", "myorg/myworkspace", "https://api.example.test", "tok")
+    assert out["schedEnabled"] is True
+    assert out["schedConfig"]["predictionModel"] == "qr/v2"
+    assert out["platform"]["id"] == "aws-cloud"
+    assert out["workflow"]["id"] == "icRUN0000000001"

@@ -164,10 +164,13 @@ class SeqeraApi {
         def progress = apiGet("${effectiveEndpoint}/workflow/${meta.id}/progress?workspaceId=${wsId}", headers)
 
         return [
-            workflow: workflow?.workflow,
-            metrics : metrics?.metrics ?: [],
-            tasks   : tasks,
-            progress: progress?.progress,
+            workflow    : workflow?.workflow,
+            schedEnabled: workflow?.schedEnabled,
+            schedConfig : workflow?.schedConfig,
+            platform    : workflow?.platform,
+            metrics     : metrics?.metrics ?: [],
+            tasks       : tasks,
+            progress    : progress?.progress,
         ]
     }
 }

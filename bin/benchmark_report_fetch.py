@@ -150,6 +150,9 @@ def fetch_run_data(run_id: str, workspace: str, api_endpoint: str, token: str) -
 
     return {
         "workflow": workflow_data.get("workflow"),
+        "schedEnabled": workflow_data.get("schedEnabled"),
+        "schedConfig": workflow_data.get("schedConfig"),
+        "platform": workflow_data.get("platform"),
         "metrics": metrics_data.get("metrics", []),
         "tasks": tasks_data,
         "progress": progress_data.get("progress"),
