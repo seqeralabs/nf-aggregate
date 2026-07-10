@@ -78,6 +78,26 @@ id,workspace,group
 4VLRs7nuqbAhDy,community/showcase,group2
 ```
 
+### Intelligent Compute report
+
+In addition to the benchmark report, nf-aggregate can generate an Intelligent Compute (IC)
+report. Enable reporting with `--generate_benchmark_report` and select the report type with
+`--report_type intelligent_compute` (default `benchmark`):
+
+```
+nextflow run seqeralabs/nf-aggregate \
+    --input run_ids.csv \
+    --outdir ./results \
+    --generate_benchmark_report \
+    --report_type intelligent_compute
+```
+
+This produces a run-summary table (run ID deep-link, compute hours, memory, and an empty
+cost column pending a core cost report) written to `${outdir}/intelligent_compute_report/`.
+Run deep-links are built from `--seqera_web_url` (default `https://cloud.seqera.io`). The
+optional `--intelligent_compute_core_report` param is a stub for a future core cost report
+and is not yet wired into the aggregation logic.
+
 ## Use logs from an external Seqera Platform deployment
 
 Sometimes we want to compile benchmark reports from runs from two different Seqera platform deployments, for example a dev and a production environment to compare performance. External logs in nf-aggregate can be used by specifying the workspace as `external` and providing a `logs` column that points to the log folder or tarball.
@@ -180,9 +200,13 @@ The results from the pipeline will be published in the path specified by the `--
 
 ```
 ./results
-├── benchmark_report/
+├── benchmark_report/                        ## when --report_type benchmark (default)
 │   ├── benchmark_report.html                ## Benchmark report
 │   ├── report_data.json                     ## Aggregated report data boundary
+│   └── jsonl_bundle/                        ## Streaming stage handoff (runs/tasks/metrics[/costs].jsonl)
+├── intelligent_compute_report/              ## when --report_type intelligent_compute
+│   ├── intelligent_compute_report.html      ## Intelligent Compute report
+│   ├── report_data_ic.json                  ## Aggregated IC report data boundary
 │   └── jsonl_bundle/                        ## Streaming stage handoff (runs/tasks/metrics[/costs].jsonl)
 └── pipeline_info/
 ```

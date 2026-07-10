@@ -11,13 +11,16 @@ The current implementation does not use DuckDB as an intermediate artifact.
 ## Workflow architecture
 
 ```
-input CSV (id, workspace, group, logs, fusion)
+input CSV (id, workspace, group, logs, platform, token_env, machines)
   -> branch: api (SeqeraApi.fetchRunData) | external (EXTRACT_TARBALL)
   -> collect JSON files
   -> NORMALIZE_BENCHMARK_JSONL (raw JSON -> jsonl_bundle/)
   -> AGGREGATE_BENCHMARK_REPORT_DATA (jsonl_bundle -> report_data.json)
   -> RENDER_BENCHMARK_REPORT (report_data.json -> benchmark_report.html)
 ```
+
+There is no `fusion` column in the samplesheet. Fusion enablement is derived from the
+run's API payload (`workflow.fusion.enabled`) during normalization and is display-only.
 
 ### Routing behavior
 

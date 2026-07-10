@@ -138,7 +138,8 @@ class SeqeraApi {
     }
 
     /**
-     * Fetch all data for a single run. Returns map with workflow, metrics, tasks, progress.
+     * Fetch all data for a single run. Returns map with workflow, schedEnabled,
+     * schedConfig, platform, metrics, tasks, progress.
      *
      * Per-row overrides (from the input samplesheet):
      *   meta.platform  – Seqera Platform API URL; falls back to the global apiEndpoint

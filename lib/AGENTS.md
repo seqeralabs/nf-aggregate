@@ -13,7 +13,7 @@ Plain `java.net.URL.openConnection()` HTTP client for Seqera Platform API. Used 
 | `apiGet(url, headers)`                                | Single GET request, returns parsed JSON map                                      |
 | `apiGetAllTasks(baseUrl, headers)`                    | Paginated GET for `/tasks` endpoint (100/page)                                   |
 | `resolveWorkspaceId(workspace, apiEndpoint, headers)` | "org/workspace" string → numeric workspace ID                                    |
-| `fetchRunData(meta, apiEndpoint)`                     | Orchestrator: preflights `/service-info` + `/user-info`, then calls 4 run endpoints → `{workflow, metrics, tasks, progress}` |
+| `fetchRunData(meta, apiEndpoint)`                     | Orchestrator: preflights `/service-info` + `/user-info`, then calls 4 run endpoints → `{workflow, schedEnabled, schedConfig, platform, metrics, tasks, progress}` |
 
 ### API Endpoints Called
 

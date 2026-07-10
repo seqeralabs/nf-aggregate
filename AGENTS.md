@@ -15,7 +15,7 @@ Nextflow pipeline to aggregate metrics across Seqera Platform pipeline runs.
 ## Architecture
 
 ```
-input CSV (id, workspace, group, logs, fusion)
+input CSV (id, workspace, group, logs, platform, token_env, machines)
   → branch: api (SeqeraApi.fetchRunData) | external (EXTRACT_TARBALL)
   → collect JSON files
   → NORMALIZE_BENCHMARK_JSONL (raw JSON -> jsonl_bundle/)
@@ -23,14 +23,21 @@ input CSV (id, workspace, group, logs, fusion)
   → RENDER_BENCHMARK_REPORT (report_data.json -> benchmark_report.html)
 ```
 
+There is no `fusion` column in the samplesheet. Fusion enablement is derived from the
+run's API payload (`workflow.fusion.enabled`) during normalization — it is display-only
+and never an input.
+
 ## Key Params
 
 | Param                       | Default                       | Purpose                           |
 | --------------------------- | ----------------------------- | --------------------------------- |
-| `generate_benchmark_report`   | false                         | Enable benchmark report                           |
+| `generate_benchmark_report`   | false                         | Enable benchmark/IC report                        |
+| `report_type`                 | `benchmark`                  | `benchmark` or `intelligent_compute`              |
 | `benchmark_aws_cur_report`    | null                          | AWS CUR parquet for cost analysis                 |
 | `benchmark_aws_cur_label_map` | null                          | YAML aliases for custom CUR resource label names  |
 | `seqera_api_endpoint`         | `https://api.cloud.seqera.io` | Platform API URL                                  |
+| `seqera_web_url`              | `https://cloud.seqera.io`    | Platform web base URL for run deep-links          |
+| `intelligent_compute_core_report` | null                     | Optional core cost report for IC (not yet wired)  |
 
 ## Plugins
 
@@ -82,6 +89,7 @@ uv run --with typer --with pyyaml \
 - **Nextflow `include` statements in `main.nf` must be single-line.** `adamrtalbot/detect-nf-test-changes@v0.0.3` (used by CI) parses include lines and crashes on multi-line blocks. Write `include { A ; B ; C } from '...'` not multi-line blocks.
 - **Repository hygiene:** `.nf-core.yml` should stay absent unless nf-core linting is intentionally restored alongside the required config. When changing CI, docs, or plugin declarations, remove stale nf-core-template remnants and keep labels/docs accurate.
 - **Plugin references must stay synchronized.** If `nextflow.config` plugin entries change, update `CITATIONS.md`, `README.md`, and agent/context files in the same change so pinned plugins such as `nf-core-utils` and `nf-schema` are cited consistently.
+- **`nextflow lint -harshil-alignment -format` is destructive on existing files.** Running `-format` on the existing `nextflow.config` / `workflows/nf_aggregate/main.nf` collapses multi-line blocks and deletes inline comments. Only use `-format` on brand-new `.nf` files. For edits to existing config/workflow files, verify with `nextflow lint -harshil-alignment <file>` (no `-format`) and match surrounding style by hand.
 
 ## Cursor Cloud specific instructions
 
