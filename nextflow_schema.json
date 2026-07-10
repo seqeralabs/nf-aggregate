@@ -80,6 +80,24 @@
                     "description": "Optional YAML file mapping logical benchmark cost labels to one or more CUR resource tag aliases.",
                     "pattern": "^\\S+\\.(ya?ml)$",
                     "format": "file-path"
+                },
+                "report_type": {
+                    "type": "string",
+                    "default": "benchmark",
+                    "enum": ["benchmark", "intelligent_compute"],
+                    "fa_icon": "fas fa-toggle-on",
+                    "description": "Which performance report to generate when reporting is enabled."
+                },
+                "seqera_web_url": {
+                    "type": "string",
+                    "default": "https://cloud.seqera.io",
+                    "fa_icon": "fas fa-link",
+                    "description": "Seqera Platform web base URL used to build run deep-links."
+                },
+                "intelligent_compute_core_report": {
+                    "type": "string",
+                    "fa_icon": "fas fa-dollar-sign",
+                    "description": "Optional core cost report for the Intelligent Compute report (not yet wired)."
                 }
             },
             "required": ["seqera_api_endpoint"]
