@@ -148,7 +148,13 @@ def make_ic_run():
                 "cpuTime": 1247429, "memoryRss": 12339093504, "peakMemory": 32212254720,
                 "cost": 0.0053921835, "cpuEfficiency": 41.6, "memoryEfficiency": 5.5,
             }},
-            "tasks": [], "metrics": [],
+            "tasks": [
+                {"name": "t1", "process": "P:t1", "status": "COMPLETED", "hash": "aa/01", "cpus": 2, "realtime": 1800000, "machineType": "t3.large"},
+                {"name": "t2", "process": "P:t2", "status": "COMPLETED", "hash": "aa/02", "cpus": 2, "realtime": 1800000, "machineType": "t3.large"},
+                {"name": "t3", "process": "P:t3", "status": "COMPLETED", "hash": "aa/03", "cpus": 2, "realtime": 1800000, "machineType": "t3a.xlarge"},
+                {"name": "t4", "process": "P:t4", "status": "COMPLETED", "hash": "aa/04", "cpus": 2, "realtime": 1800000, "machineType": ""},
+            ],
+            "metrics": [],
             "meta": {"id": run_id, "workspace": "myorg/myworkspace", "group": group},
         }
     return _make_ic_run
@@ -170,7 +176,13 @@ def make_batch_run():
                 "cpuTime": 480392, "memoryRss": 13447421952, "peakMemory": 32212254720,
                 "cost": 0.006216994, "cpuEfficiency": 60.0, "memoryEfficiency": 6.0,
             }},
-            "tasks": [], "metrics": [],
+            "tasks": [
+                {"name": "b1", "process": "P:b1", "status": "COMPLETED", "hash": "bb/01", "cpus": 2, "realtime": 1800000, "machineType": "m6id.4xlarge"},
+                {"name": "b2", "process": "P:b2", "status": "COMPLETED", "hash": "bb/02", "cpus": 2, "realtime": 1800000, "machineType": "m6id.4xlarge"},
+                {"name": "b3", "process": "P:b3", "status": "COMPLETED", "hash": "bb/03", "cpus": 2, "realtime": 1800000, "machineType": "t3.large"},
+                {"name": "b4", "process": "P:b4", "status": "COMPLETED", "hash": "bb/04", "cpus": 2, "realtime": 1800000, "machineType": ""},
+            ],
+            "metrics": [],
             "meta": {"id": run_id, "workspace": "myorg/myworkspace", "group": group},
         }
     return _make_batch_run

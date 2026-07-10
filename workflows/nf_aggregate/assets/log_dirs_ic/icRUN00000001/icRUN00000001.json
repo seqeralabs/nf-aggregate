@@ -1,13 +1,66 @@
 {
-  "workflow": {"id": "icRUN00000001", "status": "SUCCEEDED", "userName": "tester",
-    "runName": "demo-ic-run", "projectName": "example/demo-pipeline", "revision": "1.0.0",
-    "nextflow": {"version": "25.04.0"}, "duration": 1717531,
-    "stats": {"succeedCount": 3, "failedCount": 0, "cachedCount": 0}},
-  "schedEnabled": true,
-  "schedConfig": {"provisioningModel": "spotFirst", "predictionModel": "qr/v2"},
-  "platform": {"id": "aws-cloud", "name": "AWS Cloud"},
-  "progress": {"workflowProgress": {"cpuTime": 1247429, "memoryRss": 12339093504,
-    "peakMemory": 32212254720, "cost": 0.0053921835, "cpuEfficiency": 41.6, "memoryEfficiency": 5.5}},
-  "tasks": [], "metrics": [],
-  "meta": {"id": "icRUN00000001", "workspace": "myorg/myworkspace", "group": "intelligent_compute"}
+    "workflow": {
+        "id": "icRUN00000001",
+        "status": "SUCCEEDED",
+        "userName": "tester",
+        "runName": "demo-ic-run",
+        "projectName": "example/demo-pipeline",
+        "revision": "1.0.0",
+        "nextflow": { "version": "25.04.0" },
+        "duration": 1717531,
+        "stats": { "succeedCount": 3, "failedCount": 0, "cachedCount": 0 }
+    },
+    "schedEnabled": true,
+    "schedConfig": { "provisioningModel": "spotFirst", "predictionModel": "qr/v2" },
+    "platform": { "id": "aws-cloud", "name": "AWS Cloud" },
+    "progress": {
+        "workflowProgress": {
+            "cpuTime": 1247429,
+            "memoryRss": 12339093504,
+            "peakMemory": 32212254720,
+            "cost": 0.0053921835,
+            "cpuEfficiency": 41.6,
+            "memoryEfficiency": 5.5
+        }
+    },
+    "tasks": [
+        {
+            "name": "FOO",
+            "process": "DEMO:FOO",
+            "status": "COMPLETED",
+            "hash": "aa/01",
+            "cpus": 2,
+            "realtime": 1800000,
+            "machineType": "t3.large"
+        },
+        {
+            "name": "BAR",
+            "process": "DEMO:BAR",
+            "status": "COMPLETED",
+            "hash": "aa/02",
+            "cpus": 2,
+            "realtime": 1800000,
+            "machineType": "t3.large"
+        },
+        {
+            "name": "BAZ",
+            "process": "DEMO:BAZ",
+            "status": "COMPLETED",
+            "hash": "aa/03",
+            "cpus": 4,
+            "realtime": 900000,
+            "machineType": "t3a.xlarge"
+        },
+        {
+            "name": "QUX",
+            "process": "DEMO:QUX",
+            "status": "COMPLETED",
+            "hash": "aa/04",
+            "cpus": 1,
+            "realtime": 600000,
+            "machineType": ""
+        }
+    ],
+    "metrics": [],
+    "meta": { "id": "icRUN00000001", "workspace": "myorg/myworkspace", "group": "intelligent_compute" }
 }

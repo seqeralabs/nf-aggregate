@@ -1,11 +1,64 @@
 {
-  "workflow": {"id": "batchRUN000001", "status": "SUCCEEDED", "userName": "tester",
-    "runName": "demo-batch-run", "projectName": "example/demo-pipeline", "revision": "1.0.0",
-    "nextflow": {"version": "25.04.0"}, "duration": 3040821,
-    "stats": {"succeedCount": 3, "failedCount": 0, "cachedCount": 0}},
-  "platform": {"id": "aws-batch", "name": "AWS Batch"},
-  "progress": {"workflowProgress": {"cpuTime": 480392, "memoryRss": 13447421952,
-    "peakMemory": 32212254720, "cost": 0.006216994, "cpuEfficiency": 60.0, "memoryEfficiency": 6.0}},
-  "tasks": [], "metrics": [],
-  "meta": {"id": "batchRUN000001", "workspace": "myorg/myworkspace", "group": "batch"}
+    "workflow": {
+        "id": "batchRUN000001",
+        "status": "SUCCEEDED",
+        "userName": "tester",
+        "runName": "demo-batch-run",
+        "projectName": "example/demo-pipeline",
+        "revision": "1.0.0",
+        "nextflow": { "version": "25.04.0" },
+        "duration": 3040821,
+        "stats": { "succeedCount": 3, "failedCount": 0, "cachedCount": 0 }
+    },
+    "platform": { "id": "aws-batch", "name": "AWS Batch" },
+    "progress": {
+        "workflowProgress": {
+            "cpuTime": 480392,
+            "memoryRss": 13447421952,
+            "peakMemory": 32212254720,
+            "cost": 0.006216994,
+            "cpuEfficiency": 60.0,
+            "memoryEfficiency": 6.0
+        }
+    },
+    "tasks": [
+        {
+            "name": "FOO",
+            "process": "DEMO:FOO",
+            "status": "COMPLETED",
+            "hash": "bb/01",
+            "cpus": 16,
+            "realtime": 1800000,
+            "machineType": "m6id.4xlarge"
+        },
+        {
+            "name": "BAR",
+            "process": "DEMO:BAR",
+            "status": "COMPLETED",
+            "hash": "bb/02",
+            "cpus": 16,
+            "realtime": 1800000,
+            "machineType": "m6id.4xlarge"
+        },
+        {
+            "name": "BAZ",
+            "process": "DEMO:BAZ",
+            "status": "COMPLETED",
+            "hash": "bb/03",
+            "cpus": 32,
+            "realtime": 900000,
+            "machineType": "r8id.8xlarge"
+        },
+        {
+            "name": "QUX",
+            "process": "DEMO:QUX",
+            "status": "COMPLETED",
+            "hash": "bb/04",
+            "cpus": 1,
+            "realtime": 600000,
+            "machineType": ""
+        }
+    ],
+    "metrics": [],
+    "meta": { "id": "batchRUN000001", "workspace": "myorg/myworkspace", "group": "batch" }
 }

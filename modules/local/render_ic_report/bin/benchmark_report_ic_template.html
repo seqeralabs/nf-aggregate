@@ -23,6 +23,17 @@
   .badge.batch { background: {{ brand_neutral }}; color: {{ brand_heading }}; }
   .muted { opacity: 0.45; }
   .scroll { overflow-x: auto; }
+  .machines { margin-top: 32px; }
+  .machines h2 { font-size: 16px; font-weight: 600; margin: 0 0 14px; }
+  .mrun { margin-bottom: 20px; }
+  .mrun .mhead { font-size: 13px; margin-bottom: 6px; }
+  .mrun .mhead a { color: {{ brand_accent }}; text-decoration: none; }
+  .mrun .mhead a:hover { text-decoration: underline; }
+  .mbar { display: flex; width: 100%; height: 22px; border-radius: 4px; overflow: hidden; border: 1px solid {{ brand_border }}; }
+  .mbar .seg { height: 100%; min-width: 1px; }
+  .mlegend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 7px; font-size: 12px; }
+  .mlegend .item { display: inline-flex; align-items: center; gap: 6px; }
+  .mlegend .sw { width: 11px; height: 11px; border-radius: 2px; display: inline-block; flex: none; }
   footer { padding: 16px 28px; opacity: 0.6; font-size: 12px; }
 </style>
 </head>
@@ -61,6 +72,34 @@
       </tbody>
     </table>
   </section>
+  {% if machine_usage %}
+  <section class="machines">
+    <h2>Machine types per run</h2>
+    {% for run in machine_usage %}
+    <div class="mrun">
+      <div class="mhead">
+        {% if run.compute_type == 'intelligent_compute' %}<span class="badge ic">Intelligent Compute</span>{% else %}<span class="badge batch">AWS Batch</span>{% endif %}
+        {% if run.run_url %}<a href="{{ run.run_url }}" target="_blank" rel="noopener">{{ run.run_name or run.run_id }}</a>{% else %}{{ run.run_name or run.run_id }}{% endif %}
+        &mdash; {{ run.total_tasks }} tasks, {{ run.total_cpu_hours }} cpu-h
+      </div>
+      {% if run.machines %}
+      <div class="mbar">
+        {% for m in run.machines %}
+        <div class="seg" style="width: {{ m.task_pct }}%; background: {{ brand_palette[m.color_idx % (brand_palette | length)] }};" title="{{ m.machine_type }}: {{ m.task_count }} tasks ({{ m.task_pct }}%), {{ m.cpu_hours }} cpu-h"></div>
+        {% endfor %}
+      </div>
+      <div class="mlegend">
+        {% for m in run.machines %}
+        <span class="item"><span class="sw" style="background: {{ brand_palette[m.color_idx % (brand_palette | length)] }};"></span>{{ m.machine_type }} &middot; {{ m.task_count }} ({{ m.task_pct }}%) &middot; {{ m.cpu_hours }} cpu-h</span>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="muted">No task data.</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
 </main>
 <footer>Generated {{ generated_at }}</footer>
 </body>
