@@ -308,3 +308,18 @@ colors:
 """)
     brand = load_brand(brand_path)
     assert brand["accent"] == "#112233"
+
+
+def test_render_html_uses_custom_template(tmp_path):
+    from benchmark_report_render import render_html
+
+    template = tmp_path / "custom.html"
+    template.write_text("<html>RUNS={{ run_summary | length }}</html>")
+    out = tmp_path / "out.html"
+
+    render_html(
+        {"run_summary": [{"run_id": "a"}, {"run_id": "b"}], "ic_overview": {}},
+        output_path=out,
+        template_path=template,
+    )
+    assert "RUNS=2" in out.read_text()

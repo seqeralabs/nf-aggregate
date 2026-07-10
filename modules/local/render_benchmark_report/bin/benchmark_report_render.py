@@ -83,9 +83,11 @@ def render_html(
     brand: dict[str, Any] | None = None,
     logo_svg: str | None = None,
     theme_path: Path | None = None,
+    template_path: Path | None = None,
 ) -> None:
     brand = brand or load_brand()
-    template = Environment(loader=BaseLoader()).from_string(REPORT_TEMPLATE)
+    template_str = Path(template_path).read_text() if template_path else REPORT_TEMPLATE
+    template = Environment(loader=BaseLoader()).from_string(template_str)
     run_metrics = data.get("run_metrics") or []
     has_performance_gains = any((row or {}).get("vmCpuH") for row in run_metrics)
     html = template.render(
@@ -112,11 +114,12 @@ def render_report_from_json(
     output: Path,
     brand_path: Path | None = None,
     logo_path: Path | None = None,
+    template_path: Path | None = None,
 ) -> None:
     data = json.loads(report_data_path.read_text())
     brand = load_brand(brand_path)
     logo_svg = logo_path.read_text() if logo_path and logo_path.exists() else None
-    render_html(data, output_path=output, brand=brand, logo_svg=logo_svg)
+    render_html(data, output_path=output, brand=brand, logo_svg=logo_svg, template_path=template_path)
 
 
 REPORT_TEMPLATE = _load_report_template()
