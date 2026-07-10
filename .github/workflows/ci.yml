@@ -91,8 +91,10 @@ jobs:
               "bin/test_benchmark_report_fetch.py",
               "conftest.py",
               "modules/local/aggregate_benchmark_report_data/**",
+              "modules/local/aggregate_ic_report_data/**",
               "modules/local/normalize_benchmark_jsonl/**",
               "modules/local/render_benchmark_report/**",
+              "modules/local/render_ic_report/**",
               "scripts/build_filtered_cost_sidecar.py",
               "tests/pipeline_benchmark_*/**",
               "workflows/nf_aggregate/assets/log_dirs/**",
@@ -230,7 +232,7 @@ jobs:
 
       - name: Run benchmark report pytest suites
         run: |
-          uv run --with typer --with pyyaml --with jinja2 --with pyarrow --with pytest --with httpx pytest -v modules/local/aggregate_benchmark_report_data/tests/test_aggregate.py modules/local/normalize_benchmark_jsonl/tests/test_normalize.py modules/local/render_benchmark_report/tests/test_render.py bin/test_benchmark_report_fetch.py
+          uv run --with typer --with pyyaml --with jinja2 --with pyarrow --with pytest --with httpx pytest -v modules/local/aggregate_benchmark_report_data/tests/test_aggregate.py modules/local/normalize_benchmark_jsonl/tests/test_normalize.py modules/local/render_benchmark_report/tests/test_render.py modules/local/aggregate_ic_report_data/tests/test_ic_aggregate.py modules/local/render_ic_report/tests/test_ic_render.py bin/test_benchmark_report_fetch.py
 
   benchmark-report-smoke:
     name: Benchmark report smoke test
