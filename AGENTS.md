@@ -2,6 +2,16 @@
 
 Nextflow pipeline to aggregate metrics across Seqera Platform pipeline runs.
 
+## Git workflow
+
+- **Trunk-based development.** `main` is the trunk and the single long-lived branch. The old
+  `dev` branch and any Git Flow (`dev` → release → `main`) conventions are retired — do not
+  target `dev`.
+- **Branch off `main`.** Create short-lived feature branches from `main` and open pull
+  requests back into `main`.
+- Keep branches short-lived; commit small and often (conventional commits + gitmoji).
+- `commit.gpgsign` must be true (SSH signing via 1Password).
+
 ## Architecture
 
 ```
