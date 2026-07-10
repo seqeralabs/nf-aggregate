@@ -13,6 +13,7 @@ BIN_DIRS = [
     REPO_ROOT / "modules" / "local" / "normalize_benchmark_jsonl" / "bin",
     REPO_ROOT / "modules" / "local" / "aggregate_benchmark_report_data" / "bin",
     REPO_ROOT / "modules" / "local" / "render_benchmark_report" / "bin",
+    REPO_ROOT / "modules" / "local" / "aggregate_ic_report_data" / "bin",
 ]
 for bin_dir in BIN_DIRS:
     if str(bin_dir) not in sys.path:
@@ -126,3 +127,49 @@ def minimal_report_data():
         "task_scatter": [],
         "cost_overview": None,
     }
+
+
+@pytest.fixture
+def make_ic_run():
+    def _make_ic_run(run_id: str = "icRUN0000000001", group: str = "ic"):
+        return {
+            "workflow": {
+                "id": run_id, "status": "SUCCEEDED", "userName": "tester",
+                "runName": "demo-ic-run", "projectName": "example/demo-pipeline",
+                "revision": "1.0.0", "nextflow": {"version": "25.04.0"},
+                "stats": {"succeedCount": 3, "failedCount": 0, "cachedCount": 0},
+                "duration": 1717531,
+            },
+            "schedEnabled": True,
+            "schedConfig": {"provisioningModel": "spotFirst", "predictionModel": "qr/v2"},
+            "platform": {"id": "aws-cloud", "name": "AWS Cloud"},
+            "progress": {"workflowProgress": {
+                "cpuTime": 1247429, "memoryRss": 12339093504, "peakMemory": 32212254720,
+                "cost": 0.0053921835, "cpuEfficiency": 41.6, "memoryEfficiency": 5.5,
+            }},
+            "tasks": [], "metrics": [],
+            "meta": {"id": run_id, "workspace": "myorg/myworkspace", "group": group},
+        }
+    return _make_ic_run
+
+
+@pytest.fixture
+def make_batch_run():
+    def _make_batch_run(run_id: str = "batchRUN00000001", group: str = "batch"):
+        return {
+            "workflow": {
+                "id": run_id, "status": "SUCCEEDED", "userName": "tester",
+                "runName": "demo-batch-run", "projectName": "example/demo-pipeline",
+                "revision": "1.0.0", "nextflow": {"version": "25.04.0"},
+                "stats": {"succeedCount": 3, "failedCount": 0, "cachedCount": 0},
+                "duration": 3040821,
+            },
+            "platform": {"id": "aws-batch", "name": "AWS Batch"},
+            "progress": {"workflowProgress": {
+                "cpuTime": 480392, "memoryRss": 13447421952, "peakMemory": 32212254720,
+                "cost": 0.006216994, "cpuEfficiency": 60.0, "memoryEfficiency": 6.0,
+            }},
+            "tasks": [], "metrics": [],
+            "meta": {"id": run_id, "workspace": "myorg/myworkspace", "group": group},
+        }
+    return _make_batch_run
