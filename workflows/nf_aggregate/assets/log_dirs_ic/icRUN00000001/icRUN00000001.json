@@ -6,13 +6,25 @@
         "runName": "demo-ic-run",
         "projectName": "example/demo-pipeline",
         "revision": "1.0.0",
-        "nextflow": { "version": "25.04.0" },
+        "nextflow": {
+            "version": "25.04.0"
+        },
         "duration": 1717531,
-        "stats": { "succeedCount": 3, "failedCount": 0, "cachedCount": 0 }
+        "stats": {
+            "succeedCount": 3,
+            "failedCount": 0,
+            "cachedCount": 0
+        }
     },
     "schedEnabled": true,
-    "schedConfig": { "provisioningModel": "spotFirst", "predictionModel": "qr/v2" },
-    "platform": { "id": "aws-cloud", "name": "AWS Cloud" },
+    "schedConfig": {
+        "provisioningModel": "spotFirst",
+        "predictionModel": "qr/v2"
+    },
+    "platform": {
+        "id": "aws-cloud",
+        "name": "AWS Cloud"
+    },
     "progress": {
         "workflowProgress": {
             "cpuTime": 1247429,
@@ -30,8 +42,9 @@
             "status": "COMPLETED",
             "hash": "aa/01",
             "cpus": 2,
-            "realtime": 1800000,
-            "machineType": "t3.large"
+            "machineType": "t3.large",
+            "start": "2026-01-01T00:00:00Z",
+            "complete": "2026-01-01T00:20:00Z"
         },
         {
             "name": "BAR",
@@ -39,8 +52,9 @@
             "status": "COMPLETED",
             "hash": "aa/02",
             "cpus": 2,
-            "realtime": 1800000,
-            "machineType": "t3.large"
+            "machineType": "t3.large",
+            "start": "2026-01-01T00:00:00Z",
+            "complete": "2026-01-01T00:25:00Z"
         },
         {
             "name": "BAZ",
@@ -48,8 +62,9 @@
             "status": "COMPLETED",
             "hash": "aa/03",
             "cpus": 4,
-            "realtime": 900000,
-            "machineType": "t3a.xlarge"
+            "machineType": "t3a.xlarge",
+            "start": "2026-01-01T00:00:00Z",
+            "complete": "2026-01-01T00:30:00Z"
         },
         {
             "name": "QUX",
@@ -57,10 +72,15 @@
             "status": "COMPLETED",
             "hash": "aa/04",
             "cpus": 1,
-            "realtime": 600000,
-            "machineType": ""
+            "machineType": "",
+            "start": "2026-01-01T00:00:00Z",
+            "complete": "2026-01-01T00:35:00Z"
         }
     ],
     "metrics": [],
-    "meta": { "id": "icRUN00000001", "workspace": "myorg/myworkspace", "group": "intelligent_compute" }
+    "meta": {
+        "id": "icRUN00000001",
+        "workspace": "myorg/myworkspace",
+        "group": "intelligent_compute"
+    }
 }

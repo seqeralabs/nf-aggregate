@@ -6,11 +6,20 @@
         "runName": "demo-batch-run",
         "projectName": "example/demo-pipeline",
         "revision": "1.0.0",
-        "nextflow": { "version": "25.04.0" },
+        "nextflow": {
+            "version": "25.04.0"
+        },
         "duration": 3040821,
-        "stats": { "succeedCount": 3, "failedCount": 0, "cachedCount": 0 }
+        "stats": {
+            "succeedCount": 3,
+            "failedCount": 0,
+            "cachedCount": 0
+        }
     },
-    "platform": { "id": "aws-batch", "name": "AWS Batch" },
+    "platform": {
+        "id": "aws-batch",
+        "name": "AWS Batch"
+    },
     "progress": {
         "workflowProgress": {
             "cpuTime": 480392,
@@ -28,8 +37,9 @@
             "status": "COMPLETED",
             "hash": "bb/01",
             "cpus": 16,
-            "realtime": 1800000,
-            "machineType": "m6id.4xlarge"
+            "machineType": "m6id.4xlarge",
+            "start": "2026-01-01T00:00:00Z",
+            "complete": "2026-01-01T00:20:00Z"
         },
         {
             "name": "BAR",
@@ -37,8 +47,9 @@
             "status": "COMPLETED",
             "hash": "bb/02",
             "cpus": 16,
-            "realtime": 1800000,
-            "machineType": "m6id.4xlarge"
+            "machineType": "m6id.4xlarge",
+            "start": "2026-01-01T00:00:00Z",
+            "complete": "2026-01-01T00:25:00Z"
         },
         {
             "name": "BAZ",
@@ -46,8 +57,9 @@
             "status": "COMPLETED",
             "hash": "bb/03",
             "cpus": 32,
-            "realtime": 900000,
-            "machineType": "r8id.8xlarge"
+            "machineType": "r8id.8xlarge",
+            "start": "2026-01-01T00:00:00Z",
+            "complete": "2026-01-01T00:30:00Z"
         },
         {
             "name": "QUX",
@@ -55,10 +67,15 @@
             "status": "COMPLETED",
             "hash": "bb/04",
             "cpus": 1,
-            "realtime": 600000,
-            "machineType": ""
+            "machineType": "",
+            "start": "2026-01-01T00:00:00Z",
+            "complete": "2026-01-01T00:35:00Z"
         }
     ],
     "metrics": [],
-    "meta": { "id": "batchRUN000001", "workspace": "myorg/myworkspace", "group": "batch" }
+    "meta": {
+        "id": "batchRUN000001",
+        "workspace": "myorg/myworkspace",
+        "group": "batch"
+    }
 }

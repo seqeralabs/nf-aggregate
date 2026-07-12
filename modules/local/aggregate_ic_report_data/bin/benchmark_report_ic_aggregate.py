@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_report_aggregate import _build_workspace_run_url, _iter_jsonl
+from benchmark_report_normalize import _duration_ms
 
 
 def _compute_type(run: dict[str, Any]) -> str:
@@ -24,29 +25,43 @@ def _compute_type(run: dict[str, Any]) -> str:
     return "batch"
 
 
-def _build_machine_usage(
-    jsonl_dir: Path, run_order: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
-    """Distribution of machine (instance) types per run, from tasks.jsonl.
+def _task_occupancy_hours(task: dict[str, Any]) -> float:
+    """CPU-hours a task occupied its instance = cpus * (complete - start).
 
-    For each run, count tasks and sum cpu-hours (cpus * realtime_ms / 3.6e6) per
-    machine type. Tasks with no reported machineType are bucketed as 'unknown'.
-    Each machine type gets a stable global color_idx (assigned over the sorted set
-    of distinct types across all runs) so the same instance type is coloured
-    consistently in every run's bar.
+    Uses instance occupancy (slot-held time), NOT task.realtime (tool execution
+    only). This is the single basis shared by BOTH the per-run 'compute hours'
+    and the per-machine cpu-hours so the machine breakdown sums to the run total.
+    TODO: this occupancy basis approximates the Platform's requestedCpuTime; the
+    exact match to the Platform UI's compute-hours figure is still open.
     """
+    cpus = task.get("cpus") or 0
+    occupancy_ms = cpus * _duration_ms(task.get("start"), task.get("complete"))
+    return occupancy_ms / 3.6e6
+
+
+def _machine_breakdown(jsonl_dir: Path) -> dict[str, dict[str, dict[str, float]]]:
+    """Per run, per machine type: task_count and occupancy cpu_hours."""
     per_run: dict[str, dict[str, dict[str, float]]] = defaultdict(
         lambda: defaultdict(lambda: {"task_count": 0, "cpu_hours": 0.0})
     )
     for task in _iter_jsonl(Path(jsonl_dir) / "tasks.jsonl"):
         run_id = str(task.get("run_id", ""))
         machine_type = task.get("machine_type") or "unknown"
-        cpus = task.get("cpus") or 0
-        realtime_ms = task.get("realtime_ms") or 0
         acc = per_run[run_id][machine_type]
         acc["task_count"] += 1
-        acc["cpu_hours"] += (cpus * realtime_ms) / 3.6e6
+        acc["cpu_hours"] += _task_occupancy_hours(task)
+    return per_run
 
+
+def _build_machine_usage(
+    per_run: dict[str, dict[str, dict[str, float]]], run_order: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Distribution of machine (instance) types per run.
+
+    Each machine type gets a stable global color_idx (assigned over the sorted set
+    of distinct types across all runs) so the same instance type is coloured
+    consistently in every run's bar.
+    """
     distinct = sorted({mt for machines in per_run.values() for mt in machines})
     color_idx = {mt: i for i, mt in enumerate(distinct)}
 
@@ -54,7 +69,6 @@ def _build_machine_usage(
     for run in run_order:
         machines_raw = per_run.get(run["run_id"], {})
         total_tasks = sum(int(m["task_count"]) for m in machines_raw.values())
-        total_cpu_hours = round(sum(m["cpu_hours"] for m in machines_raw.values()), 2)
         machines = [
             {
                 "machine_type": mt,
@@ -67,6 +81,9 @@ def _build_machine_usage(
                 machines_raw.items(), key=lambda kv: (-kv[1]["task_count"], kv[0])
             )
         ]
+        # Sum the ALREADY-ROUNDED per-machine values so the report is internally
+        # consistent: the displayed run total == the sum of the displayed bars.
+        total_cpu_hours = round(sum(m["cpu_hours"] for m in machines), 2)
         usage.append({
             "run_id": run["run_id"],
             "run_name": run["run_name"],
@@ -81,6 +98,12 @@ def _build_machine_usage(
 
 def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.io") -> dict[str, Any]:
     jsonl_dir = Path(jsonl_dir)
+
+    # Machine/instance breakdown defines the shared occupancy cpu-hours basis; the
+    # run-level "compute hours" is then taken from each run's machine total, so the
+    # two reconcile exactly (run compute_hours == displayed sum of that run's bars).
+    per_run = _machine_breakdown(jsonl_dir)
+
     run_summary: list[dict[str, Any]] = []
     run_order: list[dict[str, Any]] = []
     n_ic = 0
@@ -93,9 +116,6 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
         else:
             n_batch += 1
 
-        cpu_time_ms = run.get("cpu_time_ms") or 0
-        # TODO: verify cpuTime unit against the Platform UI (cpuTime vs stats.computeTimeFmt disagree in scale)
-        compute_hours = round(cpu_time_ms / 3.6e6, 2)
         mem_bytes = run.get("memory_rss_bytes") or 0
         run_id = run.get("run_id", "")
         run_url = _build_workspace_run_url(
@@ -110,7 +130,7 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
             "group": run.get("group", ""),
             "compute_type": compute_type,
             "status": run.get("status", ""),
-            "compute_hours": compute_hours,
+            "compute_hours": 0.0,  # backfilled from machine_usage below
             "memory_used_bytes": mem_bytes,
             "memory_used_gb": round(mem_bytes / 1024**3, 2),
             "run_cost_platform": run.get("run_cost"),
@@ -123,6 +143,11 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
             "compute_type": compute_type,
         })
 
+    machine_usage = _build_machine_usage(per_run, run_order)
+    run_totals = {u["run_id"]: u["total_cpu_hours"] for u in machine_usage}
+    for row in run_summary:
+        row["compute_hours"] = run_totals.get(row["run_id"], 0.0)
+
     return {
         "ic_overview": {
             "n_runs": len(run_summary),
@@ -131,7 +156,7 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
             "cost_source": None,
         },
         "run_summary": run_summary,
-        "machine_usage": _build_machine_usage(jsonl_dir, run_order),
+        "machine_usage": machine_usage,
     }
 
 

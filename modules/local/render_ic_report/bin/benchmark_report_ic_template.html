@@ -4,36 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Intelligent Compute Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.0/dist/css/tabulator.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 <style>
   body { font-family: Inter, -apple-system, Segoe UI, Roboto, sans-serif; color: {{ brand_heading }}; margin: 0; background: {{ brand_white }}; }
   header { display: flex; align-items: center; gap: 12px; padding: 20px 28px; border-bottom: 1px solid {{ brand_border }}; }
   header .title { font-size: 18px; font-weight: 600; }
-  main { padding: 24px 28px; }
-  .overview { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
+  main { padding: 24px 28px; max-width: 1400px; }
+  h2 { font-size: 16px; font-weight: 600; margin: 32px 0 12px; }
+  .overview { display: flex; gap: 20px; margin-bottom: 8px; flex-wrap: wrap; }
   .stat { background: {{ brand_neutral }}; border: 1px solid {{ brand_border }}; border-radius: 8px; padding: 12px 16px; min-width: 120px; }
   .stat .n { font-size: 22px; font-weight: 700; }
   .stat .l { font-size: 12px; opacity: 0.7; }
-  table.gs-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  table.gs-table th, table.gs-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid {{ brand_border }}; white-space: nowrap; }
-  table.gs-table th { background: {{ brand_accent_surface }}; font-weight: 600; }
-  table.gs-table a { color: {{ brand_accent }}; text-decoration: none; }
-  table.gs-table a:hover { text-decoration: underline; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
   .badge.ic { background: {{ brand_accent_surface }}; color: {{ brand_accent }}; }
   .badge.batch { background: {{ brand_neutral }}; color: {{ brand_heading }}; }
   .muted { opacity: 0.45; }
-  .scroll { overflow-x: auto; }
-  .machines { margin-top: 32px; }
-  .machines h2 { font-size: 16px; font-weight: 600; margin: 0 0 14px; }
-  .mrun { margin-bottom: 20px; }
-  .mrun .mhead { font-size: 13px; margin-bottom: 6px; }
-  .mrun .mhead a { color: {{ brand_accent }}; text-decoration: none; }
-  .mrun .mhead a:hover { text-decoration: underline; }
-  .mbar { display: flex; width: 100%; height: 22px; border-radius: 4px; overflow: hidden; border: 1px solid {{ brand_border }}; }
-  .mbar .seg { height: 100%; min-width: 1px; }
-  .mlegend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 7px; font-size: 12px; }
-  .mlegend .item { display: inline-flex; align-items: center; gap: 6px; }
-  .mlegend .sw { width: 11px; height: 11px; border-radius: 2px; display: inline-block; flex: none; }
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .toolbar input[type=search] { padding: 7px 10px; border: 1px solid {{ brand_border }}; border-radius: 6px; font-size: 13px; min-width: 260px; }
+  .btn-group { display: inline-flex; border: 1px solid {{ brand_border }}; border-radius: 6px; overflow: hidden; }
+  .btn-group button { border: 0; background: {{ brand_white }}; padding: 6px 12px; font-size: 12px; cursor: pointer; color: {{ brand_heading }}; }
+  .btn-group button.active { background: {{ brand_accent }}; color: {{ brand_white }}; }
+  a { color: {{ brand_accent }}; }
+  .tabulator { font-size: 13px; border: 1px solid {{ brand_border }}; }
+  .tabulator .tabulator-header { background: {{ brand_accent_surface }}; }
+  #machine-chart { width: 100%; height: 460px; }
   footer { padding: 16px 28px; opacity: 0.6; font-size: 12px; }
 </style>
 </head>
@@ -48,59 +47,116 @@
     <div class="stat"><div class="n">{{ ic_overview.n_intelligent_compute }}</div><div class="l">Intelligent Compute</div></div>
     <div class="stat"><div class="n">{{ ic_overview.n_batch }}</div><div class="l">AWS Batch</div></div>
   </section>
-  <section class="scroll">
-    <table class="gs-table">
-      <thead>
-        <tr>
-          <th>Run ID</th><th>Pipeline</th><th>Group</th><th>Compute type</th>
-          <th>Status</th><th>Compute hours</th><th>Memory used (GB)</th><th>Cost</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in run_summary %}
-        <tr>
-          <td>{% if row.run_url %}<a href="{{ row.run_url }}" target="_blank" rel="noopener">{{ row.run_id }}</a>{% else %}{{ row.run_id }}{% endif %}</td>
-          <td>{{ row.pipeline }}</td>
-          <td>{{ row.group }}</td>
-          <td>{% if row.compute_type == 'intelligent_compute' %}<span class="badge ic">Intelligent Compute</span>{% else %}<span class="badge batch">AWS Batch</span>{% endif %}</td>
-          <td>{{ row.status }}</td>
-          <td>{{ row.compute_hours }}</td>
-          <td>{{ row.memory_used_gb }}</td>
-          <td>{% if row.cost is none %}<span class="muted">&mdash;</span>{% else %}{{ row.cost }}{% endif %}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
+
+  <h2>Run summary</h2>
+  <div class="toolbar">
+    <input id="run-search" type="search" placeholder="Search runs (id, pipeline, group, status)…" />
+  </div>
+  <div id="run-table"></div>
+
   {% if machine_usage %}
-  <section class="machines">
-    <h2>Machine types per run</h2>
-    {% for run in machine_usage %}
-    <div class="mrun">
-      <div class="mhead">
-        {% if run.compute_type == 'intelligent_compute' %}<span class="badge ic">Intelligent Compute</span>{% else %}<span class="badge batch">AWS Batch</span>{% endif %}
-        {% if run.run_url %}<a href="{{ run.run_url }}" target="_blank" rel="noopener">{{ run.run_name or run.run_id }}</a>{% else %}{{ run.run_name or run.run_id }}{% endif %}
-        &mdash; {{ run.total_tasks }} tasks, {{ run.total_cpu_hours }} cpu-h
-      </div>
-      {% if run.machines %}
-      <div class="mbar">
-        {% for m in run.machines %}
-        <div class="seg" style="width: {{ m.task_pct }}%; background: {{ brand_palette[m.color_idx % (brand_palette | length)] }};" title="{{ m.machine_type }}: {{ m.task_count }} tasks ({{ m.task_pct }}%), {{ m.cpu_hours }} cpu-h"></div>
-        {% endfor %}
-      </div>
-      <div class="mlegend">
-        {% for m in run.machines %}
-        <span class="item"><span class="sw" style="background: {{ brand_palette[m.color_idx % (brand_palette | length)] }};"></span>{{ m.machine_type }} &middot; {{ m.task_count }} ({{ m.task_pct }}%) &middot; {{ m.cpu_hours }} cpu-h</span>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="muted">No task data.</div>
-      {% endif %}
-    </div>
-    {% endfor %}
-  </section>
+  <h2>Machine types per run</h2>
+  <div class="toolbar">
+    <span style="font-size:12px;opacity:.7">Measure:</span>
+    <span class="btn-group" id="metric-toggle">
+      <button data-metric="task_count" class="active">Tasks</button>
+      <button data-metric="cpu_hours">CPU-hours</button>
+    </span>
+    <span style="font-size:12px;opacity:.6">Hover a segment for details · click a legend entry to filter · drag the slider to scroll runs</span>
+  </div>
+  <div id="machine-chart"></div>
   {% endif %}
 </main>
 <footer>Generated {{ generated_at }}</footer>
+
+<script>
+echarts.registerTheme('seqera', {{ echarts_theme_json }});
+const DATA = {{ data_json }};
+const COLORS = {{ brand_palette | tojson }};
+
+// ---- Run summary table (Tabulator: searchable + per-column filterable + sortable + paginated) ----
+(function () {
+  const runs = DATA.run_summary || [];
+  const table = new Tabulator("#run-table", {
+    data: runs,
+    layout: "fitColumns",
+    pagination: true,
+    paginationSize: 25,
+    paginationSizeSelector: [10, 25, 50, 100, true],
+    movableColumns: true,
+    placeholder: "No runs",
+    columns: [
+      { title: "Run ID", field: "run_id", headerFilter: "input", widthGrow: 2,
+        formatter: (cell) => { const r = cell.getRow().getData(); return r.run_url ? '<a href="' + r.run_url + '" target="_blank" rel="noopener">' + r.run_id + '</a>' : r.run_id; } },
+      { title: "Pipeline", field: "pipeline", headerFilter: "input", widthGrow: 2 },
+      { title: "Group", field: "group", headerFilter: "input" },
+      { title: "Compute type", field: "compute_type", headerFilter: "input",
+        formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
+      { title: "Status", field: "status", headerFilter: "input" },
+      { title: "Compute hours", field: "compute_hours", hozAlign: "right", sorter: "number" },
+      { title: "Memory (GB)", field: "memory_used_gb", hozAlign: "right", sorter: "number" },
+      { title: "Cost", field: "cost", hozAlign: "right",
+        formatter: (cell) => cell.getValue() == null ? '<span class="muted">&mdash;</span>' : cell.getValue() },
+    ],
+  });
+  const searchEl = document.getElementById("run-search");
+  const searchKeys = ["run_id", "run_name", "pipeline", "group", "compute_type", "status"];
+  searchEl.addEventListener("keyup", (e) => {
+    const v = (e.target.value || "").toLowerCase();
+    if (!v) { table.clearFilter(true); return; }
+    table.setFilter((row) => searchKeys.some((k) => String(row[k] == null ? "" : row[k]).toLowerCase().includes(v)));
+  });
+})();
+
+// ---- Machine-type distribution chart (ECharts stacked horizontal bar: hover / legend-filter / zoom) ----
+(function () {
+  const el = document.getElementById("machine-chart");
+  const mu = DATA.machine_usage || [];
+  if (!el || !mu.length) return;
+
+  const runLabels = mu.map((u) => u.run_name || u.run_id);
+  const colorByType = {};
+  mu.forEach((u) => (u.machines || []).forEach((m) => { colorByType[m.machine_type] = m.color_idx; }));
+  const machineTypes = Object.keys(colorByType).sort((a, b) => colorByType[a] - colorByType[b]);
+
+  function seriesFor(metric) {
+    return machineTypes.map((mt) => ({
+      name: mt,
+      type: "bar",
+      stack: "total",
+      emphasis: { focus: "series" },
+      itemStyle: { color: COLORS[colorByType[mt] % COLORS.length] },
+      data: mu.map((u) => {
+        const m = (u.machines || []).find((x) => x.machine_type === mt);
+        return { value: m ? m[metric] : 0, tasks: m ? m.task_count : 0, pct: m ? m.task_pct : 0, cpu: m ? m.cpu_hours : 0 };
+      }),
+    }));
+  }
+
+  const chart = echarts.init(el, "seqera");
+  function render(metric) {
+    const zoom = runLabels.length > 8 ? [{ type: "slider", yAxisIndex: 0, width: 14, right: 4 }, { type: "inside", yAxisIndex: 0 }] : [];
+    chart.setOption({
+      tooltip: { trigger: "item", formatter: (p) => p.seriesName + "<br/>" + (runLabels[p.dataIndex] || "") + "<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " cpu-h" },
+      legend: { type: "scroll", top: 0 },
+      grid: { left: 160, right: 28, top: 44, bottom: 36 },
+      xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours" },
+      yAxis: { type: "category", data: runLabels, inverse: true },
+      dataZoom: zoom,
+      series: seriesFor(metric),
+    }, true);
+  }
+  render("task_count");
+
+  document.querySelectorAll("#metric-toggle button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#metric-toggle button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      render(btn.getAttribute("data-metric"));
+    });
+  });
+  window.addEventListener("resize", () => chart.resize());
+})();
+</script>
 </body>
 </html>

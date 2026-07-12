@@ -59,18 +59,32 @@ def test_machine_usage_empty_when_no_tasks(tmp_path, make_ic_run, write_run_json
 
 def test_ic_run_summary_fields(tmp_path, make_ic_run, write_run_json):
     jsonl_dir = _bundle(tmp_path, [make_ic_run(run_id="icRUN0000000001")], write_run_json)
-    row = build_ic_report_data(jsonl_dir, web_base="https://cloud.example.test")["run_summary"][0]
+    data = build_ic_report_data(jsonl_dir, web_base="https://cloud.example.test")
+    row = data["run_summary"][0]
 
     assert row["run_id"] == "icRUN0000000001"
     assert row["compute_type"] == "intelligent_compute"
     assert row["run_url"] == (
         "https://cloud.example.test/orgs/myorg/workspaces/myworkspace/watch/icRUN0000000001"
     )
-    assert row["compute_hours"] == round(1247429 / 3.6e6, 2)
+    # occupancy basis: 4 tasks x (2 cpus * 0.5h held) = 4.0 cpu-h
+    assert row["compute_hours"] == 4.0
     assert row["memory_used_bytes"] == 12339093504
     assert row["memory_used_gb"] == round(12339093504 / 1024**3, 2)
     assert row["run_cost_platform"] == 0.0053921835
     assert row["cost"] is None
+
+
+def test_compute_hours_reconciles_with_machine_usage(tmp_path, make_ic_run, make_batch_run, write_run_json):
+    """The per-run 'compute hours' must equal the sum of that run's per-machine cpu-hours."""
+    jsonl_dir = _bundle(tmp_path, [make_ic_run(), make_batch_run()], write_run_json)
+    data = build_ic_report_data(jsonl_dir)
+
+    machine_totals = {u["run_id"]: u["total_cpu_hours"] for u in data["machine_usage"]}
+    for row in data["run_summary"]:
+        summed = round(sum(m["cpu_hours"] for m in
+                           next(u for u in data["machine_usage"] if u["run_id"] == row["run_id"])["machines"]), 2)
+        assert row["compute_hours"] == machine_totals[row["run_id"]] == summed
 
 
 def test_batch_detected_when_sched_absent(tmp_path, make_batch_run, write_run_json):
