@@ -60,10 +60,11 @@ def test_ic_report_renders_machine_chart_section(tmp_path):
             ],
         }],
     })
-    assert "Machine types per run" in html         # section heading (Jinja-guarded on machine_usage)
-    assert 'id="machine-chart"' in html            # ECharts mount point
-    assert 'id="metric-toggle"' in html            # Tasks / CPU-hours toggle
-    assert '"machine_type": "t3.large"' in html    # machine data in the blob feeding the chart
+    assert "Machine types per run" in html          # section heading (Jinja-guarded on machine_usage)
+    assert 'id="machine-facets"' in html            # faceted ECharts mount point (one chart per engine)
+    assert 'id="metric-toggle"' in html             # Tasks / CPU-hours toggle
+    assert '"compute_type": "intelligent_compute"' in html  # facet key in the blob
+    assert '"machine_type": "t3.large"' in html     # machine data in the blob feeding the chart
     assert '"machine_type": "unknown"' in html
 
 

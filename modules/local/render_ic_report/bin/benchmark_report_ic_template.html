@@ -32,7 +32,9 @@
   a { color: {{ brand_accent }}; }
   .tabulator { font-size: 13px; border: 1px solid {{ brand_border }}; }
   .tabulator .tabulator-header { background: {{ brand_accent_surface }}; }
-  #machine-chart { width: 100%; height: 460px; }
+  .facet { margin-bottom: 18px; }
+  .facet h3 { font-size: 13px; font-weight: 600; margin: 0 0 4px; color: {{ brand_accent }}; }
+  .facet-chart { width: 100%; }
   footer { padding: 16px 28px; opacity: 0.6; font-size: 12px; }
 </style>
 </head>
@@ -62,9 +64,9 @@
       <button data-metric="task_count" class="active">Tasks</button>
       <button data-metric="cpu_hours">CPU-hours</button>
     </span>
-    <span style="font-size:12px;opacity:.6">Hover a segment for details · click a legend entry to filter · drag the slider to scroll runs</span>
+    <span style="font-size:12px;opacity:.6">Faceted by scheduling engine · runs labelled by workflow ID · hover a segment for details · click a legend entry to filter</span>
   </div>
-  <div id="machine-chart"></div>
+  <div id="machine-facets"></div>
   {% endif %}
 </main>
 <footer>Generated {{ generated_at }}</footer>
@@ -108,54 +110,81 @@ const COLORS = {{ brand_palette | tojson }};
   });
 })();
 
-// ---- Machine-type distribution chart (ECharts stacked horizontal bar: hover / legend-filter / zoom) ----
+// ---- Machine-type distribution (ECharts, faceted by scheduling engine; runs labelled by workflow ID) ----
 (function () {
-  const el = document.getElementById("machine-chart");
+  const container = document.getElementById("machine-facets");
   const mu = DATA.machine_usage || [];
-  if (!el || !mu.length) return;
+  if (!container || !mu.length) return;
 
-  const runLabels = mu.map((u) => u.run_name || u.run_id);
+  // Global machine-type -> color index, so the same instance type is the same colour in every facet.
   const colorByType = {};
   mu.forEach((u) => (u.machines || []).forEach((m) => { colorByType[m.machine_type] = m.color_idx; }));
-  const machineTypes = Object.keys(colorByType).sort((a, b) => colorByType[a] - colorByType[b]);
 
-  function seriesFor(metric) {
-    return machineTypes.map((mt) => ({
-      name: mt,
-      type: "bar",
-      stack: "total",
-      emphasis: { focus: "series" },
-      itemStyle: { color: COLORS[colorByType[mt] % COLORS.length] },
-      data: mu.map((u) => {
-        const m = (u.machines || []).find((x) => x.machine_type === mt);
-        return { value: m ? m[metric] : 0, tasks: m ? m.task_count : 0, pct: m ? m.task_pct : 0, cpu: m ? m.cpu_hours : 0 };
-      }),
-    }));
+  // One facet (own chart) per scheduling engine present in the data.
+  const FACETS = [
+    { key: "intelligent_compute", label: "Intelligent Compute" },
+    { key: "batch", label: "AWS Batch" },
+  ];
+  const charts = [];
+  FACETS.forEach((f) => {
+    const runs = mu.filter((u) => u.compute_type === f.key);
+    if (!runs.length) return;
+    const wrap = document.createElement("div");
+    wrap.className = "facet";
+    const h = document.createElement("h3");
+    h.textContent = f.label + " (" + runs.length + " run" + (runs.length > 1 ? "s" : "") + ")";
+    wrap.appendChild(h);
+    const el = document.createElement("div");
+    el.className = "facet-chart";
+    el.style.height = Math.max(150, 56 + runs.length * 42) + "px";  // grows with run count
+    wrap.appendChild(el);
+    container.appendChild(wrap);
+    charts.push({ chart: echarts.init(el, "seqera"), runs });
+  });
+
+  function machineTypesOf(runs) {
+    const s = new Set();
+    runs.forEach((u) => (u.machines || []).forEach((m) => s.add(m.machine_type)));
+    return [...s].sort((a, b) => colorByType[a] - colorByType[b]);
   }
 
-  const chart = echarts.init(el, "seqera");
-  function render(metric) {
-    const zoom = runLabels.length > 8 ? [{ type: "slider", yAxisIndex: 0, width: 14, right: 4 }, { type: "inside", yAxisIndex: 0 }] : [];
-    chart.setOption({
-      tooltip: { trigger: "item", formatter: (p) => p.seriesName + "<br/>" + (runLabels[p.dataIndex] || "") + "<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " cpu-h" },
-      legend: { type: "scroll", top: 0 },
-      grid: { left: 160, right: 28, top: 44, bottom: 36 },
-      xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours" },
-      yAxis: { type: "category", data: runLabels, inverse: true },
-      dataZoom: zoom,
-      series: seriesFor(metric),
-    }, true);
+  function renderAll(metric) {
+    charts.forEach(({ chart, runs }) => {
+      const ids = runs.map((u) => u.run_id);                 // workflow IDs on the axis (compact)
+      const names = runs.map((u) => u.run_name || u.run_id); // full name in the tooltip
+      const series = machineTypesOf(runs).map((mt) => ({
+        name: mt,
+        type: "bar",
+        stack: "total",
+        emphasis: { focus: "series" },
+        itemStyle: { color: COLORS[colorByType[mt] % COLORS.length] },
+        data: runs.map((u) => {
+          const m = (u.machines || []).find((x) => x.machine_type === mt);
+          return { value: m ? m[metric] : 0, tasks: m ? m.task_count : 0, pct: m ? m.task_pct : 0, cpu: m ? m.cpu_hours : 0 };
+        }),
+      }));
+      const zoom = ids.length > 10 ? [{ type: "slider", yAxisIndex: 0, width: 14, right: 4 }, { type: "inside", yAxisIndex: 0 }] : [];
+      chart.setOption({
+        tooltip: { trigger: "item", formatter: (p) => p.seriesName + "<br/>" + names[p.dataIndex] + " (" + ids[p.dataIndex] + ")<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " cpu-h" },
+        legend: { type: "scroll", top: 0 },
+        grid: { left: 130, right: 28, top: 40, bottom: 36 },
+        xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours" },
+        yAxis: { type: "category", data: ids, inverse: true },
+        dataZoom: zoom,
+        series: series,
+      }, true);
+    });
   }
-  render("task_count");
+  renderAll("task_count");
 
   document.querySelectorAll("#metric-toggle button").forEach((btn) => {
     btn.addEventListener("click", () => {
       document.querySelectorAll("#metric-toggle button").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
-      render(btn.getAttribute("data-metric"));
+      renderAll(btn.getAttribute("data-metric"));
     });
   });
-  window.addEventListener("resize", () => chart.resize());
+  window.addEventListener("resize", () => charts.forEach((c) => c.chart.resize()));
 })();
 </script>
 </body>
