@@ -64,7 +64,7 @@
       <button data-metric="task_count" class="active">Tasks</button>
       <button data-metric="cpu_hours">CPU-hours</button>
     </span>
-    <span style="font-size:12px;opacity:.6">Faceted by scheduling engine · runs labelled by workflow ID · hover a segment for details · click a legend entry to filter</span>
+    <span style="font-size:12px;opacity:.6">Faceted by scheduling engine · shared scale across facets · runs labelled by workflow ID · hover for details · click a legend entry to filter</span>
   </div>
   <div id="machine-facets"></div>
   {% endif %}
@@ -149,6 +149,10 @@ const COLORS = {{ brand_palette | tojson }};
   }
 
   function renderAll(metric) {
+    // Shared x-axis max across ALL facets so bar lengths are directly comparable
+    // between engines (same-pipeline runs sit on one scale -> obvious which used more).
+    const totalKey = metric === "task_count" ? "total_tasks" : "total_cpu_hours";
+    const sharedMax = Math.max(1, ...mu.map((u) => u[totalKey] || 0));
     charts.forEach(({ chart, runs }) => {
       const ids = runs.map((u) => u.run_id);                 // workflow IDs on the axis (compact)
       const names = runs.map((u) => u.run_name || u.run_id); // full name in the tooltip
@@ -168,7 +172,7 @@ const COLORS = {{ brand_palette | tojson }};
         tooltip: { trigger: "item", formatter: (p) => p.seriesName + "<br/>" + names[p.dataIndex] + " (" + ids[p.dataIndex] + ")<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " cpu-h" },
         legend: { type: "scroll", top: 0 },
         grid: { left: 130, right: 28, top: 40, bottom: 36 },
-        xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours" },
+        xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours", max: sharedMax },
         yAxis: { type: "category", data: ids, inverse: true },
         dataZoom: zoom,
         series: series,
