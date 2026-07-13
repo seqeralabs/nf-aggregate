@@ -96,3 +96,43 @@ def test_compute_type_platform_id_fallback():
     assert _compute_type({"sched_enabled": False, "platform_id": "aws-cloud"}) == "intelligent_compute"
     assert _compute_type({"sched_enabled": False, "platform_id": "aws-batch"}) == "batch"
     assert _compute_type({"sched_enabled": True, "platform_id": "aws-batch"}) == "intelligent_compute"
+
+
+def test_run_summary_carries_start_time(tmp_path, make_ic_run, write_run_json):
+    run = make_ic_run(run_id="icRUN0000000001")
+    run["workflow"]["start"] = "2026-07-12T22:29:38Z"
+    jsonl_dir = _bundle(tmp_path, [run], write_run_json)
+    data = build_ic_report_data(jsonl_dir)
+
+    row = data["run_summary"][0]
+    assert row["started_at"] == "2026-07-12T22:29:38Z"
+    assert row["date_short"] == "2026-07-12"
+    # machine_usage carries the same fields for the chart
+    assert data["machine_usage"][0]["started_at"] == "2026-07-12T22:29:38Z"
+    assert data["machine_usage"][0]["date_short"] == "2026-07-12"
+
+
+def test_missing_start_is_blank_not_crash(tmp_path, make_ic_run, write_run_json):
+    run = make_ic_run()  # fixture sets no workflow.start
+    run["workflow"].pop("start", None)
+    jsonl_dir = _bundle(tmp_path, [run], write_run_json)
+    row = build_ic_report_data(jsonl_dir)["run_summary"][0]
+    assert row["started_at"] == ""
+    assert row["date_short"] == ""
+
+
+def test_runs_sorted_newest_first_within_pipeline_and_facet(tmp_path, make_ic_run, make_batch_run, write_run_json):
+    old_ic = make_ic_run(run_id="icOLD0000001")
+    old_ic["workflow"]["start"] = "2026-07-03T10:00:00Z"
+    new_ic = make_ic_run(run_id="icNEW0000001")
+    new_ic["workflow"]["start"] = "2026-07-12T10:00:00Z"
+    batch = make_batch_run(run_id="batchRUN00001")
+    batch["workflow"]["start"] = "2026-07-05T10:00:00Z"
+
+    # deliberately shuffled input order
+    jsonl_dir = _bundle(tmp_path, [old_ic, batch, new_ic], write_run_json)
+    data = build_ic_report_data(jsonl_dir)
+
+    # IC facet first (newest -> oldest), then Batch; machine_usage mirrors the order
+    assert [r["run_id"] for r in data["run_summary"]] == ["icNEW0000001", "icOLD0000001", "batchRUN00001"]
+    assert [u["run_id"] for u in data["machine_usage"]] == ["icNEW0000001", "icOLD0000001", "batchRUN00001"]

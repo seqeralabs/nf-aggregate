@@ -25,6 +25,14 @@ def _compute_type(run: dict[str, Any]) -> str:
     return "batch"
 
 
+# Facet/table ordering: Intelligent Compute before AWS Batch, mirroring the chart facets.
+_ENGINE_RANK = {"intelligent_compute": 0, "batch": 1}
+
+
+def _engine_rank(compute_type: str) -> int:
+    return _ENGINE_RANK.get(compute_type, 2)
+
+
 def _task_occupancy_hours(task: dict[str, Any]) -> float:
     """CPU-hours a task occupied its instance = cpus * (complete - start).
 
@@ -89,6 +97,8 @@ def _build_machine_usage(
             "run_name": run["run_name"],
             "run_url": run["run_url"],
             "compute_type": run["compute_type"],
+            "started_at": run.get("started_at", ""),
+            "date_short": run.get("date_short", ""),
             "total_tasks": total_tasks,
             "total_cpu_hours": total_cpu_hours,
             "machines": machines,
@@ -105,7 +115,6 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
     per_run = _machine_breakdown(jsonl_dir)
 
     run_summary: list[dict[str, Any]] = []
-    run_order: list[dict[str, Any]] = []
     n_ic = 0
     n_batch = 0
 
@@ -121,6 +130,7 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
         run_url = _build_workspace_run_url(
             run_id, run.get("workspace"), web_base, existing_url=run.get("run_url")
         )
+        started_at = run.get("start") or ""
 
         run_summary.append({
             "run_id": run_id,
@@ -130,18 +140,32 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
             "group": run.get("group", ""),
             "compute_type": compute_type,
             "status": run.get("status", ""),
+            "started_at": started_at,          # full ISO-8601 timestamp (may be "")
+            "date_short": started_at[:10],      # YYYY-MM-DD for compact chart labels
             "compute_hours": 0.0,  # backfilled from machine_usage below
             "memory_used_bytes": mem_bytes,
             "memory_used_gb": round(mem_bytes / 1024**3, 2),
             "run_cost_platform": run.get("run_cost"),
             "cost": None,  # core-report cost — not wired yet
         })
-        run_order.append({
-            "run_id": run_id,
-            "run_name": run.get("run_name", ""),
-            "run_url": run_url,
-            "compute_type": compute_type,
-        })
+
+    # Default order: group by pipeline, then facet (IC before Batch), then newest run
+    # first within each group. Two stable passes give the mixed asc/desc ordering; runs
+    # with no start timestamp ("") sort last within their group.
+    run_summary.sort(key=lambda r: r["started_at"], reverse=True)
+    run_summary.sort(key=lambda r: (r["pipeline"] or "", _engine_rank(r["compute_type"])))
+
+    run_order = [
+        {
+            "run_id": r["run_id"],
+            "run_name": r["run_name"],
+            "run_url": r["run_url"],
+            "compute_type": r["compute_type"],
+            "started_at": r["started_at"],
+            "date_short": r["date_short"],
+        }
+        for r in run_summary
+    ]
 
     machine_usage = _build_machine_usage(per_run, run_order)
     run_totals = {u["run_id"]: u["total_cpu_hours"] for u in machine_usage}

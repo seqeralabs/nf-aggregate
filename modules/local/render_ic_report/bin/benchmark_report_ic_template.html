@@ -95,6 +95,8 @@ const COLORS = {{ brand_palette | tojson }};
       { title: "Compute type", field: "compute_type", headerFilter: "input",
         formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
       { title: "Status", field: "status", headerFilter: "input" },
+      { title: "Started", field: "started_at", headerFilter: "input", sorter: "string", widthGrow: 2,
+        formatter: (cell) => { const v = cell.getValue(); return v ? String(v).replace("T", " ").slice(0, 16) : '<span class="muted">&mdash;</span>'; } },
       { title: "Compute hours", field: "compute_hours", hozAlign: "right", sorter: "number" },
       { title: "Memory (GB)", field: "memory_used_gb", hozAlign: "right", sorter: "number" },
       { title: "Cost", field: "cost", hozAlign: "right",
@@ -102,7 +104,7 @@ const COLORS = {{ brand_palette | tojson }};
     ],
   });
   const searchEl = document.getElementById("run-search");
-  const searchKeys = ["run_id", "run_name", "pipeline", "group", "compute_type", "status"];
+  const searchKeys = ["run_id", "run_name", "pipeline", "group", "compute_type", "status", "started_at"];
   searchEl.addEventListener("keyup", (e) => {
     const v = (e.target.value || "").toLowerCase();
     if (!v) { table.clearFilter(true); return; }
@@ -119,6 +121,11 @@ const COLORS = {{ brand_palette | tojson }};
   // Global machine-type -> color index, so the same instance type is the same colour in every facet.
   const colorByType = {};
   mu.forEach((u) => (u.machines || []).forEach((m) => { colorByType[m.machine_type] = m.color_idx; }));
+
+  // run_id -> short start date (YYYY-MM-DD) for compact y-axis labels; runs are already
+  // ordered newest-first per facet, so the topmost (latest) run reads as the most recent.
+  const dateById = {};
+  mu.forEach((u) => { dateById[u.run_id] = u.date_short || ""; });
 
   // One facet (own chart) per scheduling engine present in the data.
   const FACETS = [
@@ -154,8 +161,9 @@ const COLORS = {{ brand_palette | tojson }};
     const totalKey = metric === "task_count" ? "total_tasks" : "total_cpu_hours";
     const sharedMax = Math.max(1, ...mu.map((u) => u[totalKey] || 0));
     charts.forEach(({ chart, runs }) => {
-      const ids = runs.map((u) => u.run_id);                 // workflow IDs on the axis (compact)
+      const ids = runs.map((u) => u.run_id);                 // unique categories (keep IDs unique per bar)
       const names = runs.map((u) => u.run_name || u.run_id); // full name in the tooltip
+      const startedAts = runs.map((u) => u.started_at || ""); // full timestamp for the tooltip
       const series = machineTypesOf(runs).map((mt) => ({
         name: mt,
         type: "bar",
@@ -169,11 +177,11 @@ const COLORS = {{ brand_palette | tojson }};
       }));
       const zoom = ids.length > 10 ? [{ type: "slider", yAxisIndex: 0, width: 14, right: 4 }, { type: "inside", yAxisIndex: 0 }] : [];
       chart.setOption({
-        tooltip: { trigger: "item", formatter: (p) => p.seriesName + "<br/>" + names[p.dataIndex] + " (" + ids[p.dataIndex] + ")<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " cpu-h" },
+        tooltip: { trigger: "item", formatter: (p) => p.seriesName + "<br/>" + names[p.dataIndex] + " (" + ids[p.dataIndex] + ")" + (startedAts[p.dataIndex] ? "<br/>started " + startedAts[p.dataIndex].replace("T", " ").slice(0, 16) : "") + "<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " cpu-h" },
         legend: { type: "scroll", top: 0 },
-        grid: { left: 130, right: 28, top: 40, bottom: 36 },
+        grid: { left: 110, right: 28, top: 40, bottom: 36 },
         xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours", max: sharedMax },
-        yAxis: { type: "category", data: ids, inverse: true },
+        yAxis: { type: "category", data: ids, inverse: true, axisLabel: { formatter: (id) => dateById[id] || id } },
         dataZoom: zoom,
         series: series,
       }, true);

@@ -12,6 +12,7 @@ _RUN = {
     "run_url": "https://cloud.example.test/orgs/myorg/workspaces/myworkspace/watch/icRUN0000000001",
     "run_name": "demo-ic-run", "pipeline": "example/demo-pipeline", "group": "ic",
     "compute_type": "intelligent_compute", "status": "SUCCEEDED",
+    "started_at": "2026-07-12T22:29:38Z", "date_short": "2026-07-12",
     "compute_hours": 4.0, "memory_used_bytes": 12339093504, "memory_used_gb": 11.49,
     "run_cost_platform": 0.0053921835, "cost": None,
 }
@@ -44,6 +45,9 @@ def test_ic_report_is_interactive_and_embeds_data(tmp_path):
     assert "Intelligent Compute" in html
     # overview tiles still server-rendered
     assert ">1</div>" in html
+    # start-time column present + timestamp carried into the blob
+    assert 'title: "Started"' in html
+    assert '"started_at": "2026-07-12T22:29:38Z"' in html
 
 
 def test_ic_report_renders_machine_chart_section(tmp_path):
@@ -53,7 +57,8 @@ def test_ic_report_renders_machine_chart_section(tmp_path):
         "machine_usage": [{
             "run_id": "icRUN0000000001", "run_name": "demo-ic-run",
             "run_url": "https://cloud.example.test/orgs/myorg/workspaces/myworkspace/watch/icRUN0000000001",
-            "compute_type": "intelligent_compute", "total_tasks": 3, "total_cpu_hours": 3.0,
+            "compute_type": "intelligent_compute", "started_at": "2026-07-12T22:29:38Z", "date_short": "2026-07-12",
+            "total_tasks": 3, "total_cpu_hours": 3.0,
             "machines": [
                 {"machine_type": "t3.large", "task_count": 2, "task_pct": 66.7, "cpu_hours": 2.0, "color_idx": 0},
                 {"machine_type": "unknown", "task_count": 1, "task_pct": 33.3, "cpu_hours": 1.0, "color_idx": 1},
@@ -66,6 +71,9 @@ def test_ic_report_renders_machine_chart_section(tmp_path):
     assert '"compute_type": "intelligent_compute"' in html  # facet key in the blob
     assert '"machine_type": "t3.large"' in html     # machine data in the blob feeding the chart
     assert '"machine_type": "unknown"' in html
+    # start date is available to the chart (compact y-axis label via dateById) and in the blob
+    assert "dateById" in html
+    assert '"date_short": "2026-07-12"' in html
 
 
 def test_ic_report_no_machine_section_when_absent(tmp_path):
