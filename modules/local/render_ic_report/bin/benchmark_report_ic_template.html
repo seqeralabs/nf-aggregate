@@ -82,9 +82,11 @@ const COLORS = {{ brand_palette | tojson }};
   const table = new Tabulator("#run-table", {
     data: runs,
     layout: "fitColumns",
-    pagination: true,
-    paginationSize: 25,
-    paginationSizeSelector: [10, 25, 50, 100, true],
+    // Height tracks the row count: the table grows to fit its rows and only once it
+    // would exceed ~75% of the viewport does it cap and scroll internally. So a
+    // handful of runs render fully (no scroll, no pager) while large run sets stay
+    // bounded and scroll within the table.
+    maxHeight: "75vh",
     movableColumns: true,
     placeholder: "No runs",
     columns: [

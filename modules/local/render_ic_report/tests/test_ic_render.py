@@ -48,6 +48,9 @@ def test_ic_report_is_interactive_and_embeds_data(tmp_path):
     # start-time column present + timestamp carried into the blob
     assert 'title: "Started"' in html
     assert '"started_at": "2026-07-12T22:29:38Z"' in html
+    # table height scales with rows (grows to content, caps + scrolls only when large)
+    assert 'maxHeight' in html
+    assert "pagination" not in html
 
 
 def test_ic_report_renders_machine_chart_section(tmp_path):
