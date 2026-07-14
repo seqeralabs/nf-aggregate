@@ -272,6 +272,7 @@
         <button data-rmeasure="cpu" class="active">CPU (cores)</button>
         <button data-rmeasure="mem">Memory (GB)</button>
       </span>
+      <span class="hint" id="resource-chart-hint" style="display:none">Used bars &amp; row tags coloured by engine · green = Seqera Intelligent Compute, blue = AWS Batch. Batch runs first.</span>
       <input id="resource-search" type="search" placeholder="Search runs (id, pipeline, group)…" aria-label="Search resource-usage runs" />
     </div>
     <div id="resource-table"></div>
@@ -483,8 +484,10 @@ const durCol = (title, field, tip) => ({
   function buildPanels() {
     const order = [], byPipe = {};
     runs.forEach((r) => { const p = r.pipeline || "—"; if (!(p in byPipe)) { byPipe[p] = []; order.push(p); } byPipe[p].push(r); });
+    const engRank = (u) => (u.compute_type === "intelligent_compute" ? 1 : 0);  // Batch first, then IC
     order.forEach((p) => {
-      const rows = byPipe[p].slice().sort((a, b) => (a.started_at || "").localeCompare(b.started_at || ""));
+      const rows = byPipe[p].slice().sort((a, b) =>
+        engRank(a) - engRank(b) || (a.started_at || "").localeCompare(b.started_at || ""));
       const grp = document.createElement("div");
       grp.className = "pipeline-group";
       const h = document.createElement("h3");
@@ -502,18 +505,34 @@ const durCol = (title, field, tip) => ({
   function renderPanels() {
     const m = MEASURES[measure];
     panels.forEach(({ chart, rows }) => {
+      const isIc = rows.map((r) => r.compute_type === "intelligent_compute");
       const labels = rows.map((r) => (r.date_short || "") + " · " + r.run_id);
+      const colorOf = (i) => (isIc[i] ? IC_COLOR : BATCH_COLOR);
       chart.setOption({
         tooltip: { trigger: "axis", axisPointer: { type: "shadow" },
-          formatter: (ps) => esc(labels[ps[0].dataIndex]) + "<br/>" + ps.map((s) => s.marker + s.seriesName + ": <b>" + Number(s.value || 0).toFixed(2) + m.unit + "</b>").join("<br/>") },
+          formatter: (ps) => {
+            const i = ps[0].dataIndex;
+            const eng = isIc[i] ? "Seqera Intelligent Compute" : "AWS Batch";
+            return esc(labels[i]) + '<br/><span style="color:' + colorOf(i) + '">● ' + eng + "</span><br/>" +
+              ps.map((s) => s.marker + s.seriesName + ": <b>" + Number(s.value || 0).toFixed(2) + m.unit + "</b>").join("<br/>");
+          } },
+        // Requested = neutral grey; Used = engine colour (green IC / blue Batch). Engine also
+        // tagged + coloured on each y-axis row so it reads without hovering.
         legend: { top: 0, icon: "roundRect", data: ["Requested", "Used"] },
         grid: { left: 8, right: 70, top: 34, bottom: 42, containLabel: true },
         xAxis: { type: "value", name: m.axis, nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 } },
-        yAxis: { type: "category", data: labels, inverse: true, axisLabel: { fontSize: 11, width: 150, overflow: "truncate" } },
+        yAxis: { type: "category", data: labels, inverse: true, axisLabel: {
+          fontSize: 11, margin: 8,
+          formatter: (val, idx) => (isIc[idx] ? "{ic|IC}  " : "{batch|Batch}  ") + val,
+          rich: {
+            ic: { color: "#fff", backgroundColor: IC_COLOR, padding: [2, 5], borderRadius: 3, fontSize: 9, fontWeight: 700, align: "center" },
+            batch: { color: "#fff", backgroundColor: BATCH_COLOR, padding: [2, 5], borderRadius: 3, fontSize: 9, fontWeight: 700, align: "center" },
+          },
+        } },
         series: [
           { name: "Requested", type: "bar", data: rows.map((r) => r[m.req]), itemStyle: { color: "#c7ccce", borderRadius: [0, 3, 3, 0] },
             label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(2), fontSize: 10, color: "#6b6b73" } },
-          { name: "Used", type: "bar", data: rows.map((r) => r[m.used]),
+          { name: "Used", type: "bar", data: rows.map((r, i) => ({ value: r[m.used], itemStyle: { color: colorOf(i), borderRadius: [0, 3, 3, 0] } })),
             itemStyle: { color: IC_COLOR, borderRadius: [0, 3, 3, 0] },
             label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(2), fontSize: 10, color: "#6b6b73" } },
         ],
@@ -527,6 +546,7 @@ const durCol = (title, field, tip) => ({
     chartHost.hidden = !chartMode;
     document.getElementById("resource-measure-toggle").style.display = chartMode ? "" : "none";
     document.getElementById("resource-measure-label").style.display = chartMode ? "" : "none";
+    document.getElementById("resource-chart-hint").style.display = chartMode ? "" : "none";
     if (searchEl) searchEl.style.display = chartMode ? "none" : "";
     if (chartMode) {
       if (!built) buildPanels();
