@@ -14,9 +14,9 @@ process NORMALIZE_BENCHMARK_JSONL {
     path "versions.yml",  emit: versions
 
     script:
-    def cost_flag = benchmark_aws_cur_report.name != 'NO_FILE' && benchmark_aws_cur_report.name != 'NO_FILE_CUR' ? "--costs ${benchmark_aws_cur_report}" : ""
-    def label_map_flag = benchmark_aws_cur_label_map.name != 'NO_FILE' && benchmark_aws_cur_label_map.name != 'NO_FILE_CUR_LABEL_MAP' ? "--cost-label-map ${benchmark_aws_cur_label_map}" : ""
-    def machines_flag = machines_dir.name != 'NO_FILE' && machines_dir.name != 'NO_FILE_MACHINES' ? "--machines-dir ${machines_dir}" : ""
+    def cost_flag = benchmark_aws_cur_report ? "--costs ${benchmark_aws_cur_report}" : ""
+    def label_map_flag = benchmark_aws_cur_label_map ? "--cost-label-map ${benchmark_aws_cur_label_map}" : ""
+    def machines_flag = machines_dir ? "--machines-dir ${machines_dir}" : ""
     """
     normalize_benchmark_jsonl.py \\
         --data-dir ${data_dir} \\

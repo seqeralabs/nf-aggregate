@@ -13,8 +13,8 @@ process RENDER_BENCHMARK_REPORT {
     path "versions.yml",          emit: versions
 
     script:
-    def brand_flag = brand_yml.name != 'NO_FILE' ? "--brand ${brand_yml}" : ""
-    def logo_flag = logo_svg.name != 'NO_FILE' ? "--logo ${logo_svg}" : ""
+    def brand_flag = brand_yml ? "--brand ${brand_yml}" : ""
+    def logo_flag = logo_svg ? "--logo ${logo_svg}" : ""
     """
     render_benchmark_report.py \\
         --data ${report_data_json} \\
