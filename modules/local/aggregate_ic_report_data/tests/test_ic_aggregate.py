@@ -23,14 +23,16 @@ def test_ic_report_shape_and_detection(tmp_path, make_ic_run, make_batch_run, wr
     assert {r["compute_type"] for r in data["run_summary"]} == {"intelligent_compute", "batch"}
 
 
-def test_resource_usage_cores_and_gb_means(tmp_path, make_run, write_run_json):
-    # Two 1h tasks, different requested sizes: time-weighted average = simple mean here.
-    # t1: request 4 cores / 8 GB, use 2 cores (pcpu 200) / 2 GB RSS.
-    # t2: request 2 cores / 4 GB, use 1 core  (pcpu 100) / 1 GB RSS.
+def test_resource_usage_matches_scheduler_basis(tmp_path, make_run, write_run_json):
+    # Reproduces the IC scheduler Metrics panel: CPU = Σ(resource × OCCUPANCY hours) in vCPU-h;
+    # memory = plain Σ(task memory) in GiB (NOT time-weighted). Verified to the decimal against
+    # the Platform UI on real mcmicro runs.
+    # t1 (occupancy 2h): request 4 cores / 8 GiB, use 2 cores (pcpu 200) / 2 GiB RSS.
+    # t2 (occupancy 1h): request 2 cores / 4 GiB, use 1 core  (pcpu 100) / 1 GiB RSS.
     tasks = [
         {"name": "t1", "process": "P:t1", "status": "COMPLETED", "hash": "aa/01", "cpus": 4,
-         "memory": 8 * 1024**3, "realtime": 3_600_000, "pcpu": 200.0, "peakRss": 2 * 1024**3,
-         "machineType": "t3.large", "start": "2026-01-01T00:00:00Z", "complete": "2026-01-01T01:00:00Z"},
+         "memory": 8 * 1024**3, "realtime": 7_200_000, "pcpu": 200.0, "peakRss": 2 * 1024**3,
+         "machineType": "t3.large", "start": "2026-01-01T00:00:00Z", "complete": "2026-01-01T02:00:00Z"},
         {"name": "t2", "process": "P:t2", "status": "COMPLETED", "hash": "aa/02", "cpus": 2,
          "memory": 4 * 1024**3, "realtime": 3_600_000, "pcpu": 100.0, "peakRss": 1 * 1024**3,
          "machineType": "t3.large", "start": "2026-01-01T00:00:00Z", "complete": "2026-01-01T01:00:00Z"},
@@ -38,23 +40,25 @@ def test_resource_usage_cores_and_gb_means(tmp_path, make_run, write_run_json):
     jsonl_dir = _bundle(tmp_path, [make_run(run_id="r1", tasks=tasks)], write_run_json)
     row = build_ic_report_data(jsonl_dir)["run_summary"][0]
 
-    assert row["req_cpu_cores"] == 3.0    # (4 + 2) / 2, equal realtime
-    assert row["used_cpu_cores"] == 1.5   # (2 + 1) / 2
-    assert row["req_mem_gb"] == 6.0       # (8 + 4) / 2
-    assert row["used_mem_gb"] == 1.5      # (2 + 1) / 2
+    assert row["req_cpu_vcpu_h"] == 10.0  # 4×2h + 2×1h  (occupancy, not realtime)
+    assert row["eff_cpu_vcpu_h"] == 5.0   # 2×2h + 1×1h
+    assert row["req_mem_gib"] == 12.0     # 8 + 4        (summed, NO time weighting)
+    assert row["eff_mem_gib"] == 3.0      # 2 + 1
     # efficiency removed entirely
     assert "cpu_efficiency" not in row and "mem_efficiency" not in row
 
 
-def test_resource_usage_zero_realtime_yields_zero(tmp_path, make_run, write_run_json):
-    # No realtime -> nothing to attribute -> zero cores/GB (no divide-by-zero).
+def test_resource_usage_cpu_from_occupancy_not_realtime(tmp_path, make_run, write_run_json):
+    # A task with NO realtime still contributes CPU vCPU-h via its occupancy window (start→
+    # complete), matching the scheduler's slot-held-time basis. Absent memory/pcpu -> 0.
     task = {"name": "t", "process": "P:t", "status": "COMPLETED", "hash": "aa/01", "cpus": 4,
             "start": "2026-01-01T00:00:00Z", "complete": "2026-01-01T00:30:00Z", "machineType": "t3.large"}
     jsonl_dir = _bundle(tmp_path, [make_run(run_id="r1", tasks=[task])], write_run_json)
     row = build_ic_report_data(jsonl_dir)["run_summary"][0]
-    assert row["req_cpu_cores"] == 0.0
-    assert row["used_cpu_cores"] == 0.0
-    assert row["used_mem_gb"] == 0.0
+    assert row["req_cpu_vcpu_h"] == 2.0   # 4 cpus × 0.5h occupancy
+    assert row["eff_cpu_vcpu_h"] == 0.0   # no pcpu
+    assert row["req_mem_gib"] == 0.0      # no memory requested
+    assert row["eff_mem_gib"] == 0.0      # no peak RSS
 
 
 def test_machine_usage_grouped_by_run(tmp_path, make_ic_run, make_batch_run, write_run_json):

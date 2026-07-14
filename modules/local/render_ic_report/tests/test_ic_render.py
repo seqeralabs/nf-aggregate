@@ -54,7 +54,7 @@ def test_ic_report_is_interactive_and_embeds_data(tmp_path):
     # perf metrics moved out of the run-summary table into the Performance "Resource usage" view
     assert 'id="resource-table"' in html
     assert "Resource usage" in html
-    assert 'title: "CPU req (cores)"' in html and 'title: "CPU used (cores)"' in html
+    assert 'title: "CPU req (vCPU-h)"' in html and 'title: "CPU eff (vCPU-h)"' in html
     assert 'title: "Compute hours"' not in html   # moved to the resource view
     assert 'title: "Memory (GB)"' not in html
     # table <-> chart toggle; no efficiency columns/series (only the prose that explains its absence)

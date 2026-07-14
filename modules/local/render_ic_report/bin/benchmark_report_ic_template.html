@@ -260,7 +260,7 @@
     <h2 class="section-title" id="perf-title">Performance</h2>
 
     <div class="subhead">Resource usage</div>
-    <p class="section-sub">Requested vs actually-used CPU and memory per run — time-weighted average across the run's tasks, in cores and GB. Used CPU is the measured utilisation (e.g. 1.2 cores), not a percentage. Efficiency isn't shown: a faithful used-vs-allocated ratio needs the scheduler's allocated size, which the Platform payload doesn't carry (only requested + provisioned).</p>
+    <p class="section-sub">Requested vs effective CPU (<strong>vCPU-h</strong>) and memory (<strong>GiB</strong>) per run, matching the Seqera Intelligent Compute Metrics panel. CPU is time-integrated over instance occupancy (cpus &times; slot-held time); memory is summed across tasks (requested, and effective = peak RSS). The scheduler's third figure, <em>Allocated</em> (provisioned instance size), is not shown — the Platform payload doesn't carry the scheduler-chosen allocation, only what tasks requested.</p>
     <div class="toolbar">
       <span class="ctl-label">View:</span>
       <span class="btn-group" id="resource-view-toggle">
@@ -269,8 +269,8 @@
       </span>
       <span class="ctl-label rchart-ctl" style="margin-left:8px;display:none">Measure:</span>
       <span class="btn-group rchart-ctl" id="resource-measure-toggle" style="display:none">
-        <button data-rmeasure="cpu" class="active">CPU (cores)</button>
-        <button data-rmeasure="mem">Memory (GB)</button>
+        <button data-rmeasure="cpu" class="active">CPU (vCPU-h)</button>
+        <button data-rmeasure="mem">Memory (GiB)</button>
       </span>
       <span class="ctl-label rchart-ctl" style="margin-left:8px;display:none">Label:</span>
       <span class="btn-group rchart-ctl" id="resource-label-toggle" style="display:none">
@@ -282,7 +282,7 @@
         <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--batch);vertical-align:middle"></span> AWS Batch
         &nbsp;·&nbsp;
         <span style="display:inline-block;width:11px;height:9px;border-radius:2px;vertical-align:middle;background:#8a8f92;background-image:repeating-linear-gradient(-45deg,transparent,transparent 1.5px,rgba(255,255,255,.7) 1.5px,rgba(255,255,255,.7) 3px)"></span> Requested &nbsp;
-        <span style="display:inline-block;width:11px;height:9px;border-radius:2px;vertical-align:middle;background:#8a8f92"></span> Used
+        <span style="display:inline-block;width:11px;height:9px;border-radius:2px;vertical-align:middle;background:#8a8f92"></span> Effective
       </span>
       <input id="resource-search" type="search" placeholder="Search runs (id, pipeline, group)…" aria-label="Search resource-usage runs" />
     </div>
@@ -447,9 +447,11 @@ const durCol = (title, field, tip) => ({
   });
 })();
 
-// ---- Resource usage: requested vs actually-used CPU (cores) & memory (GB) per run ----
-// Two views over the same numbers: a Tabulator table and, per pipeline, a grouped bar chart
-// (Requested vs Used) with a CPU/Memory measure toggle. No efficiency (needs allocated size).
+// ---- Resource usage: requested vs effective CPU (vCPU-h) & memory (GiB) per run ----
+// Matches the IC scheduler Metrics panel: CPU time-integrated over occupancy (vCPU-h), memory
+// summed over tasks (GiB). Two views over the same numbers: a Tabulator table and, per pipeline,
+// a grouped bar chart (Requested vs Effective) with a CPU/Memory measure toggle. Allocated is
+// omitted (payload lacks scheduler allocation).
 (function () {
   const runs = DATA.run_summary || [];
   const num = (dp) => (cell) => { const v = cell.getValue(); return v == null ? '<span class="muted">&mdash;</span>' : Number(v).toFixed(dp); };
@@ -468,10 +470,10 @@ const durCol = (title, field, tip) => ({
         formatter: (cell) => { const r = cell.getRow().getData(); return r.run_url ? '<a href="' + esc(r.run_url) + '" target="_blank" rel="noopener">' + esc(r.run_id) + '</a>' : esc(r.run_id); } },
       { title: "Compute type", field: "compute_type", headerFilter: "input", minWidth: 150, widthGrow: 2,
         formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
-      { title: "CPU req (cores)", field: "req_cpu_cores", hozAlign: "right", sorter: "number", headerTooltip: "Requested CPU (cores), time-weighted average of task cpus across the run.", formatter: num(2) },
-      { title: "CPU used (cores)", field: "used_cpu_cores", hozAlign: "right", sorter: "number", headerTooltip: "Actually-used CPU (cores) = %cpu/100, time-weighted average across the run.", formatter: num(2) },
-      { title: "Mem req (GB)", field: "req_mem_gb", hozAlign: "right", sorter: "number", headerTooltip: "Requested memory (GB), time-weighted average across the run.", formatter: num(2) },
-      { title: "Mem used (GB)", field: "used_mem_gb", hozAlign: "right", sorter: "number", headerTooltip: "Actually-used memory (GB) = peak RSS, time-weighted average across the run.", formatter: num(2) },
+      { title: "CPU req (vCPU-h)", field: "req_cpu_vcpu_h", hozAlign: "right", sorter: "number", headerTooltip: "Requested CPU, vCPU-hours = Σ(task cpus × runtime). Matches the IC scheduler.", formatter: num(2) },
+      { title: "CPU eff (vCPU-h)", field: "eff_cpu_vcpu_h", hozAlign: "right", sorter: "number", headerTooltip: "Effective CPU, vCPU-hours = Σ(%cpu/100 × runtime) — measured utilisation.", formatter: num(2) },
+      { title: "Mem req (GiB)", field: "req_mem_gib", hozAlign: "right", sorter: "number", headerTooltip: "Requested memory, GiB = Σ(task memory) over the run. Matches the IC scheduler.", formatter: num(1) },
+      { title: "Mem eff (GiB)", field: "eff_mem_gib", hozAlign: "right", sorter: "number", headerTooltip: "Effective memory, GiB = Σ(peak RSS) over the run — peak-resident memory.", formatter: num(1) },
     ],
   });
   const searchEl = document.getElementById("resource-search");
@@ -485,8 +487,8 @@ const durCol = (title, field, tip) => ({
   // ---- Chart (one bar per run per pipeline; engine-coloured; Requested OR Used; CPU or Memory) ----
   const chartHost = document.getElementById("resource-chart");
   const MEASURES = {
-    cpu: { req: "req_cpu_cores", used: "used_cpu_cores", axis: "Cores", unit: " cores" },
-    mem: { req: "req_mem_gb", used: "used_mem_gb", axis: "GB", unit: " GB" },
+    cpu: { req: "req_cpu_vcpu_h", used: "eff_cpu_vcpu_h", axis: "vCPU-h", unit: " vCPU-h", dp: 2 },
+    mem: { req: "req_mem_gib", used: "eff_mem_gib", axis: "GiB", unit: " GiB", dp: 1 },
   };
   let measure = "cpu";    // cpu | mem
   let labelMode = "date"; // date | id   (one y-axis identifier — keeps the left side light)
@@ -530,7 +532,7 @@ const durCol = (title, field, tip) => ({
             const i = ps[0].dataIndex;
             const eng = isIc[i] ? "Seqera Intelligent Compute" : "AWS Batch";
             return esc(rows[i].run_id) + '<br/><span style="color:' + colorOf(i) + '">● ' + eng + "</span><br/>" +
-              ps.map((s) => s.seriesName + ": <b>" + Number(s.value || 0).toFixed(2) + m.unit + "</b>").join("<br/>");
+              ps.map((s) => s.seriesName + ": <b>" + Number(s.value || 0).toFixed(m.dp) + m.unit + "</b>").join("<br/>");
           } },
         // Bars coloured by engine only (green IC / blue Batch). Requested (striped) + Used (solid)
         // share the engine colour and sit side by side per run for direct comparison.
@@ -551,10 +553,10 @@ const durCol = (title, field, tip) => ({
         series: [
           { name: "Requested", type: "bar", barGap: "10%", barMaxWidth: 15,
             data: rows.map((r, i) => ({ value: r[m.req], itemStyle: { color: colorOf(i), decal: REQ_DECAL, borderRadius: [0, 3, 3, 0] } })),
-            label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(2), fontSize: 10, color: "#6b6b73" } },
-          { name: "Used", type: "bar", barMaxWidth: 15,
+            label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(m.dp), fontSize: 10, color: "#6b6b73" } },
+          { name: "Effective", type: "bar", barMaxWidth: 15,
             data: rows.map((r, i) => ({ value: r[m.used], itemStyle: { color: colorOf(i), borderRadius: [0, 3, 3, 0] } })),
-            label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(2), fontSize: 10, color: "#6b6b73" } },
+            label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(m.dp), fontSize: 10, color: "#6b6b73" } },
         ],
       });
     });

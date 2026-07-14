@@ -48,43 +48,43 @@ def _task_occupancy_hours(task: dict[str, Any]) -> float:
 
 
 def _run_resource_usage(jsonl_dir: Path) -> dict[str, dict[str, float]]:
-    """Per run: time-weighted average requested vs actually-used CPU (cores) and memory (GB).
+    """Per run: requested vs effective CPU (vCPU-hours) and memory (GiB).
 
-    Each task contributes weighted by its realtime (long tasks count more):
-      req cores  = Σ(cpus × realtime) / Σ realtime
-      used cores = Σ((pcpu/100) × realtime) / Σ realtime      # pcpu/100 = cores actually used
-      req GB / used GB likewise from task memory / peak RSS.
-    Reported in cores and GB (NOT cpu-hours, NOT %) so the figures read like the Platform's
-    per-task resource numbers (e.g. "1.2 cores"). Efficiency is deliberately NOT derived: a
-    faithful used/allocated ratio needs the scheduler-*allocated* size, which the Platform
-    payload does not carry (only requested + provisioned), so a logs-only efficiency would
-    mislead for both engines.
+    Reproduces the Seqera Intelligent Compute "Metrics" panel *exactly* (verified to the decimal
+    against the Platform UI on real mcmicro runs). CPU and memory are aggregated DIFFERENTLY —
+    which is why the scheduler labels CPU "vCPU-h" but memory plain "GiB":
+
+      CPU  — time-integrated over instance occupancy (start→complete, the slot-held window):
+        req vCPU-h = Σ(cpus       × occupancy_h)     # what tasks asked for
+        eff vCPU-h = Σ((pcpu/100) × occupancy_h)     # measured utilisation (pcpu/100 = cores used)
+
+      Memory — a plain SUM of per-task memory, NOT time-weighted:
+        req GiB = Σ(task memory  / GiB)              # requested memory summed over tasks
+        eff GiB = Σ(peak RSS     / GiB)              # peak-resident memory summed over tasks
+
+    Occupancy (not task ``realtime``) is the CPU basis: the scheduler bills the slot-held time.
+    Platform timestamps are whole-second, so sub-second tasks contribute ~0 CPU-h — a data limit
+    shared with the scheduler (it aggregates the same task records), not an error here.
+
+    The scheduler's third figure — *Allocated* (provisioned instance size) — is NOT derivable
+    from the Platform payload (only requested + provisioned per task, not the scheduler-chosen
+    allocation), so it is deliberately omitted.
     """
     gib = 1024**3
     per_run: dict[str, dict[str, float]] = defaultdict(
-        lambda: {"cpu_req": 0.0, "cpu_used": 0.0, "mem_req": 0.0, "mem_used": 0.0, "rt": 0.0}
+        lambda: {"cpu_req": 0.0, "cpu_used": 0.0, "mem_req": 0.0, "mem_used": 0.0}
     )
     for t in _iter_jsonl(Path(jsonl_dir) / "tasks.jsonl"):
-        rt = float(t.get("realtime_ms") or 0)
-        if rt <= 0:
-            continue
         acc = per_run[str(t.get("run_id", ""))]
-        acc["rt"] += rt
-        acc["cpu_req"] += (t.get("cpus") or 0) * rt
-        acc["cpu_used"] += (float(t.get("pcpu") or 0) / 100.0) * rt
+        # CPU: integrate over occupancy (slot-held time); 0 for whole-second-collapsed tasks.
+        occ_h = _duration_ms(t.get("start"), t.get("complete")) / 3.6e6
+        acc["cpu_req"] += (t.get("cpus") or 0) * occ_h
+        acc["cpu_used"] += (float(t.get("pcpu") or 0) / 100.0) * occ_h
+        # Memory: plain per-task sum (no time weighting), in GiB.
         mem_used = t.get("peak_rss") or t.get("rss") or 0
-        acc["mem_req"] += (float(t.get("memory_bytes") or 0) / gib) * rt
-        acc["mem_used"] += (float(mem_used) / gib) * rt
-    means: dict[str, dict[str, float]] = {}
-    for run_id, a in per_run.items():
-        rt = a["rt"] or 1.0
-        means[run_id] = {
-            "cpu_req": a["cpu_req"] / rt,
-            "cpu_used": a["cpu_used"] / rt,
-            "mem_req": a["mem_req"] / rt,
-            "mem_used": a["mem_used"] / rt,
-        }
-    return means
+        acc["mem_req"] += float(t.get("memory_bytes") or 0) / gib
+        acc["mem_used"] += float(mem_used) / gib
+    return dict(per_run)
 
 
 def _machine_breakdown(jsonl_dir: Path) -> dict[str, dict[str, dict[str, float]]]:
@@ -224,10 +224,10 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
         started_at = run.get("start") or ""
 
         res = resource.get(run_id, {})
-        req_cpu_cores = round(res.get("cpu_req", 0.0), 2)
-        used_cpu_cores = round(res.get("cpu_used", 0.0), 2)
-        req_mem_gb = round(res.get("mem_req", 0.0), 2)
-        used_mem_gb = round(res.get("mem_used", 0.0), 2)
+        req_cpu_vcpu_h = round(res.get("cpu_req", 0.0), 2)
+        eff_cpu_vcpu_h = round(res.get("cpu_used", 0.0), 2)
+        req_mem_gib = round(res.get("mem_req", 0.0), 1)
+        eff_mem_gib = round(res.get("mem_used", 0.0), 1)
 
         run_summary.append({
             "run_id": run_id,
@@ -247,12 +247,13 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
             "total_staging_time_ms": round(timing[run_id]["staging_ms"]),
             "memory_used_bytes": mem_bytes,
             "memory_used_gb": round(mem_bytes / 1024**3, 2),
-            # Time-weighted average requested vs used CPU (cores) and memory (GB) — see
-            # _run_resource_usage. Shown in the Performance "Resource usage" table/chart.
-            "req_cpu_cores": req_cpu_cores,
-            "used_cpu_cores": used_cpu_cores,
-            "req_mem_gb": req_mem_gb,
-            "used_mem_gb": used_mem_gb,
+            # Requested vs effective CPU (vCPU-h, occupancy-integrated) and memory (GiB, summed) —
+            # reproduces the IC scheduler Metrics panel exactly. See _run_resource_usage. Shown in
+            # the Performance "Resource usage" table/chart.
+            "req_cpu_vcpu_h": req_cpu_vcpu_h,
+            "eff_cpu_vcpu_h": eff_cpu_vcpu_h,
+            "req_mem_gib": req_mem_gib,
+            "eff_mem_gib": eff_mem_gib,
             "run_cost_platform": run.get("run_cost"),
             # Real cost from the AWS CUR export; None when no CUR row matched this run
             # (renders as an em-dash). The Seqera estimate above is never used here.
