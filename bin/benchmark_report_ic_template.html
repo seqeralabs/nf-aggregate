@@ -1,1 +1,1084 @@
-../modules/local/render_ic_report/bin/benchmark_report_ic_template.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seqera Intelligent Compute Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.0/dist/css/tabulator.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
+<style>
+  :root {
+    --accent: {{ brand_accent }};
+    --accent-light: {{ brand_accent_light }};
+    --accent-surface: {{ brand_accent_surface }};
+    --ink: {{ brand_heading }};
+    --border: {{ brand_border }};
+    --neutral: {{ brand_neutral }};
+    --white: {{ brand_white }};
+    --muted: #6b6b73;
+    --ic: {{ brand_accent }};
+    --batch: #45a1bf;
+    --sidebar-w: 244px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink); margin: 0; background: var(--white);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- Sidebar ---- */
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+    background: var(--white); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 22px 16px; z-index: 20;
+  }
+  .sidebar .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 20px; }
+  .sidebar .brand svg { height: 26px; width: auto; }
+  .sidebar .brand .wordmark { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .nav { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px;
+    font-size: 13.5px; font-weight: 500; color: var(--ink); text-decoration: none;
+    border-left: 3px solid transparent; transition: background .12s, color .12s;
+  }
+  .nav a .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex: none; }
+  .nav a:hover { background: var(--neutral); }
+  .nav a.active { background: var(--accent-surface); color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+  .nav a.active .dot { background: var(--accent); }
+  .sidebar .foot { margin-top: auto; padding: 12px 12px 0; font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+  .source-badge {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 20px;
+    background: var(--accent-surface); color: var(--accent); font-weight: 600; font-size: 11px; margin-bottom: 8px;
+  }
+  .source-badge.none { background: var(--neutral); color: var(--muted); }
+
+  /* ---- Content ---- */
+  .content { margin-left: var(--sidebar-w); display: flex; flex-direction: column; align-items: stretch; }
+  section { scroll-margin-top: 18px; padding: 0 40px; max-width: 1320px; }
+  /* Section order. Default: Overview, Performance, Cost. When a cost report exists
+     (.cost-first), Cost is promoted above Performance. Nav order is flipped to match. */
+  .hero { order: 0; }
+  #overview { order: 1; }
+  #performance { order: 2; }
+  #cost { order: 3; }
+  .content.cost-first #cost { order: 2; }
+  .content.cost-first #performance { order: 3; }
+  .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .13em; text-transform: uppercase; color: var(--accent); }
+
+  /* ---- Hero ---- */
+  .hero {
+    position: relative; overflow: hidden; padding: 46px 40px 40px; margin-bottom: 8px;
+    background:
+      radial-gradient(120% 140% at 100% 0%, var(--accent-surface) 0%, rgba(226,247,243,0) 55%),
+      linear-gradient(180deg, var(--white) 0%, var(--white) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .hero::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent-light) 100%); }
+  .hero-grid { display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; flex-wrap: wrap; max-width: 1320px; }
+  .hero h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; margin: 10px 0 8px; line-height: 1.08; }
+  .hero p.lead { font-size: 15px; color: var(--muted); margin: 0; max-width: 560px; line-height: 1.5; }
+  .signature { flex: none; text-align: right; }
+  .signature .figure { font-size: 54px; font-weight: 700; line-height: 1; letter-spacing: -0.03em; color: var(--accent); display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
+  .signature .arrow { font-size: 34px; }
+  .signature .cap { font-size: 12.5px; color: var(--muted); max-width: 220px; margin: 8px 0 0; line-height: 1.4; }
+  .signature.hidden { display: none; }
+
+  /* ---- Section headings ---- */
+  h2.section-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin: 40px 0 4px; display: flex; align-items: center; gap: 10px; }
+  h2.section-title::before { content: ""; width: 4px; height: 20px; border-radius: 2px; background: var(--accent); }
+  .section-sub { font-size: 13px; color: var(--muted); margin: 0 0 18px; }
+
+  /* ---- Stat cards ---- */
+  .overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin: 4px 0 8px; }
+  .stat { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; position: relative; }
+  .stat.accent { background: linear-gradient(180deg, var(--accent-surface) 0%, var(--white) 120%); border-color: var(--accent-surface); }
+  .stat .n { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+  .stat .l { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stat .n .unit { font-size: 15px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+  .stat .split { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .stat .split .row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .stat .split .row b { color: var(--ink); font-weight: 600; margin-left: auto; font-variant-numeric: tabular-nums; }
+  .dot-ic, .dot-batch { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot-ic { background: var(--ic); }
+  .dot-batch { background: var(--batch); }
+
+  /* Pipeline name pills — org handle muted, repo bold; long github handles ellipsis + full name on hover */
+  .pipelines-band { margin: 2px 0 20px; }
+  .pipelines-label { font-size: 12px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 8px; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill.pipeline {
+    display: inline-block; max-width: 340px; padding: 5px 12px; border-radius: 20px;
+    background: var(--accent-surface); font-size: 12.5px; line-height: 1.3;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: top;
+  }
+  .pill.pipeline .org { color: var(--muted); }
+  .pill.pipeline .repo { color: var(--accent); font-weight: 600; }
+
+  .subhead { font-size: 13.5px; font-weight: 600; color: var(--ink); margin: 20px 0 8px; }
+
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .badge.ic { background: var(--accent-surface); color: var(--accent); }
+  .badge.batch { background: #eaf2f6; color: #2a6c85; }
+  .muted { opacity: 0.45; }
+
+  /* ---- Toolbar / controls ---- */
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .toolbar input[type=search] { padding: 8px 11px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; min-width: 280px; font-family: inherit; }
+  .toolbar input[type=search]:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+  .ctl-label { font-size: 12px; color: var(--muted); }
+  .btn-group { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .btn-group button { border: 0; background: var(--white); padding: 7px 13px; font-size: 12px; cursor: pointer; color: var(--ink); font-family: inherit; }
+  .btn-group button:hover { background: var(--neutral); }
+  .btn-group button.active { background: var(--accent); color: var(--white); }
+  .hint { font-size: 12px; color: var(--muted); }
+
+  a { color: var(--accent); }
+
+  /* ---- Table ---- */
+  .tabulator { font-size: 13px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .tabulator .tabulator-header { background: var(--accent-surface); border-bottom: 1px solid var(--border); }
+  .tabulator .tabulator-header .tabulator-col { background: transparent; }
+
+  /* ---- Chart facets ---- */
+  .pipeline-group { margin-bottom: 26px; border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--white); }
+  .pipeline-group > h3 { font-size: 15px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  .pipeline-group > h3 .count { font-size: 12px; font-weight: 400; color: var(--muted); }
+  .facet { margin-bottom: 10px; }
+  .facet h4 { font-size: 12px; font-weight: 600; margin: 10px 0 2px; color: var(--accent); }
+  .facet-chart { width: 100%; }
+
+  /* Cost facet header with savings badges */
+  .cost-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+  .savings { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+  .pill.good { background: var(--accent-surface); color: var(--accent); }
+  .pill.up { background: #fdf0e2; color: #a15c12; }
+  .pill.flat { background: var(--neutral); color: var(--muted); }
+  .cost-chart { width: 100%; height: 260px; }
+
+  /* Per-run small multiples (By instance view) */
+  .run-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 14px; margin-top: 12px; }
+  .run-facet { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--white); }
+  .run-facet-head { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; font-size: 12px; }
+  .run-facet-title { font-weight: 600; color: var(--ink); }
+  .run-facet-cost { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .empty { border: 1px dashed var(--border); border-radius: 12px; padding: 28px; text-align: center; color: var(--muted); font-size: 13px; background: var(--neutral); }
+  .empty strong { color: var(--ink); }
+
+  footer { margin-left: var(--sidebar-w); padding: 22px 40px 40px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); margin-top: 40px; }
+
+  /* ---- Responsive: sidebar becomes a top bar ---- */
+  @media (max-width: 900px) {
+    :root { --sidebar-w: 0px; }
+    .sidebar { position: static; width: 100%; flex-direction: row; align-items: center; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--border); padding: 12px 16px; }
+    .sidebar .brand { padding: 0 12px 0 0; }
+    .nav { flex-direction: row; flex-wrap: wrap; margin: 0; }
+    .nav a { border-left: 0; border-bottom: 3px solid transparent; }
+    .nav a.active { border-left: 0; border-bottom-color: var(--accent); }
+    .sidebar .foot { margin: 0 0 0 auto; padding: 0; }
+    .content, footer { margin-left: 0; }
+    section, .hero { padding-left: 20px; padding-right: 20px; }
+    .signature { text-align: left; }
+    .signature .figure { justify-content: flex-start; }
+  }
+</style>
+</head>
+<body data-palette="{{ brand_palette | join(',') }}">
+
+<aside class="sidebar">
+  <div class="brand">
+    {% if logo_svg %}{{ logo_svg }}{% else %}<span class="wordmark">Seqera</span>{% endif %}
+  </div>
+  <nav class="nav">
+    <a href="#overview" class="active"><span class="dot"></span>Overview</a>
+    {% if ic_overview.cost_source == "aws_cur" %}
+    <a href="#cost"><span class="dot"></span>Cost</a>
+    <a href="#performance"><span class="dot"></span>Performance</a>
+    {% else %}
+    <a href="#performance"><span class="dot"></span>Performance</a>
+    <a href="#cost"><span class="dot"></span>Cost</a>
+    {% endif %}
+  </nav>
+  <div class="foot">
+    <div>Generated {{ generated_at }}</div>
+  </div>
+</aside>
+
+<div class="content{% if ic_overview.cost_source == "aws_cur" %} cost-first{% endif %}">
+
+  <div class="hero">
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow">Seqera Intelligent Compute</div>
+        <h1>Seqera Intelligent Compute Report</h1>
+        <p class="lead">Machine usage, performance and cost across {{ ic_overview.n_runs }} run{{ "s" if ic_overview.n_runs != 1 else "" }} — comparing AWS Batch against Seqera Intelligent Compute, pipeline by pipeline.</p>
+      </div>
+      <div class="signature hidden" id="hero-signature">
+        <div class="figure"><span class="arrow">▼</span><span id="hero-figure">—</span></div>
+        <p class="cap" id="hero-caption"></p>
+      </div>
+    </div>
+  </div>
+
+  <section id="overview" aria-labelledby="ov-title">
+    <h2 class="section-title" id="ov-title">Overview</h2>
+    <p class="section-sub">Runs, engines and spend at a glance. Cost is split by scheduling engine, and every pipeline in the report is listed below.</p>
+
+    <div class="overview">
+      <div class="stat accent"><div class="n">{{ ic_overview.n_runs }}</div><div class="l">Total runs</div></div>
+      <div class="stat"><div class="n">{{ ic_overview.n_intelligent_compute }}</div><div class="l">Seqera Intelligent Compute</div></div>
+      <div class="stat"><div class="n">{{ ic_overview.n_batch }}</div><div class="l">AWS Batch</div></div>
+      <div class="stat" id="stat-cost">
+        <div class="n muted">—</div>
+        <div class="l">Cost (CUR)</div>
+        <div class="split" id="cost-split" hidden></div>
+      </div>
+    </div>
+
+    <div class="pipelines-band" id="pipelines-band" hidden>
+      <span class="pipelines-label">Pipelines <span id="pipelines-count" class="muted"></span></span>
+      <div class="pill-row" id="pipeline-pills"></div>
+    </div>
+
+    <div class="subhead">Run summary</div>
+    <p class="section-sub">Every run, grouped by pipeline. Search across id, pipeline and group; click a column header to sort or filter.</p>
+    <div class="toolbar">
+      <input id="run-search" type="search" placeholder="Search runs (id, pipeline, group)…" aria-label="Search runs" />
+    </div>
+    <div id="run-table"></div>
+  </section>
+
+  <section id="performance" aria-labelledby="perf-title">
+    <h2 class="section-title" id="perf-title">Performance</h2>
+
+    <div class="subhead">Resource usage</div>
+    <p class="section-sub">Requested vs effective CPU (<strong>vCPU-h</strong>) and memory (<strong>GiB</strong>) per run, matching the Seqera Intelligent Compute Metrics panel. CPU is time-integrated over instance occupancy (cpus &times; slot-held time); memory is summed across tasks (requested, and effective = peak RSS). The scheduler's third figure, <em>Allocated</em> (provisioned instance size), is not shown — the Platform payload doesn't carry the scheduler-chosen allocation, only what tasks requested.</p>
+    <div class="toolbar">
+      <span class="ctl-label">View:</span>
+      <span class="btn-group" id="resource-view-toggle">
+        <button data-rview="table" class="active">Table</button>
+        <button data-rview="chart">Chart</button>
+      </span>
+      <span class="ctl-label rchart-ctl" style="margin-left:8px;display:none">Measure:</span>
+      <span class="btn-group rchart-ctl" id="resource-measure-toggle" style="display:none">
+        <button data-rmeasure="cpu" class="active">CPU (vCPU-h)</button>
+        <button data-rmeasure="mem">Memory (GiB)</button>
+      </span>
+      <span class="ctl-label rchart-ctl" style="margin-left:8px;display:none">Label:</span>
+      <span class="btn-group rchart-ctl" id="resource-label-toggle" style="display:none">
+        <button data-rlabel="date" class="active">Start date</button>
+        <button data-rlabel="id">Workflow ID</button>
+      </span>
+      <span class="hint rchart-ctl" id="resource-chart-hint" style="display:none">
+        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--ic);vertical-align:middle"></span> Seqera Intelligent Compute &nbsp;
+        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--batch);vertical-align:middle"></span> AWS Batch
+        &nbsp;·&nbsp;
+        <span style="display:inline-block;width:11px;height:9px;border-radius:2px;vertical-align:middle;background:#8a8f92;background-image:repeating-linear-gradient(-45deg,transparent,transparent 1.5px,rgba(255,255,255,.7) 1.5px,rgba(255,255,255,.7) 3px)"></span> Requested &nbsp;
+        <span style="display:inline-block;width:11px;height:9px;border-radius:2px;vertical-align:middle;background:#8a8f92"></span> Effective
+      </span>
+      <input id="resource-search" type="search" placeholder="Search runs (id, pipeline, group)…" aria-label="Search resource-usage runs" />
+    </div>
+    <div id="resource-table"></div>
+    <div id="resource-chart" hidden></div>
+
+    <div class="subhead" style="margin-top:28px">Machine-type distribution</div>
+    <p class="section-sub">Machine-type distribution per run, grouped by pipeline and faceted by scheduling engine. Scale is shared within each pipeline so AWS Batch and Seqera Intelligent Compute are directly comparable.</p>
+    {% if machine_usage %}
+    <div class="toolbar">
+      <span class="ctl-label">Measure:</span>
+      <span class="btn-group" id="metric-toggle">
+        <button data-metric="task_count" class="active">Tasks</button>
+        <button data-metric="cpu_hours">CPU-hours</button>
+      </span>
+      <span class="ctl-label" style="margin-left:8px">Label:</span>
+      <span class="btn-group" id="label-toggle">
+        <button data-label="date" class="active">Start date</button>
+        <button data-label="run_id">Workflow ID</button>
+      </span>
+      <span class="hint">Hover for details · click a legend entry to filter</span>
+    </div>
+    <div id="machine-facets"></div>
+    {% else %}
+    <div class="empty">No machine-type data available.</div>
+    {% endif %}
+  </section>
+
+  <section id="cost" aria-labelledby="cost-title">
+    <h2 class="section-title" id="cost-title">Cost</h2>
+    <p class="section-sub">Real per-run cost from the AWS CUR export, explored three ways — over time, by run, and by instance type — so you can see not just what a pipeline costs but where the cost goes.</p>
+    <div class="toolbar">
+      <span class="ctl-label">View:</span>
+      <span class="btn-group" id="cost-view-toggle">
+        <button data-view="time" class="active">Over time</button>
+        <button data-view="run">By run</button>
+        <button data-view="instance">By instance</button>
+      </span>
+      <span class="hint" id="cost-view-hint">Total cost per run over time · Seqera Intelligent Compute vs the AWS Batch baseline</span>
+    </div>
+    <div id="cost-facets"></div>
+    <div id="cost-run-facets" hidden></div>
+    <div id="cost-instance-facets" hidden></div>
+  </section>
+
+</div>
+<footer>Seqera Intelligent Compute Report · Generated {{ generated_at }}{% if ic_overview.cost_source == "aws_cur" %} · Costs from AWS Cost &amp; Usage Report{% endif %}</footer>
+
+<script>
+echarts.registerTheme('seqera', {{ echarts_theme_json }});
+const DATA = {{ data_json }};
+const COLORS = {{ brand_palette | tojson }};
+const IC_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--ic').trim() || "#087F68";
+const BATCH_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--batch').trim() || "#45a1bf";
+
+// HTML-escape any (user-influenceable) value before it is interpolated into innerHTML,
+// a Tabulator formatter, or an ECharts tooltip/HTML formatter. Run/pipeline/process
+// names and machine types originate from the Seqera API, so they must never be trusted
+// as markup (prevents stored XSS in the shared report).
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// Shared cost formatter: sub-cent CUR costs need up to 4 dp, larger costs read better with fewer.
+function fmtCost(v) {
+  if (v == null) return "—";
+  const n = Number(v);
+  const dp = n < 0.01 ? 4 : n < 1 ? 3 : 2;
+  return "$" + n.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp });
+}
+
+// Human-readable duration from milliseconds: "1h 23m", "23m 4s", "4s".
+function fmtDuration(ms) {
+  if (ms == null) return null;
+  let s = Math.round(Number(ms) / 1000);
+  const h = Math.floor(s / 3600); s -= h * 3600;
+  const m = Math.floor(s / 60); s -= m * 60;
+  if (h) return h + "h " + m + "m";
+  if (m) return m + "m " + s + "s";
+  return s + "s";
+}
+const durCol = (title, field, tip) => ({
+  title: title, field: field, hozAlign: "right", sorter: "number", headerTooltip: tip,
+  formatter: (cell) => cell.getValue() == null ? '<span class="muted">&mdash;</span>' : fmtDuration(cell.getValue()),
+});
+
+// ---- Overview: pipeline-name pills + cost split by engine (from run_summary) ----
+(function () {
+  const runs = DATA.run_summary || [];
+
+  // Pipelines as named pills, in first-seen order. The org handle (before the first
+  // "/") is muted and the repo bold; a very long github handle ellipsises with the
+  // full name on hover so identity is never lost.
+  const seen = [];
+  runs.forEach((r) => { const p = r.pipeline || "—"; if (!seen.includes(p)) seen.push(p); });
+  const band = document.getElementById("pipelines-band");
+  const pillRow = document.getElementById("pipeline-pills");
+  if (seen.length && pillRow && band) {
+    document.getElementById("pipelines-count").textContent = "(" + seen.length + ")";
+    pillRow.innerHTML = seen.map((p) => {
+      const i = p.indexOf("/");
+      const inner = i > 0
+        ? '<span class="org">' + esc(p.slice(0, i + 1)) + '</span><span class="repo">' + esc(p.slice(i + 1)) + '</span>'
+        : '<span class="repo">' + esc(p) + '</span>';
+      return '<span class="pill pipeline" title="' + esc(p) + '">' + inner + '</span>';
+    }).join("");
+    band.hidden = false;
+  }
+
+  // Cost split by engine — only runs with a real CUR cost contribute.
+  const costed = runs.filter((r) => r.cost != null);
+  if (costed.length) {
+    const total = costed.reduce((s, r) => s + Number(r.cost), 0);
+    const icCost = costed.filter((r) => r.compute_type === "intelligent_compute").reduce((s, r) => s + Number(r.cost), 0);
+    const batchCost = total - icCost;
+    const el = document.querySelector("#stat-cost .n");
+    el.classList.remove("muted");
+    el.textContent = fmtCost(total);
+    const split = document.getElementById("cost-split");
+    split.innerHTML =
+      '<span class="row"><span class="dot-ic"></span>Seqera Intelligent Compute <b>' + fmtCost(icCost) + '</b></span>' +
+      '<span class="row"><span class="dot-batch"></span>AWS Batch <b>' + fmtCost(batchCost) + '</b></span>';
+    split.hidden = false;
+  }
+})();
+
+// ---- Run summary table (Tabulator: searchable + per-column filterable + sortable) ----
+(function () {
+  const runs = DATA.run_summary || [];
+  const table = new Tabulator("#run-table", {
+    data: runs,
+    layout: "fitDataStretch",
+    maxHeight: "75vh",
+    movableColumns: true,
+    placeholder: "No runs",
+    groupBy: "pipeline",
+    groupHeader: (value, count) => esc(value || "—") + ' <span style="opacity:.6;font-weight:400">(' + count + ' run' + (count > 1 ? 's' : '') + ')</span>',
+    columns: [
+      { title: "Pipeline", field: "pipeline", headerFilter: "input" },
+      { title: "Run ID", field: "run_id", headerFilter: "input",
+        formatter: (cell) => { const r = cell.getRow().getData(); return r.run_url ? '<a href="' + esc(r.run_url) + '" target="_blank" rel="noopener">' + esc(r.run_id) + '</a>' : esc(r.run_id); } },
+      {% if show_group %}{ title: "Group", field: "group", headerFilter: "input" },{% endif %}
+      { title: "Compute type", field: "compute_type", headerFilter: "input",
+        formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
+      { title: "Started", field: "started_at", headerFilter: "input", sorter: "string",
+        formatter: (cell) => { const v = cell.getValue(); return v ? String(v).replace("T", " ").slice(0, 16) : '<span class="muted">&mdash;</span>'; } },
+      durCol("Wall time", "wall_time_ms", "Whole-workflow duration: submission → completion (same as the Platform; includes time waiting for machines)."),
+      durCol("Run time", "total_run_time_ms", "Time machines were actually working: sum of each task's start → complete (includes staging, excludes machine-startup waiting)."),
+      durCol("Staging time", "total_staging_time_ms", "Sum of each task's staging = (start → complete) − realtime; the run-time not spent executing the tool."),
+      { title: "Cost", field: "cost", hozAlign: "right",
+        formatter: (cell) => cell.getValue() == null ? '<span class="muted">&mdash;</span>' : fmtCost(cell.getValue()) },
+    ],
+  });
+  const searchEl = document.getElementById("run-search");
+  const searchKeys = ["run_id", "run_name", "pipeline", "group", "compute_type", "started_at"];
+  searchEl.addEventListener("keyup", (e) => {
+    const v = (e.target.value || "").toLowerCase();
+    if (!v) { table.clearFilter(true); return; }
+    table.setFilter((row) => searchKeys.some((k) => String(row[k] == null ? "" : row[k]).toLowerCase().includes(v)));
+  });
+})();
+
+// ---- Resource usage: requested vs effective CPU (vCPU-h) & memory (GiB) per run ----
+// Matches the IC scheduler Metrics panel: CPU time-integrated over occupancy (vCPU-h), memory
+// summed over tasks (GiB). Two views over the same numbers: a Tabulator table and, per pipeline,
+// a grouped bar chart (Requested vs Effective) with a CPU/Memory measure toggle. Allocated is
+// omitted (payload lacks scheduler allocation).
+(function () {
+  const runs = DATA.run_summary || [];
+  const num = (dp) => (cell) => { const v = cell.getValue(); return v == null ? '<span class="muted">&mdash;</span>' : Number(v).toFixed(dp); };
+
+  // ---- Table ----
+  const table = new Tabulator("#resource-table", {
+    data: runs,
+    layout: "fitColumns",
+    maxHeight: "75vh",
+    movableColumns: true,
+    placeholder: "No runs",
+    groupBy: "pipeline",
+    groupHeader: (value, count) => esc(value || "—") + ' <span style="opacity:.6;font-weight:400">(' + count + ' run' + (count > 1 ? 's' : '') + ')</span>',
+    columns: [
+      { title: "Run ID", field: "run_id", headerFilter: "input", minWidth: 130, widthGrow: 2,
+        formatter: (cell) => { const r = cell.getRow().getData(); return r.run_url ? '<a href="' + esc(r.run_url) + '" target="_blank" rel="noopener">' + esc(r.run_id) + '</a>' : esc(r.run_id); } },
+      { title: "Compute type", field: "compute_type", headerFilter: "input", minWidth: 150, widthGrow: 2,
+        formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
+      { title: "CPU req (vCPU-h)", field: "req_cpu_vcpu_h", hozAlign: "right", sorter: "number", headerTooltip: "Requested CPU, vCPU-hours = Σ(task cpus × runtime). Matches the IC scheduler.", formatter: num(2) },
+      { title: "CPU eff (vCPU-h)", field: "eff_cpu_vcpu_h", hozAlign: "right", sorter: "number", headerTooltip: "Effective CPU, vCPU-hours = Σ(%cpu/100 × runtime) — measured utilisation.", formatter: num(2) },
+      { title: "Mem req (GiB)", field: "req_mem_gib", hozAlign: "right", sorter: "number", headerTooltip: "Requested memory, GiB = Σ(task memory) over the run. Matches the IC scheduler.", formatter: num(1) },
+      { title: "Mem eff (GiB)", field: "eff_mem_gib", hozAlign: "right", sorter: "number", headerTooltip: "Effective memory, GiB = Σ(peak RSS) over the run — peak-resident memory.", formatter: num(1) },
+    ],
+  });
+  const searchEl = document.getElementById("resource-search");
+  const keys = ["run_id", "run_name", "pipeline", "group", "compute_type"];
+  if (searchEl) searchEl.addEventListener("keyup", (e) => {
+    const v = (e.target.value || "").toLowerCase();
+    if (!v) { table.clearFilter(true); return; }
+    table.setFilter((row) => keys.some((k) => String(row[k] == null ? "" : row[k]).toLowerCase().includes(v)));
+  });
+
+  // ---- Chart (one bar per run per pipeline; engine-coloured; Requested OR Used; CPU or Memory) ----
+  const chartHost = document.getElementById("resource-chart");
+  const MEASURES = {
+    cpu: { req: "req_cpu_vcpu_h", used: "eff_cpu_vcpu_h", axis: "vCPU-h", unit: " vCPU-h", dp: 2 },
+    mem: { req: "req_mem_gib", used: "eff_mem_gib", axis: "GiB", unit: " GiB", dp: 1 },
+  };
+  let measure = "cpu";    // cpu | mem
+  let labelMode = "date"; // date | id   (one y-axis identifier — keeps the left side light)
+  const panels = [];   // { chart, rows }
+  let built = false;
+
+  function buildPanels() {
+    const order = [], byPipe = {};
+    runs.forEach((r) => { const p = r.pipeline || "—"; if (!(p in byPipe)) { byPipe[p] = []; order.push(p); } byPipe[p].push(r); });
+    const engRank = (u) => (u.compute_type === "intelligent_compute" ? 1 : 0);  // Batch first, then IC
+    order.forEach((p) => {
+      const rows = byPipe[p].slice().sort((a, b) =>
+        engRank(a) - engRank(b) || (a.started_at || "").localeCompare(b.started_at || ""));
+      const grp = document.createElement("div");
+      grp.className = "pipeline-group";
+      const h = document.createElement("h3");
+      h.innerHTML = esc(p) + ' <span class="count">' + rows.length + " run" + (rows.length > 1 ? "s" : "") + "</span>";
+      grp.appendChild(h);
+      const el = document.createElement("div");
+      el.className = "cost-chart";
+      el.style.height = Math.max(140, 50 + rows.length * 34) + "px";
+      grp.appendChild(el); chartHost.appendChild(grp);
+      panels.push({ chart: echarts.init(el, "seqera"), rows });
+    });
+    built = true;
+  }
+
+  function renderPanels() {
+    const m = MEASURES[measure];
+    // Diagonal white stripes mark the Requested bar — same engine colour as Used, a pattern not
+    // a second colour. Both bars shown together so requested-vs-used is directly comparable.
+    const REQ_DECAL = { color: "rgba(255,255,255,0.6)", dashArrayX: [1, 0], dashArrayY: [2, 4], rotation: -Math.PI / 4 };
+    panels.forEach(({ chart, rows }) => {
+      const isIc = rows.map((r) => r.compute_type === "intelligent_compute");
+      const colorOf = (i) => (isIc[i] ? IC_COLOR : BATCH_COLOR);
+      // One identifier on the y-axis (date OR workflow id) + a small engine chip — no clutter.
+      const ident = rows.map((r) => (labelMode === "date" ? (r.date_short || r.run_id) : r.run_id));
+      chart.setOption({
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" },
+          formatter: (ps) => {
+            const i = ps[0].dataIndex;
+            const eng = isIc[i] ? "Seqera Intelligent Compute" : "AWS Batch";
+            return esc(rows[i].run_id) + '<br/><span style="color:' + colorOf(i) + '">● ' + eng + "</span><br/>" +
+              ps.map((s) => s.seriesName + ": <b>" + Number(s.value || 0).toFixed(m.dp) + m.unit + "</b>").join("<br/>");
+          } },
+        // Bars coloured by engine only (green IC / blue Batch). Requested (striped) + Used (solid)
+        // share the engine colour and sit side by side per run for direct comparison.
+        legend: { show: false },
+        // Fixed left gutter (not containLabel) so the fixed-width rich label never clips.
+        grid: { left: 182, right: 56, top: 12, bottom: 46, containLabel: false },
+        xAxis: { type: "value", name: m.axis, nameLocation: "middle", nameGap: 28, nameTextStyle: { color: "#6b6b73", fontSize: 11 } },
+        yAxis: { type: "category", data: ident, inverse: true, axisLabel: {
+          fontSize: 11, margin: 10,
+          formatter: (val, idx) => (isIc[idx] ? "{ic|IC}" : "{batch|Batch}") + "{sp|}{id|" + val + "}",
+          rich: {
+            ic: { color: "#fff", backgroundColor: IC_COLOR, borderRadius: 3, fontSize: 9, fontWeight: 700, width: 42, align: "center", padding: [3, 0] },
+            batch: { color: "#fff", backgroundColor: BATCH_COLOR, borderRadius: 3, fontSize: 9, fontWeight: 700, width: 42, align: "center", padding: [3, 0] },
+            sp: { width: 8 },
+            id: { width: 116, align: "left", color: "#3a3a42" },
+          },
+        } },
+        series: [
+          { name: "Requested", type: "bar", barGap: "10%", barMaxWidth: 15,
+            data: rows.map((r, i) => ({ value: r[m.req], itemStyle: { color: colorOf(i), decal: REQ_DECAL, borderRadius: [0, 3, 3, 0] } })),
+            label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(m.dp), fontSize: 10, color: "#6b6b73" } },
+          { name: "Effective", type: "bar", barMaxWidth: 15,
+            data: rows.map((r, i) => ({ value: r[m.used], itemStyle: { color: colorOf(i), borderRadius: [0, 3, 3, 0] } })),
+            label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(m.dp), fontSize: 10, color: "#6b6b73" } },
+        ],
+      });
+    });
+  }
+
+  function setView(view) {
+    const chartMode = view === "chart";
+    document.getElementById("resource-table").hidden = chartMode;
+    chartHost.hidden = !chartMode;
+    document.querySelectorAll(".rchart-ctl").forEach((el) => { el.style.display = chartMode ? "" : "none"; });
+    if (searchEl) searchEl.style.display = chartMode ? "none" : "";
+    if (chartMode) {
+      if (!built) buildPanels();
+      renderPanels();
+      panels.forEach((p) => p.chart.resize());
+    }
+  }
+
+  const viewToggle = document.getElementById("resource-view-toggle");
+  if (viewToggle) viewToggle.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      viewToggle.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      setView(btn.getAttribute("data-rview"));
+    });
+  });
+  // Chart toggles: measure (CPU/Mem), label (Start date/Workflow ID).
+  function wireToggle(id, apply) {
+    const grp = document.getElementById(id);
+    if (!grp) return;
+    grp.querySelectorAll("button").forEach((btn) => btn.addEventListener("click", () => {
+      grp.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      apply(btn);
+      renderPanels();
+    }));
+  }
+  wireToggle("resource-measure-toggle", (btn) => { measure = btn.getAttribute("data-rmeasure"); });
+  wireToggle("resource-label-toggle", (btn) => { labelMode = btn.getAttribute("data-rlabel"); });
+  window.addEventListener("resize", () => panels.forEach((p) => p.chart.resize()));
+})();
+
+// ---- Machine-type distribution (ECharts, grouped by pipeline, faceted by scheduling engine) ----
+(function () {
+  const container = document.getElementById("machine-facets");
+  const mu = DATA.machine_usage || [];
+  if (!container || !mu.length) return;
+
+  const colorByType = {};
+  mu.forEach((u) => (u.machines || []).forEach((m) => { colorByType[m.machine_type] = m.color_idx; }));
+
+  const dateById = {};
+  mu.forEach((u) => { dateById[u.run_id] = u.date_short || ""; });
+
+  const ENGINES = [
+    { key: "intelligent_compute", label: "Seqera Intelligent Compute" },
+    { key: "batch", label: "AWS Batch" },
+  ];
+  const pipelines = [];
+  const runsByPipeline = {};
+  mu.forEach((u) => {
+    const p = u.pipeline || "—";
+    if (!(p in runsByPipeline)) { runsByPipeline[p] = []; pipelines.push(p); }
+    runsByPipeline[p].push(u);
+  });
+  const charts = [];
+  pipelines.forEach((p) => {
+    const pRuns = runsByPipeline[p];
+    const grp = document.createElement("div");
+    grp.className = "pipeline-group";
+    const ph = document.createElement("h3");
+    ph.innerHTML = esc(p) + ' <span class="count">' + pRuns.length + " run" + (pRuns.length > 1 ? "s" : "") + "</span>";
+    grp.appendChild(ph);
+    container.appendChild(grp);
+    ENGINES.forEach((f) => {
+      const runs = pRuns.filter((u) => u.compute_type === f.key);
+      if (!runs.length) return;
+      const wrap = document.createElement("div");
+      wrap.className = "facet";
+      const h = document.createElement("h4");
+      h.textContent = f.label + " (" + runs.length + " run" + (runs.length > 1 ? "s" : "") + ")";
+      wrap.appendChild(h);
+      const el = document.createElement("div");
+      el.className = "facet-chart";
+      el.style.height = Math.max(120, 46 + runs.length * 42) + "px";
+      wrap.appendChild(el);
+      grp.appendChild(wrap);
+      charts.push({ chart: echarts.init(el, "seqera"), runs, pipeline: p });
+    });
+  });
+
+  function machineTypesOf(runs) {
+    const s = new Set();
+    runs.forEach((u) => (u.machines || []).forEach((m) => s.add(m.machine_type)));
+    return [...s].sort((a, b) => colorByType[a] - colorByType[b]);
+  }
+
+  let currentMetric = "task_count";
+  let labelMode = "date";
+
+  function renderAll() {
+    const metric = currentMetric;
+    const totalKey = metric === "task_count" ? "total_tasks" : "total_cpu_hours";
+    const maxByPipeline = {};
+    mu.forEach((u) => { const p = u.pipeline || "—"; maxByPipeline[p] = Math.max(maxByPipeline[p] || 1, u[totalKey] || 0); });
+    charts.forEach(({ chart, runs, pipeline }) => {
+      const ids = runs.map((u) => u.run_id);
+      const names = runs.map((u) => u.run_name || u.run_id);
+      const startedAts = runs.map((u) => u.started_at || "");
+      const series = machineTypesOf(runs).map((mt) => ({
+        name: mt,
+        type: "bar",
+        stack: "total",
+        emphasis: { focus: "series" },
+        itemStyle: { color: COLORS[colorByType[mt] % COLORS.length] },
+        data: runs.map((u) => {
+          const m = (u.machines || []).find((x) => x.machine_type === mt);
+          return { value: m ? m[metric] : 0, tasks: m ? m.task_count : 0, pct: m ? m.task_pct : 0, cpu: m ? m.cpu_hours : 0 };
+        }),
+      }));
+      const zoom = ids.length > 10 ? [{ type: "slider", yAxisIndex: 0, width: 14, right: 4 }, { type: "inside", yAxisIndex: 0 }] : [];
+      chart.setOption({
+        tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(names[p.dataIndex]) + " (" + esc(ids[p.dataIndex]) + ")" + (startedAts[p.dataIndex] ? "<br/>started " + esc(startedAts[p.dataIndex].replace("T", " ").slice(0, 16)) : "") + "<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " cpu-h" },
+        legend: { type: "scroll", top: 0 },
+        grid: { left: 10, right: 34, top: 40, bottom: 34, containLabel: true },
+        xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours", nameLocation: "middle", nameGap: 26, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, max: maxByPipeline[pipeline] },
+        yAxis: { type: "category", data: ids, inverse: true, axisLabel: { formatter: (id) => labelMode === "date" ? (dateById[id] || id) : id } },
+        dataZoom: zoom,
+        series: series,
+      }, true);
+    });
+  }
+  renderAll();
+
+  document.querySelectorAll("#metric-toggle button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#metric-toggle button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentMetric = btn.getAttribute("data-metric");
+      renderAll();
+    });
+  });
+  document.querySelectorAll("#label-toggle button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#label-toggle button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      labelMode = btn.getAttribute("data-label");
+      renderAll();
+    });
+  });
+  window.addEventListener("resize", () => charts.forEach((c) => c.chart.resize()));
+})();
+
+// ---- Cost over time (ECharts line, per pipeline, Seqera Intelligent Compute vs AWS Batch) ----
+(function () {
+  const container = document.getElementById("cost-facets");
+  if (!container) return;
+
+  // Only runs with a real CUR cost + a start timestamp can be placed on the time axis.
+  const runs = (DATA.run_summary || []).filter((r) => r.cost != null && r.started_at);
+  if (!runs.length) {
+    container.innerHTML =
+      '<div class="empty"><strong>No cost data yet.</strong><br/>Cost charts appear once an AWS Cost &amp; Usage Report (CUR) export is joined onto these runs.</div>';
+    return;
+  }
+
+  // Group by pipeline, then split into the two engines, each sorted oldest -> newest.
+  const byPipeline = {};
+  const order = [];
+  runs.forEach((r) => {
+    const p = r.pipeline || "—";
+    if (!(p in byPipeline)) { byPipeline[p] = []; order.push(p); }
+    byPipeline[p].push(r);
+  });
+
+  const point = (r) => [new Date(r.started_at).getTime(), Number(r.cost), r];
+  const byTime = (a, b) => a[0] - b[0];
+  const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+
+  // Compare a baseline (from) to a value (to). Reductions read best as a percent
+  // (bounded 0-100%); a big increase reads best as a multiple (e.g. 18.8×) — a
+  // "1775%" pill is technically right but unreadable. Returns null if from is 0.
+  function deltaLabel(from, to) {
+    if (!from) return null;
+    if (to <= from) return { cls: "good", arrow: "▼", mag: Math.round((1 - to / from) * 100) + "%" };
+    const ratio = to / from;
+    const mag = ratio >= 2 ? (Math.round(ratio * 10) / 10) + "×" : Math.round((ratio - 1) * 100) + "%";
+    return { cls: "up", arrow: "▲", mag: mag };
+  }
+
+  const charts = [];
+  const savingsSamples = []; // latest-IC vs Batch-baseline %, per pipeline, for the hero figure
+
+  order.forEach((p) => {
+    const rows = byPipeline[p];
+    const ic = rows.filter((r) => r.compute_type === "intelligent_compute").map(point).sort(byTime);
+    const batch = rows.filter((r) => r.compute_type === "batch").map(point).sort(byTime);
+
+    const grp = document.createElement("div");
+    grp.className = "pipeline-group";
+
+    const head = document.createElement("div");
+    head.className = "cost-head";
+    const title = document.createElement("h3");
+    title.innerHTML = esc(p) + ' <span class="count">' + rows.length + " run" + (rows.length > 1 ? "s" : "") + "</span>";
+    head.appendChild(title);
+
+    // Savings story: baseline = mean Batch cost; compare latest IC run to it, and IC's own
+    // first -> latest trend. Rendered as pills; the direction/wording is data-driven.
+    const savingsEl = document.createElement("div");
+    savingsEl.className = "savings";
+    const batchBaseline = batch.length ? mean(batch.map((d) => d[1])) : null;
+    const latestIC = ic.length ? ic[ic.length - 1][1] : null;
+    const firstIC = ic.length ? ic[0][1] : null;
+
+    if (batchBaseline != null && latestIC != null) {
+      savingsSamples.push(Math.round((1 - latestIC / batchBaseline) * 100)); // +ve = IC cheaper
+      const d = deltaLabel(batchBaseline, latestIC);
+      if (d) savingsEl.innerHTML += '<span class="pill ' + d.cls + '">' + d.arrow + " " + d.mag + " vs AWS Batch</span>";
+    }
+    if (ic.length > 1) {
+      const d = deltaLabel(firstIC, latestIC);
+      if (d) savingsEl.innerHTML += '<span class="pill ' + d.cls + '">' + d.arrow + " " + d.mag + " first → latest IC</span>";
+    }
+    head.appendChild(savingsEl);
+    grp.appendChild(head);
+
+    const el = document.createElement("div");
+    el.className = "cost-chart";
+    grp.appendChild(el);
+    container.appendChild(grp);
+
+    charts.push(echarts.init(el, "seqera"));
+    const chart = charts[charts.length - 1];
+
+    const series = [];
+    if (ic.length) {
+      series.push({
+        name: "Seqera Intelligent Compute",
+        type: "line",
+        data: ic,
+        showSymbol: true,
+        symbolSize: 9,
+        smooth: false,
+        lineStyle: { width: 2.5, color: IC_COLOR },
+        itemStyle: { color: IC_COLOR },
+        areaStyle: {
+          opacity: 0.9,
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: "rgba(8,127,104,0.20)" },
+            { offset: 1, color: "rgba(8,127,104,0.02)" },
+          ]),
+        },
+        // Label the cheapest IC run with its cost. No pin marker — the 4-dp value never fit
+        // inside one; a plain chip above the point stays readable and inside the plot frame.
+        markPoint: ic.length > 1 ? {
+          symbol: "circle", symbolSize: 0, silent: true,
+          data: [{ type: "min" }],
+          label: {
+            formatter: (d) => fmtCost(d.value), position: "top", distance: 8,
+            color: IC_COLOR, fontSize: 11, fontWeight: 700,
+            backgroundColor: "rgba(255,255,255,0.9)", padding: [2, 5], borderRadius: 3,
+          },
+        } : undefined,
+        z: 3,
+      });
+    }
+    if (batch.length) {
+      series.push({
+        name: "AWS Batch",
+        type: "line",
+        data: batch,
+        showSymbol: true,
+        symbol: "diamond",
+        symbolSize: 10,
+        lineStyle: { width: 2, type: "dashed", color: BATCH_COLOR },
+        itemStyle: { color: BATCH_COLOR },
+        // A horizontal baseline so a single Batch run still reads as "the number to beat".
+        markLine: batchBaseline != null ? {
+          silent: true, symbol: "none",
+          lineStyle: { color: BATCH_COLOR, type: "dashed", opacity: 0.55 },
+          label: { formatter: "Batch baseline", color: BATCH_COLOR, fontSize: 10, position: "insideStartTop" },
+          data: [{ yAxis: batchBaseline }],
+        } : undefined,
+        z: 2,
+      });
+    }
+
+    chart.setOption({
+      color: [IC_COLOR, BATCH_COLOR],
+      tooltip: {
+        trigger: "axis",
+        formatter: (ps) => {
+          const d = new Date(ps[0].value[0]);
+          const head = d.toISOString().slice(0, 16).replace("T", " ");
+          const lines = ps.map((s) => {
+            const r = s.value[2] || {};
+            return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + s.color + ';margin-right:6px"></span>' +
+              esc(s.seriesName) + ": <b>" + fmtCost(s.value[1]) + "</b>" + (r.run_id ? ' <span style="opacity:.6">' + esc(r.run_id) + "</span>" : "");
+          });
+          return head + "<br/>" + lines.join("<br/>");
+        },
+      },
+      legend: { top: 0, icon: "roundRect", data: series.map((s) => s.name) },
+      grid: { left: 10, right: 54, top: 44, bottom: 6, containLabel: true },
+      xAxis: {
+        type: "time",
+        axisLabel: { formatter: (v) => { const d = new Date(v); return (d.getMonth() + 1) + "/" + d.getDate(); } },
+      },
+      yAxis: {
+        type: "value",
+        name: "Cost (USD)",
+        nameTextStyle: { color: "#6b6b73", fontSize: 11 },
+        axisLabel: { formatter: (v) => "$" + (v >= 1 ? v.toFixed(0) : v.toFixed(v < 0.01 ? 3 : 2)) },
+        scale: true,
+      },
+      series: series,
+    });
+  });
+
+  // Hero signature: average latest-IC-vs-Batch saving across pipelines where both exist.
+  if (savingsSamples.length) {
+    const avg = Math.round(mean(savingsSamples));
+    const sig = document.getElementById("hero-signature");
+    const fig = document.getElementById("hero-figure");
+    const cap = document.getElementById("hero-caption");
+    if (avg > 0) {
+      fig.textContent = avg + "%";
+      cap.textContent = "lower cost with Seqera Intelligent Compute vs AWS Batch on the latest runs, averaged across " +
+        savingsSamples.length + " pipeline" + (savingsSamples.length > 1 ? "s" : "") + ".";
+      sig.classList.remove("hidden");
+    }
+  }
+
+  window.addEventListener("resize", () => charts.forEach((c) => c.resize()));
+})();
+
+// ---- Cost breakdown: "By instance" view, allocated by CPU-hour share ----
+(function () {
+  const withCost = (DATA.run_summary || []).filter((r) => r.cost != null);
+  const costById = {};
+  withCost.forEach((r) => { costById[r.run_id] = Number(r.cost); });
+
+  const cTime = document.getElementById("cost-facets");
+  const cRun = document.getElementById("cost-run-facets");
+  const cInst = document.getElementById("cost-instance-facets");
+  const hint = document.getElementById("cost-view-hint");
+  const toggle = document.getElementById("cost-view-toggle");
+  const HINTS = {
+    time: "Total cost per run over time · Seqera Intelligent Compute vs the AWS Batch baseline",
+    run: "Total cost of every run, one bar each, coloured by engine — the simplest side-by-side comparison. AWS Batch runs first, then Seqera Intelligent Compute oldest to newest.",
+    instance: "One panel per run — how that run's real CUR cost split across the instance types it actually used (by CPU-hour share). Instance mix differs run to run, so each run stands alone.",
+  };
+
+  // No cost anywhere -> the over-time module already shows the empty state; hide the toggle.
+  if (!withCost.length) { if (toggle) toggle.closest(".toolbar").style.display = "none"; return; }
+
+  const charts = { run: [], instance: [] };
+  const rendered = { run: false, instance: false };
+
+  const facetCard = (pipeline, n) => {
+    const grp = document.createElement("div");
+    grp.className = "pipeline-group";
+    const h = document.createElement("h3");
+    h.innerHTML = esc(pipeline) + ' <span class="count">' + n + " costed run" + (n > 1 ? "s" : "") + "</span>";
+    grp.appendChild(h);
+    return grp;
+  };
+  const chartEl = (h) => { const el = document.createElement("div"); el.className = "cost-chart"; el.style.height = h + "px"; return el; };
+  // More decimals as values shrink so closely-spaced ticks (sub-cent costs, e.g. when one
+  // engine is isolated via the legend) don't collide to the same label.
+  const costAxisLabel = (v) => "$" + (v >= 1 ? v.toFixed(0) : v >= 0.1 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(3) : v.toFixed(4));
+
+  // Group a usage list (machine_usage) by pipeline, keeping only runs
+  // that actually have a CUR cost to allocate.
+  function pipelineGroups(usageList) {
+    const order = [], by = {};
+    (usageList || []).forEach((u) => {
+      if (!(u.run_id in costById)) return;
+      const p = u.pipeline || "—";
+      if (!(p in by)) { by[p] = []; order.push(p); }
+      by[p].push(u);
+    });
+    return order.map((p) => ({ pipeline: p, runs: by[p] }));
+  }
+
+  // Instance mix differs run to run, so pooling instance costs across runs is misleading.
+  // Instead: one small panel per run showing that run's cost split across its own instances.
+  function renderInstance() {
+    const groups = pipelineGroups(DATA.machine_usage);
+    if (!groups.length) { cInst.innerHTML = '<div class="empty">No cost data to break down by instance.</div>'; return; }
+    groups.forEach((g) => {
+      const grp = facetCard(g.pipeline, g.runs.length);
+      const runGrid = document.createElement("div");
+      runGrid.className = "run-grid";
+      grp.appendChild(runGrid); cInst.appendChild(grp);
+
+      // AWS Batch panels first, then Seqera Intelligent Compute; each group oldest -> newest
+      // so the IC panels read left-to-right as cost evolves over reruns.
+      const engRank = (u) => (u.compute_type === "intelligent_compute" ? 1 : 0);
+      const runs = g.runs.slice().sort((a, b) =>
+        engRank(a) - engRank(b) || (a.started_at || "").localeCompare(b.started_at || ""));
+      runs.forEach((u) => {
+        const cost = costById[u.run_id];
+        const tot = (u.machines || []).reduce((s, m) => s + (m.cpu_hours || 0), 0);
+        if (!tot) return;
+        const items = (u.machines || [])
+          .map((m) => ({ name: m.machine_type, cost: cost * (m.cpu_hours || 0) / tot, color: COLORS[m.color_idx % COLORS.length] }))
+          .filter((i) => i.cost > 0)
+          .sort((a, b) => b.cost - a.cost);
+        if (!items.length) return;
+
+        const eng = u.compute_type === "intelligent_compute" ? "ic" : "batch";
+        const rf = document.createElement("div");
+        rf.className = "run-facet";
+        const hd = document.createElement("div");
+        hd.className = "run-facet-head";
+        hd.innerHTML =
+          '<span class="run-facet-title">' + esc(u.date_short || "") + " · " + esc(u.run_id) + "</span>" +
+          '<span class="badge ' + eng + '">' + (eng === "ic" ? "Seqera Intelligent Compute" : "AWS Batch") + "</span>" +
+          '<span class="run-facet-cost">' + fmtCost(cost) + "</span>";
+        rf.appendChild(hd);
+        const el = document.createElement("div");
+        el.className = "cost-chart";
+        el.style.height = Math.max(120, 40 + items.length * 24) + "px";
+        rf.appendChild(el); runGrid.appendChild(rf);
+
+        const chart = echarts.init(el, "seqera");
+        const names = items.map((i) => i.name);
+        chart.setOption({
+          tooltip: { trigger: "item", formatter: (p) => { const it = items[p.dataIndex]; const pctv = cost ? Math.round(it.cost / cost * 100) : 0; return esc(it.name) + "<br/><b>" + fmtCost(it.cost) + "</b> · " + pctv + "% of run"; } },
+          grid: { left: 8, right: 76, top: 8, bottom: 24, containLabel: true },
+          xAxis: { type: "value", splitNumber: 3, axisLabel: { formatter: costAxisLabel, hideOverlap: true } },
+          yAxis: { type: "category", data: names, inverse: true, axisLabel: { fontSize: 10, width: 120, overflow: "truncate" } },
+          series: [{ type: "bar", barMaxWidth: 16, data: items.map((i) => ({ value: i.cost, itemStyle: { color: i.color } })),
+            label: { show: true, position: "right", formatter: (p) => fmtCost(items[p.dataIndex].cost), fontSize: 9, color: "#6b6b73" } }],
+        });
+        charts.instance.push(chart);
+      });
+    });
+  }
+
+  // "By run": one bar per run = its total CUR cost, coloured by engine. Two stacked series
+  // (each run non-null in only one) keep bars centred per row AND let a legend click filter
+  // an engine. Ordered Batch first, then Seqera Intelligent Compute oldest -> newest.
+  function renderRun() {
+    const groups = pipelineGroups(DATA.run_summary);
+    if (!groups.length) { cRun.innerHTML = '<div class="empty">No cost data to compare by run.</div>'; return; }
+    const engRank = (u) => (u.compute_type === "intelligent_compute" ? 1 : 0);
+    groups.forEach((g) => {
+      const runs = g.runs.slice().sort((a, b) =>
+        engRank(a) - engRank(b) || (a.started_at || "").localeCompare(b.started_at || ""));
+      const labels = runs.map((u) => (u.date_short || "") + " · " + u.run_id);
+      const icData = runs.map((u) => u.compute_type === "intelligent_compute" ? costById[u.run_id] : null);
+      const bData = runs.map((u) => u.compute_type === "intelligent_compute" ? null : costById[u.run_id]);
+      const grp = facetCard(g.pipeline, g.runs.length);
+      const el = chartEl(Math.max(150, 54 + runs.length * 34));
+      grp.appendChild(el); cRun.appendChild(grp);
+      const chart = echarts.init(el, "seqera");
+      const barLabel = { show: true, position: "right", formatter: (p) => (p.value != null ? fmtCost(p.value) : ""), fontSize: 10, color: "#6b6b73" };
+      chart.setOption({
+        tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(labels[p.dataIndex]) + ": <b>" + fmtCost(p.value) + "</b>" },
+        legend: { top: 0, icon: "roundRect", data: ["Seqera Intelligent Compute", "AWS Batch"] },
+        grid: { left: 8, right: 82, top: 34, bottom: 42, containLabel: true },
+        xAxis: { type: "value", name: "Total cost (USD)", nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, axisLabel: { formatter: costAxisLabel } },
+        yAxis: { type: "category", data: labels, inverse: true, axisLabel: { fontSize: 11, width: 150, overflow: "truncate" } },
+        series: [
+          { name: "Seqera Intelligent Compute", type: "bar", stack: "t", barMaxWidth: 22, data: icData, itemStyle: { color: IC_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
+          { name: "AWS Batch", type: "bar", stack: "t", barMaxWidth: 22, data: bData, itemStyle: { color: BATCH_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
+        ],
+      });
+      charts.run.push(chart);
+    });
+  }
+
+  function show(view) {
+    cTime.hidden = view !== "time";
+    cRun.hidden = view !== "run";
+    cInst.hidden = view !== "instance";
+    hint.textContent = HINTS[view];
+    if (view === "run" && !rendered.run) { renderRun(); rendered.run = true; }
+    if (view === "instance" && !rendered.instance) { renderInstance(); rendered.instance = true; }
+    // ECharts needs a visible container to size; resize the ones we just revealed.
+    (charts[view] || []).forEach((c) => c.resize());
+  }
+
+  toggle.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      toggle.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      show(btn.getAttribute("data-view"));
+    });
+  });
+  window.addEventListener("resize", () => { charts.run.forEach((c) => c.resize()); charts.instance.forEach((c) => c.resize()); });
+})();
+
+// ---- Sidebar scrollspy: highlight the section the reader is currently in ----
+(function () {
+  const links = [...document.querySelectorAll(".nav a")];
+  const sections = links
+    .map((a) => document.getElementById(a.getAttribute("href").slice(1)))
+    .filter(Boolean);
+  if (!sections.length) return;
+
+  const setActive = (id) => links.forEach((a) => a.classList.toggle("active", a.getAttribute("href") === "#" + id));
+  const scroller = document.scrollingElement || document.documentElement;
+  function onScroll() {
+    // Active = last section whose top has passed a detection line 40% down the
+    // viewport. The fraction (not a fixed px) is what lets the final section win:
+    // near the page bottom the last heading sits below a fixed line and could never
+    // activate, but the 40% line reaches it.
+    const line = window.scrollY + window.innerHeight * 0.4;
+    let current = sections[0].id;
+    for (const s of sections) { if (s.offsetTop <= line) current = s.id; }
+    // Belt-and-braces: at the very bottom, force the last section active.
+    if (window.scrollY + window.innerHeight >= scroller.scrollHeight - 2) current = sections[sections.length - 1].id;
+    setActive(current);
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll);
+  onScroll();
+})();
+</script>
+</body>
+</html>
