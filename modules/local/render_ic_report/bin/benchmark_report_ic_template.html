@@ -272,11 +272,6 @@
         <button data-rmeasure="cpu" class="active">CPU (cores)</button>
         <button data-rmeasure="mem">Memory (GB)</button>
       </span>
-      <span class="ctl-label rchart-ctl" style="margin-left:8px;display:none">Value:</span>
-      <span class="btn-group rchart-ctl" id="resource-value-toggle" style="display:none">
-        <button data-rvalue="req" class="active">Requested</button>
-        <button data-rvalue="used">Used</button>
-      </span>
       <span class="ctl-label rchart-ctl" style="margin-left:8px;display:none">Label:</span>
       <span class="btn-group rchart-ctl" id="resource-label-toggle" style="display:none">
         <button data-rlabel="date" class="active">Start date</button>
@@ -285,6 +280,9 @@
       <span class="hint rchart-ctl" id="resource-chart-hint" style="display:none">
         <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--ic);vertical-align:middle"></span> Seqera Intelligent Compute &nbsp;
         <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--batch);vertical-align:middle"></span> AWS Batch
+        &nbsp;·&nbsp;
+        <span style="display:inline-block;width:11px;height:9px;border-radius:2px;vertical-align:middle;background:#8a8f92;background-image:repeating-linear-gradient(-45deg,transparent,transparent 1.5px,rgba(255,255,255,.7) 1.5px,rgba(255,255,255,.7) 3px)"></span> Requested &nbsp;
+        <span style="display:inline-block;width:11px;height:9px;border-radius:2px;vertical-align:middle;background:#8a8f92"></span> Used
       </span>
       <input id="resource-search" type="search" placeholder="Search runs (id, pipeline, group)…" aria-label="Search resource-usage runs" />
     </div>
@@ -491,7 +489,6 @@ const durCol = (title, field, tip) => ({
     mem: { req: "req_mem_gb", used: "used_mem_gb", axis: "GB", unit: " GB" },
   };
   let measure = "cpu";    // cpu | mem
-  let value = "req";      // req | used  (one bar shown at a time — no faded/solid pairs)
   let labelMode = "date"; // date | id   (one y-axis identifier — keeps the left side light)
   const panels = [];   // { chart, rows }
   let built = false;
@@ -519,27 +516,28 @@ const durCol = (title, field, tip) => ({
 
   function renderPanels() {
     const m = MEASURES[measure];
-    const field = m[value];   // req_* or used_* column for the current CPU/Memory measure
-    const axisName = (value === "req" ? "Requested" : "Used") + " (" + m.axis + ")";
+    // Diagonal white stripes mark the Requested bar — same engine colour as Used, a pattern not
+    // a second colour. Both bars shown together so requested-vs-used is directly comparable.
+    const REQ_DECAL = { color: "rgba(255,255,255,0.6)", dashArrayX: [1, 0], dashArrayY: [2, 4], rotation: -Math.PI / 4 };
     panels.forEach(({ chart, rows }) => {
       const isIc = rows.map((r) => r.compute_type === "intelligent_compute");
       const colorOf = (i) => (isIc[i] ? IC_COLOR : BATCH_COLOR);
       // One identifier on the y-axis (date OR workflow id) + a small engine chip — no clutter.
       const ident = rows.map((r) => (labelMode === "date" ? (r.date_short || r.run_id) : r.run_id));
       chart.setOption({
-        tooltip: { trigger: "item", axisPointer: { type: "shadow" },
-          formatter: (p) => {
-            const i = p.dataIndex;
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" },
+          formatter: (ps) => {
+            const i = ps[0].dataIndex;
             const eng = isIc[i] ? "Seqera Intelligent Compute" : "AWS Batch";
             return esc(rows[i].run_id) + '<br/><span style="color:' + colorOf(i) + '">● ' + eng + "</span><br/>" +
-              (value === "req" ? "Requested" : "Used") + ": <b>" + Number(p.value || 0).toFixed(2) + m.unit + "</b>";
+              ps.map((s) => s.seriesName + ": <b>" + Number(s.value || 0).toFixed(2) + m.unit + "</b>").join("<br/>");
           } },
-        // Bars coloured by engine only (green IC / blue Batch). One value at a time via the
-        // Value toggle — no faded/solid pairs. Engine also tagged on each y-axis row.
+        // Bars coloured by engine only (green IC / blue Batch). Requested (striped) + Used (solid)
+        // share the engine colour and sit side by side per run for direct comparison.
         legend: { show: false },
         // Fixed left gutter (not containLabel) so the fixed-width rich label never clips.
         grid: { left: 182, right: 56, top: 12, bottom: 46, containLabel: false },
-        xAxis: { type: "value", name: axisName, nameLocation: "middle", nameGap: 28, nameTextStyle: { color: "#6b6b73", fontSize: 11 } },
+        xAxis: { type: "value", name: m.axis, nameLocation: "middle", nameGap: 28, nameTextStyle: { color: "#6b6b73", fontSize: 11 } },
         yAxis: { type: "category", data: ident, inverse: true, axisLabel: {
           fontSize: 11, margin: 10,
           formatter: (val, idx) => (isIc[idx] ? "{ic|IC}" : "{batch|Batch}") + "{sp|}{id|" + val + "}",
@@ -551,8 +549,11 @@ const durCol = (title, field, tip) => ({
           },
         } },
         series: [
-          { type: "bar", barMaxWidth: 22,
-            data: rows.map((r, i) => ({ value: r[field], itemStyle: { color: colorOf(i), borderRadius: [0, 3, 3, 0] } })),
+          { name: "Requested", type: "bar", barGap: "10%", barMaxWidth: 15,
+            data: rows.map((r, i) => ({ value: r[m.req], itemStyle: { color: colorOf(i), decal: REQ_DECAL, borderRadius: [0, 3, 3, 0] } })),
+            label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(2), fontSize: 10, color: "#6b6b73" } },
+          { name: "Used", type: "bar", barMaxWidth: 15,
+            data: rows.map((r, i) => ({ value: r[m.used], itemStyle: { color: colorOf(i), borderRadius: [0, 3, 3, 0] } })),
             label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(2), fontSize: 10, color: "#6b6b73" } },
         ],
       });
@@ -580,7 +581,7 @@ const durCol = (title, field, tip) => ({
       setView(btn.getAttribute("data-rview"));
     });
   });
-  // Chart toggles: measure (CPU/Mem), value (Requested/Used), label (Start date/Workflow ID).
+  // Chart toggles: measure (CPU/Mem), label (Start date/Workflow ID).
   function wireToggle(id, apply) {
     const grp = document.getElementById(id);
     if (!grp) return;
@@ -592,7 +593,6 @@ const durCol = (title, field, tip) => ({
     }));
   }
   wireToggle("resource-measure-toggle", (btn) => { measure = btn.getAttribute("data-rmeasure"); });
-  wireToggle("resource-value-toggle", (btn) => { value = btn.getAttribute("data-rvalue"); });
   wireToggle("resource-label-toggle", (btn) => { labelMode = btn.getAttribute("data-rlabel"); });
   window.addEventListener("resize", () => panels.forEach((p) => p.chart.resize()));
 })();
