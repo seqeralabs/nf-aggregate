@@ -246,6 +246,77 @@ def test_normalize_cost_rows_prefers_user_aliases_before_defaults(tmp_path):
     assert rows[0]["run_id"] == "run-custom"
 
 
+def test_normalize_cost_rows_reads_directory_of_parquets(tmp_path):
+    """A directory of parquet files is scanned as one dataset (union_by_name),
+    so heterogeneous CUR exports (v1 flat columns + v2 struct list) sum together."""
+    cost_dir = tmp_path / "cur"
+    cost_dir.mkdir()
+    pq.write_table(
+        pa.table(
+            {
+                "resource_tags_user_unique_run_id": ["run1"],
+                "split_line_item_split_cost": [1.0],
+                "split_line_item_unused_cost": [0.0],
+            }
+        ),
+        cost_dir / "part-a.parquet",
+    )
+    tag_type = pa.list_(pa.struct([("key", pa.string()), ("value", pa.string())]))
+    pq.write_table(
+        pa.table(
+            {
+                "resource_tags": pa.array(
+                    [[{"key": "user_unique_run_id", "value": "run1"}]], type=tag_type
+                ),
+                "line_item_unblended_cost": [2.0],
+            }
+        ),
+        cost_dir / "part-b.parquet",
+    )
+
+    rows = _normalize_cost_rows(cost_dir)
+
+    assert rows == [
+        {
+            "run_id": "run1",
+            "process": "",
+            "hash": "",
+            "cost": 3.0,
+            "used_cost": 3.0,
+            "unused_cost": 0.0,
+        }
+    ]
+
+
+def test_normalize_cost_rows_ignores_rows_without_run_label(tmp_path):
+    """Only rows carrying a run-id resource label are costed; null/empty-labelled
+    rows never contribute, so the scan operates on the labelled subset only."""
+    parquet_path = tmp_path / "mixed.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "resource_tags_user_unique_run_id": ["run1", None, ""],
+                "split_line_item_split_cost": [1.0, 9.0, 9.0],
+                "split_line_item_unused_cost": [0.0, 0.0, 0.0],
+            }
+        ),
+        parquet_path,
+    )
+
+    rows = _normalize_cost_rows(parquet_path)
+
+    assert rows == [
+        {
+            "run_id": "run1",
+            "process": "",
+            "hash": "",
+            "cost": 1.0,
+            "used_cost": 1.0,
+            "unused_cost": 0.0,
+        }
+    ]
+
+
 def test_load_cost_label_aliases_rejects_unknown_fields(tmp_path):
     label_map_path = tmp_path / "invalid_cur_label_map.yml"
     label_map_path.write_text("unexpected: value\n")

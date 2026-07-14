@@ -1,6 +1,6 @@
 process NORMALIZE_BENCHMARK_JSONL {
 
-    conda 'python=3.12 typer=0.15 pyyaml=6 pyarrow=18'
+    conda 'python=3.12 typer=0.15 pyyaml=6 duckdb=1.1'
     container 'community.wave.seqera.io/library/python_duckdb_jinja2_typer_pruned:2d95e1e826bbe38f'
 
     input:

@@ -228,37 +228,78 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
             f.write("\n")
 
 
-def _to_tags_dict(value: Any) -> dict[str, Any]:
-    if value is None:
-        return {}
-    if isinstance(value, dict):
-        return value
-    if isinstance(value, list):
-        # CUR resource labels arrive as a single list column. Two shapes are seen:
-        #   - list of [key, value] pairs (map -> pylist), and
-        #   - list of {"key": ..., "value": ...} dicts (v2 data-export struct list).
-        tags = {}
-        for item in value:
-            if isinstance(item, (tuple, list)) and len(item) == 2:
-                tags[str(item[0])] = item[1]
-            elif isinstance(item, dict) and "key" in item:
-                tags[str(item["key"])] = item.get("value")
-        return tags
-    return {}
-
-
-def _iter_parquet_rows(costs_parquet: Path):
+def _duckdb_connect():
     try:
-        import pyarrow.parquet as pq
-    except ImportError as exc:
-        raise RuntimeError("pyarrow is required to normalize CUR parquet") from exc
+        import duckdb
+    except ImportError as exc:  # pragma: no cover - only hit without duckdb installed
+        raise RuntimeError("duckdb is required to normalize CUR parquet") from exc
+    return duckdb.connect()
 
-    parquet_file = pq.ParquetFile(costs_parquet)
-    cols = set(parquet_file.schema_arrow.names)
 
-    for batch in parquet_file.iter_batches():
-        for row in batch.to_pylist():
-            yield cols, row
+def _parquet_sources(costs_parquet: Path) -> list[str]:
+    """Resolve a file or directory into the parquet files DuckDB should scan.
+
+    A directory is expanded to every ``*.parquet`` beneath it so a whole CUR
+    export folder can be processed in one pass.
+    """
+    if costs_parquet.is_dir():
+        return sorted(str(path) for path in costs_parquet.rglob("*.parquet"))
+    return [str(costs_parquet)]
+
+
+def _sql_string_array(values: list[str]) -> str:
+    return "[" + ", ".join("'" + value.replace("'", "''") + "'" for value in values) + "]"
+
+
+def _tag_extract_expr(resource_tags_type: str, alias: str) -> str | None:
+    """SQL that reads tag ``alias`` out of a ``resource_tags`` column.
+
+    CUR data stores labels in one of three shapes, distinguished by the column's
+    DuckDB type: a ``MAP``, a v2 list of ``{key, value}`` structs
+    (``STRUCT(...)[]``) or a list of ``[key, value]`` string lists
+    (``VARCHAR[][]``). Returns ``None`` for any other shape so the caller falls
+    back to the flattened ``resource_tags_<alias>`` columns only.
+    """
+    escaped = alias.replace("'", "''")
+    normalized = resource_tags_type.upper().strip()
+    if normalized.startswith("MAP"):
+        return f"resource_tags['{escaped}']"
+    if "STRUCT" in normalized and normalized.endswith("[]"):
+        return f"list_filter(resource_tags, x -> x.key = '{escaped}')[1].value"
+    if normalized.endswith("[][]"):
+        return f"list_filter(resource_tags, x -> x[1] = '{escaped}')[1][2]"
+    return None
+
+
+def _label_expr(aliases: list[str], columns: dict[str, str]) -> str:
+    """COALESCE expression resolving a label across its aliases.
+
+    Each alias is tried as a flattened ``resource_tags_<alias>`` column first and
+    then inside the ``resource_tags`` map/struct column, matching the original
+    per-alias (flat, then map) resolution order. Empty strings are treated as
+    missing so precedence falls through to the next candidate.
+    """
+    parts: list[str] = []
+    resource_tags_type = columns.get("resource_tags")
+    for alias in aliases:
+        flat_column = f"resource_tags_{alias}"
+        if flat_column in columns:
+            parts.append(f"NULLIF(CAST(\"{flat_column}\" AS VARCHAR), '')")
+        if resource_tags_type is not None:
+            expr = _tag_extract_expr(resource_tags_type, alias)
+            if expr is not None:
+                parts.append(f"NULLIF(CAST({expr} AS VARCHAR), '')")
+    if not parts:
+        return "NULL"
+    if len(parts) == 1:
+        return parts[0]
+    return "COALESCE(" + ", ".join(parts) + ")"
+
+
+def _numeric_expr(column: str, columns: dict[str, str]) -> str:
+    if column in columns:
+        return f"COALESCE(CAST(\"{column}\" AS DOUBLE), 0.0)"
+    return "0.0"
 
 
 def _dedupe_aliases(values: list[str]) -> list[str]:
@@ -313,57 +354,57 @@ def _load_cost_label_aliases(cost_label_map: Path | None = None) -> dict[str, li
     return aliases
 
 
-def _resolve_cost_label_value(row: dict[str, Any], tags: dict[str, Any], aliases: list[str]) -> Any:
-    for alias in aliases:
-        flat_value = row.get(f"resource_tags_{alias}")
-        if flat_value not in (None, ""):
-            return flat_value
-        tag_value = tags.get(alias)
-        if tag_value not in (None, ""):
-            return tag_value
-    return None
-
-
 def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None) -> list[dict[str, Any]]:
-    grouped: dict[tuple[str, str, str], dict[str, float | str]] = {}
+    """Aggregate per run/process/task costs from one or more CUR parquet files.
+
+    DuckDB does the heavy lifting: it prunes to the handful of columns we need,
+    reads an entire folder of parquet files in one scan (``union_by_name``
+    reconciles differing CUR schemas), keeps only rows carrying a run-id resource
+    label and sums the costs with a single vectorized GROUP BY. Far faster than
+    iterating a multi-GB, hundreds-of-columns export row by row in Python.
+    """
     label_aliases = _load_cost_label_aliases(cost_label_map)
+    sources = _parquet_sources(costs_parquet)
+    if not sources:
+        return []
 
-    for cols, row in _iter_parquet_rows(costs_parquet):
-        tags = _to_tags_dict(row.get("resource_tags")) if "resource_tags" in cols else {}
-        run_id = _resolve_cost_label_value(row, tags, label_aliases["run_id"])
-        process = _resolve_cost_label_value(row, tags, label_aliases["process"])
-        hash_val = _resolve_cost_label_value(row, tags, label_aliases["task_hash"])
+    connection = _duckdb_connect()
+    scan = f"read_parquet({_sql_string_array(sources)}, union_by_name=true)"
 
-        if not run_id:
-            continue
+    columns = {
+        name: column_type
+        for name, column_type, *_ in connection.execute(f"DESCRIBE SELECT * FROM {scan}").fetchall()
+    }
 
-        # Split line items (shared instances, e.g. Fusion / Intelligent Compute) carry
-        # cost in split_line_item_split_cost with line_item_unblended_cost zeroed; normal
-        # usage rows (e.g. dedicated Batch instances) are the reverse. A split cost of 0
-        # therefore means "fall back to unblended", so test truthiness, not None.
-        split_cost = float(row.get("split_line_item_split_cost") or 0.0)
-        used = split_cost if split_cost else float(row.get("line_item_unblended_cost") or 0.0)
-        unused = float(row.get("split_line_item_unused_cost") or 0.0)
-        total = used + unused
+    run_id_expr = _label_expr(label_aliases["run_id"], columns)
+    process_expr = _label_expr(label_aliases["process"], columns)
+    task_hash_expr = _label_expr(label_aliases["task_hash"], columns)
 
-        hash_short = str(hash_val or "")[:8]
-        key = (str(run_id), str(process or ""), hash_short)
+    # Split line items (shared instances, e.g. Fusion / Intelligent Compute) carry
+    # cost in split_line_item_split_cost with line_item_unblended_cost zeroed; normal
+    # usage rows (e.g. dedicated Batch instances) are the reverse. A split cost of 0
+    # therefore means "fall back to unblended".
+    split_cost = _numeric_expr("split_line_item_split_cost", columns)
+    unblended_cost = _numeric_expr("line_item_unblended_cost", columns)
+    used_cost = f"CASE WHEN {split_cost} <> 0 THEN {split_cost} ELSE {unblended_cost} END"
+    unused_cost = _numeric_expr("split_line_item_unused_cost", columns)
 
-        if key not in grouped:
-            grouped[key] = {
-                "run_id": key[0],
-                "process": key[1],
-                "hash": key[2],
-                "cost": 0.0,
-                "used_cost": 0.0,
-                "unused_cost": 0.0,
-            }
-
-        grouped[key]["cost"] = float(grouped[key]["cost"]) + total
-        grouped[key]["used_cost"] = float(grouped[key]["used_cost"]) + used
-        grouped[key]["unused_cost"] = float(grouped[key]["unused_cost"]) + unused
-
-    return list(grouped.values())
+    query = f"""
+        SELECT
+            {run_id_expr}                                 AS run_id,
+            COALESCE({process_expr}, '')                  AS process,
+            substr(COALESCE({task_hash_expr}, ''), 1, 8)  AS hash,
+            SUM(({used_cost}) + ({unused_cost}))          AS cost,
+            SUM({used_cost})                              AS used_cost,
+            SUM({unused_cost})                            AS unused_cost
+        FROM {scan}
+        WHERE {run_id_expr} IS NOT NULL AND {run_id_expr} <> ''
+        GROUP BY 1, 2, 3
+        ORDER BY 1, 2, 3
+    """
+    rows = connection.execute(query).fetchall()
+    names = [description[0] for description in connection.description]
+    return [dict(zip(names, row)) for row in rows]
 
 
 def _safe_float(val: Any) -> float:

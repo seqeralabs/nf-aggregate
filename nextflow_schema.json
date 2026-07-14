@@ -64,9 +64,8 @@
                 "benchmark_aws_cur_report": {
                     "type": "string",
                     "fa_icon": "fas fa-dollar-sign",
-                    "description": "AWS CUR report from data exports.",
-                    "pattern": "^\\S+\\.parquet",
-                    "format": "file-path"
+                    "description": "AWS CUR data export for real run costs: a single .parquet file or a directory of .parquet files (read together via DuckDB).",
+                    "format": "path"
                 },
                 "include_failed_runs": {
                     "type": "boolean",

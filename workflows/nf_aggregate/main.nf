@@ -127,7 +127,7 @@ workflow NF_AGGREGATE {
         // Compute) — the data exports are the same shape. Seqera's own cost estimate is
         // never used because it is unreliable.
         ch_cur = params.benchmark_aws_cur_report
-            ? Channel.fromPath(params.benchmark_aws_cur_report)
+            ? Channel.fromPath(params.benchmark_aws_cur_report, type: 'any', checkIfExists: true)
             : Channel.value([])
 
         ch_cur_label_map = params.benchmark_aws_cur_label_map
