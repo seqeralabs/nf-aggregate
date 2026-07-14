@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Intelligent Compute Report</title>
+<title>Seqera Intelligent Compute Report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -217,9 +217,9 @@
   <div class="hero">
     <div class="hero-grid">
       <div>
-        <div class="eyebrow">Seqera · Intelligent Compute</div>
-        <h1>Intelligent Compute Report</h1>
-        <p class="lead">Machine usage, performance and cost across {{ ic_overview.n_runs }} run{{ "s" if ic_overview.n_runs != 1 else "" }} — comparing AWS Batch against Intelligent Compute, pipeline by pipeline.</p>
+        <div class="eyebrow">Seqera Intelligent Compute</div>
+        <h1>Seqera Intelligent Compute Report</h1>
+        <p class="lead">Machine usage, performance and cost across {{ ic_overview.n_runs }} run{{ "s" if ic_overview.n_runs != 1 else "" }} — comparing AWS Batch against Seqera Intelligent Compute, pipeline by pipeline.</p>
       </div>
       <div class="signature hidden" id="hero-signature">
         <div class="figure"><span class="arrow">▼</span><span id="hero-figure">—</span></div>
@@ -234,7 +234,7 @@
 
     <div class="overview">
       <div class="stat accent"><div class="n">{{ ic_overview.n_runs }}</div><div class="l">Total runs</div></div>
-      <div class="stat"><div class="n">{{ ic_overview.n_intelligent_compute }}</div><div class="l">Intelligent Compute</div></div>
+      <div class="stat"><div class="n">{{ ic_overview.n_intelligent_compute }}</div><div class="l">Seqera Intelligent Compute</div></div>
       <div class="stat"><div class="n">{{ ic_overview.n_batch }}</div><div class="l">AWS Batch</div></div>
       <div class="stat" id="stat-cost">
         <div class="n muted">—</div>
@@ -258,7 +258,7 @@
 
   <section id="performance" aria-labelledby="perf-title">
     <h2 class="section-title" id="perf-title">Performance</h2>
-    <p class="section-sub">Machine-type distribution per run, grouped by pipeline and faceted by scheduling engine. Scale is shared within each pipeline so AWS Batch and Intelligent Compute are directly comparable.</p>
+    <p class="section-sub">Machine-type distribution per run, grouped by pipeline and faceted by scheduling engine. Scale is shared within each pipeline so AWS Batch and Seqera Intelligent Compute are directly comparable.</p>
     {% if machine_usage %}
     <div class="toolbar">
       <span class="ctl-label">Measure:</span>
@@ -290,7 +290,7 @@
         <button data-view="process">By process</button>
         <button data-view="instance">By instance</button>
       </span>
-      <span class="hint" id="cost-view-hint">Total cost per run over time · Intelligent Compute vs the AWS Batch baseline</span>
+      <span class="hint" id="cost-view-hint">Total cost per run over time · Seqera Intelligent Compute vs the AWS Batch baseline</span>
     </div>
     <div id="cost-facets"></div>
     <div id="cost-run-facets" hidden></div>
@@ -299,7 +299,7 @@
   </section>
 
 </div>
-<footer>Intelligent Compute Report · Generated {{ generated_at }}{% if ic_overview.cost_source == "aws_cur" %} · Costs from AWS Cost &amp; Usage Report{% endif %}</footer>
+<footer>Seqera Intelligent Compute Report · Generated {{ generated_at }}{% if ic_overview.cost_source == "aws_cur" %} · Costs from AWS Cost &amp; Usage Report{% endif %}</footer>
 
 <script>
 echarts.registerTheme('seqera', {{ echarts_theme_json }});
@@ -307,6 +307,16 @@ const DATA = {{ data_json }};
 const COLORS = {{ brand_palette | tojson }};
 const IC_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--ic').trim() || "#087F68";
 const BATCH_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--batch').trim() || "#45a1bf";
+
+// HTML-escape any (user-influenceable) value before it is interpolated into innerHTML,
+// a Tabulator formatter, or an ECharts tooltip/HTML formatter. Run/pipeline/process
+// names and machine types originate from the Seqera API, so they must never be trusted
+// as markup (prevents stored XSS in the shared report).
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
 
 // Shared cost formatter: sub-cent CUR costs need up to 4 dp, larger costs read better with fewer.
 function fmtCost(v) {
@@ -344,7 +354,6 @@ const durCol = (title, field, tip) => ({
   const pillRow = document.getElementById("pipeline-pills");
   if (seen.length && pillRow && band) {
     document.getElementById("pipelines-count").textContent = "(" + seen.length + ")";
-    const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     pillRow.innerHTML = seen.map((p) => {
       const i = p.indexOf("/");
       const inner = i > 0
@@ -366,7 +375,7 @@ const durCol = (title, field, tip) => ({
     el.textContent = fmtCost(total);
     const split = document.getElementById("cost-split");
     split.innerHTML =
-      '<span class="row"><span class="dot-ic"></span>Intelligent Compute <b>' + fmtCost(icCost) + '</b></span>' +
+      '<span class="row"><span class="dot-ic"></span>Seqera Intelligent Compute <b>' + fmtCost(icCost) + '</b></span>' +
       '<span class="row"><span class="dot-batch"></span>AWS Batch <b>' + fmtCost(batchCost) + '</b></span>';
     split.hidden = false;
   }
@@ -382,14 +391,14 @@ const durCol = (title, field, tip) => ({
     movableColumns: true,
     placeholder: "No runs",
     groupBy: "pipeline",
-    groupHeader: (value, count) => (value || "—") + ' <span style="opacity:.6;font-weight:400">(' + count + ' run' + (count > 1 ? 's' : '') + ')</span>',
+    groupHeader: (value, count) => esc(value || "—") + ' <span style="opacity:.6;font-weight:400">(' + count + ' run' + (count > 1 ? 's' : '') + ')</span>',
     columns: [
       { title: "Pipeline", field: "pipeline", headerFilter: "input" },
       { title: "Run ID", field: "run_id", headerFilter: "input",
-        formatter: (cell) => { const r = cell.getRow().getData(); return r.run_url ? '<a href="' + r.run_url + '" target="_blank" rel="noopener">' + r.run_id + '</a>' : r.run_id; } },
+        formatter: (cell) => { const r = cell.getRow().getData(); return r.run_url ? '<a href="' + esc(r.run_url) + '" target="_blank" rel="noopener">' + esc(r.run_id) + '</a>' : esc(r.run_id); } },
       {% if show_group %}{ title: "Group", field: "group", headerFilter: "input" },{% endif %}
       { title: "Compute type", field: "compute_type", headerFilter: "input",
-        formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
+        formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
       { title: "Status", field: "status", headerFilter: "input" },
       { title: "Started", field: "started_at", headerFilter: "input", sorter: "string",
         formatter: (cell) => { const v = cell.getValue(); return v ? String(v).replace("T", " ").slice(0, 16) : '<span class="muted">&mdash;</span>'; } },
@@ -424,7 +433,7 @@ const durCol = (title, field, tip) => ({
   mu.forEach((u) => { dateById[u.run_id] = u.date_short || ""; });
 
   const ENGINES = [
-    { key: "intelligent_compute", label: "Intelligent Compute" },
+    { key: "intelligent_compute", label: "Seqera Intelligent Compute" },
     { key: "batch", label: "AWS Batch" },
   ];
   const pipelines = [];
@@ -440,7 +449,7 @@ const durCol = (title, field, tip) => ({
     const grp = document.createElement("div");
     grp.className = "pipeline-group";
     const ph = document.createElement("h3");
-    ph.innerHTML = p + ' <span class="count">' + pRuns.length + " run" + (pRuns.length > 1 ? "s" : "") + "</span>";
+    ph.innerHTML = esc(p) + ' <span class="count">' + pRuns.length + " run" + (pRuns.length > 1 ? "s" : "") + "</span>";
     grp.appendChild(ph);
     container.appendChild(grp);
     ENGINES.forEach((f) => {
@@ -491,7 +500,7 @@ const durCol = (title, field, tip) => ({
       }));
       const zoom = ids.length > 10 ? [{ type: "slider", yAxisIndex: 0, width: 14, right: 4 }, { type: "inside", yAxisIndex: 0 }] : [];
       chart.setOption({
-        tooltip: { trigger: "item", formatter: (p) => p.seriesName + "<br/>" + names[p.dataIndex] + " (" + ids[p.dataIndex] + ")" + (startedAts[p.dataIndex] ? "<br/>started " + startedAts[p.dataIndex].replace("T", " ").slice(0, 16) : "") + "<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " cpu-h" },
+        tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(names[p.dataIndex]) + " (" + esc(ids[p.dataIndex]) + ")" + (startedAts[p.dataIndex] ? "<br/>started " + esc(startedAts[p.dataIndex].replace("T", " ").slice(0, 16)) : "") + "<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " cpu-h" },
         legend: { type: "scroll", top: 0 },
         grid: { left: 110, right: 28, top: 40, bottom: 36 },
         xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours", max: maxByPipeline[pipeline] },
@@ -522,7 +531,7 @@ const durCol = (title, field, tip) => ({
   window.addEventListener("resize", () => charts.forEach((c) => c.chart.resize()));
 })();
 
-// ---- Cost over time (ECharts line, per pipeline, Intelligent Compute vs AWS Batch) ----
+// ---- Cost over time (ECharts line, per pipeline, Seqera Intelligent Compute vs AWS Batch) ----
 (function () {
   const container = document.getElementById("cost-facets");
   if (!container) return;
@@ -573,7 +582,7 @@ const durCol = (title, field, tip) => ({
     const head = document.createElement("div");
     head.className = "cost-head";
     const title = document.createElement("h3");
-    title.innerHTML = p + ' <span class="count">' + rows.length + " run" + (rows.length > 1 ? "s" : "") + "</span>";
+    title.innerHTML = esc(p) + ' <span class="count">' + rows.length + " run" + (rows.length > 1 ? "s" : "") + "</span>";
     head.appendChild(title);
 
     // Savings story: baseline = mean Batch cost; compare latest IC run to it, and IC's own
@@ -607,7 +616,7 @@ const durCol = (title, field, tip) => ({
     const series = [];
     if (ic.length) {
       series.push({
-        name: "Intelligent Compute",
+        name: "Seqera Intelligent Compute",
         type: "line",
         data: ic,
         showSymbol: true,
@@ -662,7 +671,7 @@ const durCol = (title, field, tip) => ({
           const lines = ps.map((s) => {
             const r = s.value[2] || {};
             return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + s.color + ';margin-right:6px"></span>' +
-              s.seriesName + ": <b>" + fmtCost(s.value[1]) + "</b>" + (r.run_id ? ' <span style="opacity:.6">' + r.run_id + "</span>" : "");
+              esc(s.seriesName) + ": <b>" + fmtCost(s.value[1]) + "</b>" + (r.run_id ? ' <span style="opacity:.6">' + esc(r.run_id) + "</span>" : "");
           });
           return head + "<br/>" + lines.join("<br/>");
         },
@@ -692,7 +701,7 @@ const durCol = (title, field, tip) => ({
     const cap = document.getElementById("hero-caption");
     if (avg > 0) {
       fig.textContent = avg + "%";
-      cap.textContent = "lower cost with Intelligent Compute vs AWS Batch on the latest runs, averaged across " +
+      cap.textContent = "lower cost with Seqera Intelligent Compute vs AWS Batch on the latest runs, averaged across " +
         savingsSamples.length + " pipeline" + (savingsSamples.length > 1 ? "s" : "") + ".";
       sig.classList.remove("hidden");
     }
@@ -714,8 +723,8 @@ const durCol = (title, field, tip) => ({
   const hint = document.getElementById("cost-view-hint");
   const toggle = document.getElementById("cost-view-toggle");
   const HINTS = {
-    time: "Total cost per run over time · Intelligent Compute vs the AWS Batch baseline",
-    run: "Total cost of every run, one bar each, coloured by engine — the simplest side-by-side comparison. AWS Batch runs first, then Intelligent Compute oldest to newest.",
+    time: "Total cost per run over time · Seqera Intelligent Compute vs the AWS Batch baseline",
+    run: "Total cost of every run, one bar each, coloured by engine — the simplest side-by-side comparison. AWS Batch runs first, then Seqera Intelligent Compute oldest to newest.",
     process: "Mean cost per run, per process — bars are each engine's average (CUR total split by CPU-hour share), dots are individual runs. Fair when run counts differ; toggle an engine in the legend.",
     instance: "One panel per run — how that run's real CUR cost split across the instance types it actually used (by CPU-hour share). Instance mix differs run to run, so each run stands alone.",
   };
@@ -730,7 +739,7 @@ const durCol = (title, field, tip) => ({
     const grp = document.createElement("div");
     grp.className = "pipeline-group";
     const h = document.createElement("h3");
-    h.innerHTML = pipeline + ' <span class="count">' + n + " costed run" + (n > 1 ? "s" : "") + "</span>";
+    h.innerHTML = esc(pipeline) + ' <span class="count">' + n + " costed run" + (n > 1 ? "s" : "") + "</span>";
     grp.appendChild(h);
     return grp;
   };
@@ -799,16 +808,16 @@ const durCol = (title, field, tip) => ({
       const barLabel = { show: true, position: "right", formatter: (p) => (p.value ? fmtCost(p.value) : ""), fontSize: 10, color: "#6b6b73" };
 
       chart.setOption({
-        tooltip: { trigger: "item", formatter: (p) => p.seriesName + "<br/>" + names[p.dataIndex] + ": <b>" + fmtCost(p.value) + "</b> mean per run" },
-        legend: { top: 0, icon: "roundRect", data: ["Intelligent Compute", "AWS Batch"] },
+        tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(names[p.dataIndex]) + ": <b>" + fmtCost(p.value) + "</b> mean per run" },
+        legend: { top: 0, icon: "roundRect", data: ["Seqera Intelligent Compute", "AWS Batch"] },
         grid: { left: 8, right: 60, top: 34, bottom: 42, containLabel: true },
         xAxis: { type: "value", name: "Cost per run (USD)", nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, axisLabel: { formatter: costAxisLabel } },
         yAxis: { type: "category", data: names, inverse: true, axisLabel: { fontSize: 11, width: 150, overflow: "truncate" } },
         series: [
-          { name: "Intelligent Compute", type: "bar", data: keys.map((k) => k.mIc), itemStyle: { color: IC_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
+          { name: "Seqera Intelligent Compute", type: "bar", data: keys.map((k) => k.mIc), itemStyle: { color: IC_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
           { name: "AWS Batch", type: "bar", data: keys.map((k) => k.mB), itemStyle: { color: BATCH_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
           // dots carry the SAME name as their bar -> one legend toggle hides bar + dots
-          { name: "Intelligent Compute", type: "scatter", data: icDots, symbolSize: 6, symbolOffset: [0, -off], z: 3, itemStyle: { color: IC_COLOR, opacity: 0.55, borderColor: "#fff", borderWidth: 1 }, tooltip: { show: false } },
+          { name: "Seqera Intelligent Compute", type: "scatter", data: icDots, symbolSize: 6, symbolOffset: [0, -off], z: 3, itemStyle: { color: IC_COLOR, opacity: 0.55, borderColor: "#fff", borderWidth: 1 }, tooltip: { show: false } },
           { name: "AWS Batch", type: "scatter", data: bDots, symbolSize: 6, symbolOffset: [0, off], z: 3, itemStyle: { color: BATCH_COLOR, opacity: 0.55, borderColor: "#fff", borderWidth: 1 }, tooltip: { show: false } },
         ],
       });
@@ -827,7 +836,7 @@ const durCol = (title, field, tip) => ({
       runGrid.className = "run-grid";
       grp.appendChild(runGrid); cInst.appendChild(grp);
 
-      // AWS Batch panels first, then Intelligent Compute; each group oldest -> newest
+      // AWS Batch panels first, then Seqera Intelligent Compute; each group oldest -> newest
       // so the IC panels read left-to-right as cost evolves over reruns.
       const engRank = (u) => (u.compute_type === "intelligent_compute" ? 1 : 0);
       const runs = g.runs.slice().sort((a, b) =>
@@ -848,8 +857,8 @@ const durCol = (title, field, tip) => ({
         const hd = document.createElement("div");
         hd.className = "run-facet-head";
         hd.innerHTML =
-          '<span class="run-facet-title">' + (u.date_short || "") + " · " + u.run_id + "</span>" +
-          '<span class="badge ' + eng + '">' + (eng === "ic" ? "Intelligent Compute" : "AWS Batch") + "</span>" +
+          '<span class="run-facet-title">' + esc(u.date_short || "") + " · " + esc(u.run_id) + "</span>" +
+          '<span class="badge ' + eng + '">' + (eng === "ic" ? "Seqera Intelligent Compute" : "AWS Batch") + "</span>" +
           '<span class="run-facet-cost">' + fmtCost(cost) + "</span>";
         rf.appendChild(hd);
         const el = document.createElement("div");
@@ -860,7 +869,7 @@ const durCol = (title, field, tip) => ({
         const chart = echarts.init(el, "seqera");
         const names = items.map((i) => i.name);
         chart.setOption({
-          tooltip: { trigger: "item", formatter: (p) => { const it = items[p.dataIndex]; const pctv = cost ? Math.round(it.cost / cost * 100) : 0; return it.name + "<br/><b>" + fmtCost(it.cost) + "</b> · " + pctv + "% of run"; } },
+          tooltip: { trigger: "item", formatter: (p) => { const it = items[p.dataIndex]; const pctv = cost ? Math.round(it.cost / cost * 100) : 0; return esc(it.name) + "<br/><b>" + fmtCost(it.cost) + "</b> · " + pctv + "% of run"; } },
           grid: { left: 8, right: 58, top: 8, bottom: 24, containLabel: true },
           xAxis: { type: "value", axisLabel: { formatter: costAxisLabel } },
           yAxis: { type: "category", data: names, inverse: true, axisLabel: { fontSize: 10, width: 120, overflow: "truncate" } },
@@ -874,7 +883,7 @@ const durCol = (title, field, tip) => ({
 
   // "By run": one bar per run = its total CUR cost, coloured by engine. Two stacked series
   // (each run non-null in only one) keep bars centred per row AND let a legend click filter
-  // an engine. Ordered Batch first, then Intelligent Compute oldest -> newest.
+  // an engine. Ordered Batch first, then Seqera Intelligent Compute oldest -> newest.
   function renderRun() {
     const groups = pipelineGroups(DATA.run_summary);
     if (!groups.length) { cRun.innerHTML = '<div class="empty">No cost data to compare by run.</div>'; return; }
@@ -891,13 +900,13 @@ const durCol = (title, field, tip) => ({
       const chart = echarts.init(el, "seqera");
       const barLabel = { show: true, position: "right", formatter: (p) => (p.value != null ? fmtCost(p.value) : ""), fontSize: 10, color: "#6b6b73" };
       chart.setOption({
-        tooltip: { trigger: "item", formatter: (p) => p.seriesName + "<br/>" + labels[p.dataIndex] + ": <b>" + fmtCost(p.value) + "</b>" },
-        legend: { top: 0, icon: "roundRect", data: ["Intelligent Compute", "AWS Batch"] },
+        tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(labels[p.dataIndex]) + ": <b>" + fmtCost(p.value) + "</b>" },
+        legend: { top: 0, icon: "roundRect", data: ["Seqera Intelligent Compute", "AWS Batch"] },
         grid: { left: 8, right: 62, top: 34, bottom: 42, containLabel: true },
         xAxis: { type: "value", name: "Total cost (USD)", nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, axisLabel: { formatter: costAxisLabel } },
         yAxis: { type: "category", data: labels, inverse: true, axisLabel: { fontSize: 11, width: 150, overflow: "truncate" } },
         series: [
-          { name: "Intelligent Compute", type: "bar", stack: "t", barMaxWidth: 22, data: icData, itemStyle: { color: IC_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
+          { name: "Seqera Intelligent Compute", type: "bar", stack: "t", barMaxWidth: 22, data: icData, itemStyle: { color: IC_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
           { name: "AWS Batch", type: "bar", stack: "t", barMaxWidth: 22, data: bData, itemStyle: { color: BATCH_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
         ],
       });

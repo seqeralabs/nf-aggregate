@@ -58,6 +58,24 @@ def load_brand(brand_path: Path | None = None) -> dict[str, Any]:
     return defaults
 
 
+def _safe_json(data: dict[str, Any]) -> str:
+    """Serialize ``data`` to JSON that is safe to embed inside an inline ``<script>``.
+
+    ``json.dumps`` does not escape ``<``/``>``/``&``, so a data value containing
+    ``</script>`` would terminate the script element and allow HTML/JS injection
+    (stored XSS) when the report is opened. Escaping those characters as ``\\uXXXX``
+    keeps the payload valid JSON while making script-context breakout impossible.
+    (``ensure_ascii`` is left at its default, so the U+2028/U+2029 line separators
+    that would otherwise break a JS string literal are already emitted escaped.)
+    """
+    return (
+        json.dumps(data, default=str)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
+
+
 def _load_report_template() -> str:
     template_path = Path(__file__).resolve().parent / "benchmark_report_template.html"
     if not template_path.exists():
@@ -98,7 +116,7 @@ def render_html(
     )
     html = template.render(
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        data_json=json.dumps(data, default=str),
+        data_json=_safe_json(data),
         echarts_theme_json=load_echarts_theme(theme_path),
         brand_accent=brand["accent"],
         brand_accent_light=brand["accent_light"],
