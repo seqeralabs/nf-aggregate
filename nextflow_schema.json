@@ -93,11 +93,6 @@
                     "default": "https://cloud.seqera.io",
                     "fa_icon": "fas fa-link",
                     "description": "Seqera Platform web base URL used to build run deep-links."
-                },
-                "intelligent_compute_core_report": {
-                    "type": "string",
-                    "fa_icon": "fas fa-dollar-sign",
-                    "description": "Optional core cost report for the Intelligent Compute report (not yet wired)."
                 }
             },
             "required": ["seqera_api_endpoint"]

@@ -12,7 +12,13 @@ from typing import Any
 import typer
 
 DEFAULT_COST_LABEL_ALIASES: dict[str, list[str]] = {
-    "run_id": ["user_unique_run_id", "user_nf_unique_run_id"],
+    # Workflow-identifying CUR resource labels, tried in order (first present wins).
+    # These are the Seqera/Nextflow run tags `uniqueRunId` and `seqera.io/platform/workflowId`
+    # AS THEY APPEAR IN A CUR EXPORT — AWS normalises user tag keys (prefix `user_`, non-alnum
+    # -> `_`). Both hold the Seqera workflow id and are mutually exclusive per run (IC runs
+    # carry the workflow-id tag, Batch runs the unique-run-id tag), so either resolves the
+    # id that joins to run_summary.run_id. Shared by the Fusion and Intelligent Compute reports.
+    "run_id": ["user_seqera_io_platform_workflow_id", "user_unique_run_id"],
     "process": ["user_pipeline_process"],
     "task_hash": ["user_task_hash"],
 }
@@ -228,10 +234,15 @@ def _to_tags_dict(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
     if isinstance(value, list):
+        # CUR resource labels arrive as a single list column. Two shapes are seen:
+        #   - list of [key, value] pairs (map -> pylist), and
+        #   - list of {"key": ..., "value": ...} dicts (v2 data-export struct list).
         tags = {}
         for item in value:
             if isinstance(item, (tuple, list)) and len(item) == 2:
                 tags[str(item[0])] = item[1]
+            elif isinstance(item, dict) and "key" in item:
+                tags[str(item["key"])] = item.get("value")
         return tags
     return {}
 
@@ -326,10 +337,12 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
         if not run_id:
             continue
 
-        used = row.get("split_line_item_split_cost")
-        if used is None:
-            used = row.get("line_item_unblended_cost")
-        used = float(used or 0.0)
+        # Split line items (shared instances, e.g. Fusion / Intelligent Compute) carry
+        # cost in split_line_item_split_cost with line_item_unblended_cost zeroed; normal
+        # usage rows (e.g. dedicated Batch instances) are the reverse. A split cost of 0
+        # therefore means "fall back to unblended", so test truthiness, not None.
+        split_cost = float(row.get("split_line_item_split_cost") or 0.0)
+        used = split_cost if split_cost else float(row.get("line_item_unblended_cost") or 0.0)
         unused = float(row.get("split_line_item_unused_cost") or 0.0)
         total = used + unused
 

@@ -68,7 +68,8 @@ def test_ic_report_renders_machine_chart_section(tmp_path):
             ],
         }],
     })
-    assert "Machine types per run" in html          # section heading (Jinja-guarded on machine_usage)
+    assert 'id="performance"' in html               # Performance section (Jinja-guarded on machine_usage)
+    assert "Machine-type distribution" in html      # section description
     assert 'id="machine-facets"' in html            # faceted ECharts mount point (one chart per engine)
     assert 'id="metric-toggle"' in html             # Tasks / CPU-hours toggle
     assert '"compute_type": "intelligent_compute"' in html  # facet key in the blob
@@ -84,6 +85,66 @@ def test_ic_report_no_machine_section_when_absent(tmp_path):
         "ic_overview": {"n_runs": 0, "n_intelligent_compute": 0, "n_batch": 0, "cost_source": None},
         "run_summary": [],
     })
-    assert "Machine types per run" not in html
+    assert 'id="machine-facets"' not in html        # no faceted charts without machine data
+    assert "No machine-type data available." in html  # empty-state placeholder instead
     # the table + engines are always present
     assert 'id="run-table"' in html
+    # no cost report -> Performance stays above Cost (no promotion)
+    assert 'class="content cost-first"' not in html
+    assert 'class="content"' in html
+    assert html.index('href="#performance"') < html.index('href="#cost"')
+
+
+def test_ic_report_renders_cost_section_and_sidebar(tmp_path):
+    """The Cost section + left-sidebar navigation are always present; cost charts are
+    built client-side from run_summary, so the section is a mount point + the embedded blob."""
+    ic = dict(_RUN, cost=0.42)
+    batch = dict(
+        _RUN, run_id="btchRUN00000001", run_name="demo-batch-run", group="batch",
+        compute_type="batch", started_at="2026-07-01T10:00:00Z", date_short="2026-07-01",
+        cost=0.90,
+    )
+    html = _render(tmp_path, {
+        "ic_overview": {"n_runs": 2, "n_intelligent_compute": 1, "n_batch": 1, "cost_source": "aws_cur"},
+        "run_summary": [ic, batch],
+        "machine_usage": [],
+    })
+    # left sidebar navigation with the three topics
+    assert 'class="sidebar"' in html
+    for label in ("Overview", "Performance", "Cost"):
+        assert ">" + label + "<" in html
+    # cost section + client-side mount point + savings/hero machinery
+    assert 'id="cost"' in html
+    assert 'id="cost-facets"' in html
+    assert "hero-signature" in html
+    # four switchable cost views: over time / by run / by process / by instance
+    assert 'id="cost-view-toggle"' in html
+    assert 'data-view="run"' in html and 'data-view="process"' in html and 'data-view="instance"' in html
+    assert 'id="cost-run-facets"' in html
+    assert 'id="cost-process-facets"' in html
+    assert 'id="cost-instance-facets"' in html
+    # overview: pipeline-name pills + cost-split-by-engine mount points (filled client-side)
+    assert 'id="pipeline-pills"' in html
+    assert 'id="cost-split"' in html
+    # both engines' real CUR costs are carried into the blob that feeds the cost chart + split
+    assert '"cost": 0.42' in html
+    assert '"cost": 0.9' in html
+    # a cost report promotes Cost above Performance (layout class + nav order flipped)
+    assert 'class="content cost-first"' in html
+    assert html.index('href="#cost"') < html.index('href="#performance"')
+    # timing columns present; meaningful groups (ic/batch) -> Group column shown
+    assert '"wall_time_ms"' in html
+    assert '"total_run_time_ms"' in html
+    assert '"total_staging_time_ms"' in html
+    assert 'title: "Group"' in html
+
+
+def test_ic_report_hides_group_column_when_undefined(tmp_path):
+    """No group in the samplesheet -> group defaults to 'default'/'' -> Group column dropped."""
+    runs = [dict(_RUN, group="default"), dict(_RUN, run_id="icRUN0000000002", group="")]
+    html = _render(tmp_path, {
+        "ic_overview": {"n_runs": 2, "n_intelligent_compute": 2, "n_batch": 0, "cost_source": None},
+        "run_summary": runs, "machine_usage": [],
+    })
+    assert 'title: "Group"' not in html
+    assert '"wall_time_ms"' in html              # timing columns still present

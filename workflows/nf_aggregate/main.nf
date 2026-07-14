@@ -123,6 +123,9 @@ workflow NF_AGGREGATE {
                 return dir
             }
 
+        // One CUR parquet param serves both report types (Fusion benchmark + Intelligent
+        // Compute) — the data exports are the same shape. Seqera's own cost estimate is
+        // never used because it is unreliable.
         ch_cur = params.benchmark_aws_cur_report
             ? Channel.fromPath(params.benchmark_aws_cur_report)
             : Channel.fromPath("${projectDir}/assets/NO_FILE_CUR", checkIfExists: false).ifEmpty(file("${projectDir}/assets/NO_FILE_CUR"))

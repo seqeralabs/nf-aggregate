@@ -189,6 +189,42 @@ def test_normalize_cost_rows_accepts_custom_resource_tag_aliases(tmp_path):
     ]
 
 
+def test_normalize_cost_rows_accepts_v2_struct_list_resource_tags(tmp_path):
+    """CUR v2 data exports store resource labels as one list of {key,value} structs."""
+    parquet_path = tmp_path / "costs-v2-struct.parquet"
+    tag_type = pa.list_(pa.struct([("key", pa.string()), ("value", pa.string())]))
+    table = pa.table(
+        {
+            "resource_tags": pa.array(
+                [
+                    [
+                        {"key": "user_seqera_io_platform_workflow_id", "value": "run-v2"},
+                        {"key": "user_pipeline_process", "value": "PROC_V2"},
+                        {"key": "user_task_hash", "value": "deadbeef0001"},
+                    ]
+                ],
+                type=tag_type,
+            ),
+            # v2 export with no split-cost column falls back to unblended cost
+            "line_item_unblended_cost": [4.0],
+        }
+    )
+    pq.write_table(table, parquet_path)
+
+    rows = _normalize_cost_rows(parquet_path)
+
+    assert rows == [
+        {
+            "run_id": "run-v2",
+            "process": "PROC_V2",
+            "hash": "deadbeef",
+            "cost": 4.0,
+            "used_cost": 4.0,
+            "unused_cost": 0.0,
+        }
+    ]
+
+
 def test_normalize_cost_rows_prefers_user_aliases_before_defaults(tmp_path):
     parquet_path = tmp_path / "costs-prefer-custom.parquet"
     label_map_path = tmp_path / "cur_label_map.yml"

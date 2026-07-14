@@ -90,6 +90,12 @@ def render_html(
     template = Environment(loader=BaseLoader()).from_string(template_str)
     run_metrics = data.get("run_metrics") or []
     has_performance_gains = any((row or {}).get("vmCpuH") for row in run_metrics)
+    # Only show the run-table "Group" column when a meaningful group is defined (i.e. set in
+    # the samplesheet); an absent group defaults to "" / "default", which adds no information.
+    show_group = any(
+        (row or {}).get("group") not in (None, "", "default")
+        for row in (data.get("run_summary") or [])
+    )
     html = template.render(
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         data_json=json.dumps(data, default=str),
@@ -104,6 +110,7 @@ def render_html(
         brand_palette=brand["palette"],
         logo_svg=logo_svg or "",
         has_performance_gains=has_performance_gains,
+        show_group=show_group,
         **data,
     )
     output_path.write_text(html)

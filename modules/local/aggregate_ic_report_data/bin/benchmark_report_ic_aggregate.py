@@ -61,6 +61,23 @@ def _machine_breakdown(jsonl_dir: Path) -> dict[str, dict[str, dict[str, float]]
     return per_run
 
 
+def _process_breakdown(jsonl_dir: Path) -> dict[str, dict[str, dict[str, float]]]:
+    """Per run, per process: task_count and occupancy cpu_hours (same basis as machines).
+
+    Keyed by ``process_short`` (falls back to ``process``) for compact chart labels.
+    """
+    per_run: dict[str, dict[str, dict[str, float]]] = defaultdict(
+        lambda: defaultdict(lambda: {"task_count": 0, "cpu_hours": 0.0})
+    )
+    for task in _iter_jsonl(Path(jsonl_dir) / "tasks.jsonl"):
+        run_id = str(task.get("run_id", ""))
+        process = task.get("process_short") or task.get("process") or "unknown"
+        acc = per_run[run_id][process]
+        acc["task_count"] += 1
+        acc["cpu_hours"] += _task_occupancy_hours(task)
+    return per_run
+
+
 def _build_machine_usage(
     per_run: dict[str, dict[str, dict[str, float]]], run_order: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -96,6 +113,7 @@ def _build_machine_usage(
             "run_id": run["run_id"],
             "run_name": run["run_name"],
             "run_url": run["run_url"],
+            "pipeline": run.get("pipeline", ""),
             "compute_type": run["compute_type"],
             "started_at": run.get("started_at", ""),
             "date_short": run.get("date_short", ""),
@@ -106,13 +124,98 @@ def _build_machine_usage(
     return usage
 
 
+def _build_process_usage(
+    per_run: dict[str, dict[str, dict[str, float]]], run_order: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Per-run process occupancy cpu-hours (mirrors machine_usage, keyed by process).
+
+    The report allocates each run's real CUR cost across these processes by cpu-hour
+    share. AWS bills Intelligent Compute as whole EC2 instances, so CUR does not itemise
+    cost per process for IC runs — this occupancy split is the shared allocation basis
+    that lets the per-process cost view cover both engines consistently.
+    """
+    usage: list[dict[str, Any]] = []
+    for run in run_order:
+        procs_raw = per_run.get(run["run_id"], {})
+        total_tasks = sum(int(m["task_count"]) for m in procs_raw.values())
+        processes = [
+            {
+                "process": p,
+                "task_count": int(m["task_count"]),
+                "cpu_hours": round(m["cpu_hours"], 2),
+            }
+            for p, m in sorted(procs_raw.items(), key=lambda kv: (-kv[1]["cpu_hours"], kv[0]))
+        ]
+        total_cpu_hours = round(sum(m["cpu_hours"] for m in processes), 2)
+        usage.append({
+            "run_id": run["run_id"],
+            "pipeline": run.get("pipeline", ""),
+            "compute_type": run["compute_type"],
+            "started_at": run.get("started_at", ""),
+            "total_tasks": total_tasks,
+            "total_cpu_hours": total_cpu_hours,
+            "processes": processes,
+        })
+    return usage
+
+
+def _run_costs_from_cur(jsonl_dir: Path) -> dict[str, float]:
+    """Per-run cost totals from a real AWS CUR export (``costs.jsonl``), keyed by run_id.
+
+    ``costs.jsonl`` is only written when a CUR parquet is supplied to the normalize step,
+    so an absent/empty file leaves run costs unset — we never fall back to Seqera's
+    unreliable cost estimate. CUR rows are task-grained (run_id, process, task_hash);
+    they are summed here into one cost per run. The run_id here is whatever the CUR
+    resource-label map resolves to; the label that ties a CUR row to a Seqera run is
+    finalised in a follow-up step.
+    """
+    totals: dict[str, float] = defaultdict(float)
+    for row in _iter_jsonl(jsonl_dir / "costs.jsonl"):
+        run_id = str(row.get("run_id") or "")
+        if not run_id:
+            continue
+        totals[run_id] += float(row.get("cost") or 0.0)
+    # 4 decimal places: CUR run costs are often sub-cent, so 2 dp collapses them to 0.00.
+    return {run_id: round(total, 4) for run_id, total in totals.items()}
+
+
+def _run_task_timing(jsonl_dir: Path) -> dict[str, dict[str, float]]:
+    """Per run, summed from tasks: active run time and staging time (milliseconds).
+
+    Definitions agreed in Slack (Florian/Paolo, per Nextflow ``duration`` semantics):
+      - task runtime  = start -> complete  (includes staging, EXCLUDES machine-wait,
+        since submit->start waiting is random instance-availability time we don't bill)
+      - task staging  = runtime - realtime
+    So per run:
+      - total_run_time_ms     = sum of task runtimes  (time machines were actually working)
+      - total_staging_time_ms = sum of task staging   (runtime not spent executing the tool)
+    Wall time is NOT summed here — it's the run-level ``duration`` (submit -> complete of
+    the whole workflow, same as the Platform), taken straight from runs.jsonl.
+    """
+    agg: dict[str, dict[str, float]] = defaultdict(lambda: {"run_time_ms": 0.0, "staging_ms": 0.0})
+    for task in _iter_jsonl(Path(jsonl_dir) / "tasks.jsonl"):
+        run_id = str(task.get("run_id", ""))
+        runtime = _duration_ms(task.get("start"), task.get("complete"))
+        realtime = float(task.get("realtime_ms") or 0)
+        agg[run_id]["run_time_ms"] += runtime
+        # clamp: second-resolution timestamps can make a very short task's runtime dip
+        # just under its realtime, which would otherwise yield a tiny negative staging.
+        agg[run_id]["staging_ms"] += max(0.0, runtime - realtime)
+    return agg
+
+
 def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.io") -> dict[str, Any]:
     jsonl_dir = Path(jsonl_dir)
+
+    # Real per-run costs from an AWS CUR export, if one was supplied. Empty otherwise.
+    cur_costs = _run_costs_from_cur(jsonl_dir)
 
     # Machine/instance breakdown defines the shared occupancy cpu-hours basis; the
     # run-level "compute hours" is then taken from each run's machine total, so the
     # two reconcile exactly (run compute_hours == displayed sum of that run's bars).
     per_run = _machine_breakdown(jsonl_dir)
+    per_run_proc = _process_breakdown(jsonl_dir)
+    timing = _run_task_timing(jsonl_dir)
 
     run_summary: list[dict[str, Any]] = []
     n_ic = 0
@@ -143,10 +246,17 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
             "started_at": started_at,          # full ISO-8601 timestamp (may be "")
             "date_short": started_at[:10],      # YYYY-MM-DD for compact chart labels
             "compute_hours": 0.0,  # backfilled from machine_usage below
+            # Timing (ms). wall = run-level duration (submit -> complete, incl. waiting);
+            # run/staging are summed from tasks (see _run_task_timing).
+            "wall_time_ms": run.get("duration_ms"),
+            "total_run_time_ms": round(timing[run_id]["run_time_ms"]),
+            "total_staging_time_ms": round(timing[run_id]["staging_ms"]),
             "memory_used_bytes": mem_bytes,
             "memory_used_gb": round(mem_bytes / 1024**3, 2),
             "run_cost_platform": run.get("run_cost"),
-            "cost": None,  # core-report cost — not wired yet
+            # Real cost from the AWS CUR export; None when no CUR row matched this run
+            # (renders as an em-dash). The Seqera estimate above is never used here.
+            "cost": cur_costs.get(run_id),
         })
 
     # Default order: group by pipeline, then facet (IC before Batch), then newest run
@@ -160,6 +270,7 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
             "run_id": r["run_id"],
             "run_name": r["run_name"],
             "run_url": r["run_url"],
+            "pipeline": r["pipeline"],
             "compute_type": r["compute_type"],
             "started_at": r["started_at"],
             "date_short": r["date_short"],
@@ -168,6 +279,7 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
     ]
 
     machine_usage = _build_machine_usage(per_run, run_order)
+    process_usage = _build_process_usage(per_run_proc, run_order)
     run_totals = {u["run_id"]: u["total_cpu_hours"] for u in machine_usage}
     for row in run_summary:
         row["compute_hours"] = run_totals.get(row["run_id"], 0.0)
@@ -177,10 +289,12 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
             "n_runs": len(run_summary),
             "n_intelligent_compute": n_ic,
             "n_batch": n_batch,
-            "cost_source": None,
+            # "aws_cur" when real CUR costs were joined onto at least one run, else None.
+            "cost_source": "aws_cur" if cur_costs else None,
         },
         "run_summary": run_summary,
         "machine_usage": machine_usage,
+        "process_usage": process_usage,
     }
 
 
