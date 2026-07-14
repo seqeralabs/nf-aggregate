@@ -1,3 +1,5 @@
 reports:
   benchmark_report.html:
     display: "Benchmarking HTML report"
+  intelligent_compute_report.html:
+    display: "Intelligent Compute HTML report"
