@@ -47,6 +47,35 @@ def _task_occupancy_hours(task: dict[str, Any]) -> float:
     return occupancy_ms / 3.6e6
 
 
+def _run_resource_usage(jsonl_dir: Path) -> dict[str, dict[str, float]]:
+    """Per run: requested vs actually-used CPU (vCPU-hours) and memory (GiB-hours).
+
+    Over each task's realtime (tool execution) window — the shared basis that makes the
+    used/requested ratio meaningful:
+      requested CPU = Σ cpus × realtime;      used CPU = Σ (pcpu/100) × realtime
+      requested mem = Σ memory × realtime;    used mem = Σ peak_rss × realtime
+    pcpu is normalised so 100 == one core, so pcpu/100 is cores actually used. Both engines
+    expose these on the Platform task metrics. The scheduler's own per-task *allocated* value
+    (resourceAllocation.cpuShares/memoryMiB) is NOT on the Platform payload, so it is omitted.
+    """
+    gib = 1024**3
+    hour_ms = 3.6e6
+    per_run: dict[str, dict[str, float]] = defaultdict(
+        lambda: {"req_cpu": 0.0, "used_cpu": 0.0, "req_mem": 0.0, "used_mem": 0.0}
+    )
+    for t in _iter_jsonl(Path(jsonl_dir) / "tasks.jsonl"):
+        realtime_h = float(t.get("realtime_ms") or 0) / hour_ms
+        if realtime_h <= 0:
+            continue
+        acc = per_run[str(t.get("run_id", ""))]
+        acc["req_cpu"] += (t.get("cpus") or 0) * realtime_h
+        acc["used_cpu"] += (float(t.get("pcpu") or 0) / 100.0) * realtime_h
+        mem_used = t.get("peak_rss") or t.get("rss") or 0
+        acc["req_mem"] += (float(t.get("memory_bytes") or 0) / gib) * realtime_h
+        acc["used_mem"] += (float(mem_used) / gib) * realtime_h
+    return per_run
+
+
 def _machine_breakdown(jsonl_dir: Path) -> dict[str, dict[str, dict[str, float]]]:
     """Per run, per machine type: task_count and occupancy cpu_hours."""
     per_run: dict[str, dict[str, dict[str, float]]] = defaultdict(
@@ -163,6 +192,7 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
     # two reconcile exactly (run compute_hours == displayed sum of that run's bars).
     per_run = _machine_breakdown(jsonl_dir)
     timing = _run_task_timing(jsonl_dir)
+    resource = _run_resource_usage(jsonl_dir)
 
     run_summary: list[dict[str, Any]] = []
     n_ic = 0
@@ -182,6 +212,12 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
         )
         started_at = run.get("start") or ""
 
+        res = resource.get(run_id, {})
+        req_cpu_h = round(res.get("req_cpu", 0.0), 3)
+        used_cpu_h = round(res.get("used_cpu", 0.0), 3)
+        req_mem_h = round(res.get("req_mem", 0.0), 3)
+        used_mem_h = round(res.get("used_mem", 0.0), 3)
+
         run_summary.append({
             "run_id": run_id,
             "run_url": run_url,
@@ -200,6 +236,14 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
             "total_staging_time_ms": round(timing[run_id]["staging_ms"]),
             "memory_used_bytes": mem_bytes,
             "memory_used_gb": round(mem_bytes / 1024**3, 2),
+            # Requested vs actually-used CPU/memory over task realtime (see _run_resource_usage).
+            # Shown in the Performance "Resource usage" table; efficiency = used / requested.
+            "req_vcpu_hours": req_cpu_h,
+            "used_vcpu_hours": used_cpu_h,
+            "cpu_efficiency": round(used_cpu_h / req_cpu_h * 100, 1) if req_cpu_h else None,
+            "req_gib_hours": req_mem_h,
+            "used_gib_hours": used_mem_h,
+            "mem_efficiency": round(used_mem_h / req_mem_h * 100, 1) if req_mem_h else None,
             "run_cost_platform": run.get("run_cost"),
             # Real cost from the AWS CUR export; None when no CUR row matched this run
             # (renders as an em-dash). The Seqera estimate above is never used here.

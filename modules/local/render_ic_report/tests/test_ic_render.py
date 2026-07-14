@@ -51,6 +51,12 @@ def test_ic_report_is_interactive_and_embeds_data(tmp_path):
     # table height scales with rows (grows to content, caps + scrolls only when large)
     assert 'maxHeight' in html
     assert "pagination" not in html
+    # perf metrics moved out of the run-summary table into the Performance "Resource usage" table
+    assert 'id="resource-table"' in html
+    assert "Resource usage" in html
+    assert 'title: "Req vCPU-h"' in html and 'title: "Used vCPU-h"' in html
+    assert 'title: "Compute hours"' not in html   # moved to the resource table
+    assert 'title: "Memory (GB)"' not in html
 
 
 def test_ic_report_renders_machine_chart_section(tmp_path):

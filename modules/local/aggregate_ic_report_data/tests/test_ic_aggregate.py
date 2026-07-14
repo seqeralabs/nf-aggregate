@@ -23,6 +23,36 @@ def test_ic_report_shape_and_detection(tmp_path, make_ic_run, make_batch_run, wr
     assert {r["compute_type"] for r in data["run_summary"]} == {"intelligent_compute", "batch"}
 
 
+def test_resource_usage_requested_vs_used(tmp_path, make_run, write_run_json):
+    # Two tasks, 1h realtime each: request 4 vCPU / 8 GiB; use 2 cores (pcpu 200) / 2 GiB RSS.
+    task = lambda h: {
+        "name": f"t{h}", "process": "P:t", "status": "COMPLETED", "hash": f"aa/{h}",
+        "cpus": 4, "memory": 8 * 1024**3, "realtime": 3_600_000, "pcpu": 200.0,
+        "peakRss": 2 * 1024**3, "machineType": "t3.large",
+        "start": "2026-01-01T00:00:00Z", "complete": "2026-01-01T01:00:00Z",
+    }
+    jsonl_dir = _bundle(tmp_path, [make_run(run_id="r1", tasks=[task("01"), task("02")])], write_run_json)
+    row = build_ic_report_data(jsonl_dir)["run_summary"][0]
+
+    assert row["req_vcpu_hours"] == 8.0       # Σ 4 cpus × 1h × 2 tasks
+    assert row["used_vcpu_hours"] == 4.0      # Σ (200/100) cores × 1h × 2 tasks
+    assert row["cpu_efficiency"] == 50.0
+    assert row["req_gib_hours"] == 16.0       # Σ 8 GiB × 1h × 2 tasks
+    assert row["used_gib_hours"] == 4.0       # Σ 2 GiB × 1h × 2 tasks
+    assert row["mem_efficiency"] == 25.0
+
+
+def test_resource_usage_zero_realtime_yields_null_efficiency(tmp_path, make_run, write_run_json):
+    # No realtime -> nothing to attribute -> zero hours, efficiency null (renders em-dash).
+    task = {"name": "t", "process": "P:t", "status": "COMPLETED", "hash": "aa/01", "cpus": 4,
+            "start": "2026-01-01T00:00:00Z", "complete": "2026-01-01T00:30:00Z", "machineType": "t3.large"}
+    jsonl_dir = _bundle(tmp_path, [make_run(run_id="r1", tasks=[task])], write_run_json)
+    row = build_ic_report_data(jsonl_dir)["run_summary"][0]
+    assert row["req_vcpu_hours"] == 0.0
+    assert row["cpu_efficiency"] is None
+    assert row["mem_efficiency"] is None
+
+
 def test_machine_usage_grouped_by_run(tmp_path, make_ic_run, make_batch_run, write_run_json):
     jsonl_dir = _bundle(tmp_path, [make_ic_run(), make_batch_run()], write_run_json)
     usage = build_ic_report_data(jsonl_dir)["machine_usage"]
