@@ -272,7 +272,10 @@
         <button data-rmeasure="cpu" class="active">CPU (cores)</button>
         <button data-rmeasure="mem">Memory (GB)</button>
       </span>
-      <span class="hint" id="resource-chart-hint" style="display:none">Used bars &amp; row tags coloured by engine · green = Seqera Intelligent Compute, blue = AWS Batch. Batch runs first.</span>
+      <span class="hint" id="resource-chart-hint" style="display:none">
+        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--ic);vertical-align:middle"></span> Seqera Intelligent Compute &nbsp;
+        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--batch);vertical-align:middle"></span> AWS Batch &nbsp;·&nbsp; faded = Requested, solid = Used
+      </span>
       <input id="resource-search" type="search" placeholder="Search runs (id, pipeline, group)…" aria-label="Search resource-usage runs" />
     </div>
     <div id="resource-table"></div>
@@ -516,24 +519,30 @@ const durCol = (title, field, tip) => ({
             return esc(labels[i]) + '<br/><span style="color:' + colorOf(i) + '">● ' + eng + "</span><br/>" +
               ps.map((s) => s.marker + s.seriesName + ": <b>" + Number(s.value || 0).toFixed(2) + m.unit + "</b>").join("<br/>");
           } },
-        // Requested = neutral grey; Used = engine colour (green IC / blue Batch). Engine also
-        // tagged + coloured on each y-axis row so it reads without hovering.
-        legend: { top: 0, icon: "roundRect", data: ["Requested", "Used"] },
-        grid: { left: 8, right: 70, top: 34, bottom: 42, containLabel: true },
+        // Colour = engine (green IC / blue Batch) for BOTH bars of a run; Requested is the same
+        // hue faded, Used is solid. Engine also tagged on each left-aligned y-axis row. A single
+        // HTML legend (below the toolbar) covers engine + the faded/solid convention.
+        legend: { show: false },
+        grid: { left: 8, right: 70, top: 12, bottom: 42, containLabel: true },
         xAxis: { type: "value", name: m.axis, nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 } },
         yAxis: { type: "category", data: labels, inverse: true, axisLabel: {
-          fontSize: 11, margin: 8,
-          formatter: (val, idx) => (isIc[idx] ? "{ic|IC}  " : "{batch|Batch}  ") + val,
+          fontSize: 11, margin: 10,
+          // Fixed-width engine chip + fixed-width run-id column => chips and text line up in a
+          // clean left column (labels are right-aligned in the gutter, but equal width).
+          formatter: (val, idx) => (isIc[idx] ? "{ic|IC}" : "{batch|Batch}") + "{sp|}{id|" + val + "}",
           rich: {
-            ic: { color: "#fff", backgroundColor: IC_COLOR, padding: [2, 5], borderRadius: 3, fontSize: 9, fontWeight: 700, align: "center" },
-            batch: { color: "#fff", backgroundColor: BATCH_COLOR, padding: [2, 5], borderRadius: 3, fontSize: 9, fontWeight: 700, align: "center" },
+            ic: { color: "#fff", backgroundColor: IC_COLOR, borderRadius: 3, fontSize: 9, fontWeight: 700, width: 42, align: "center", padding: [3, 0] },
+            batch: { color: "#fff", backgroundColor: BATCH_COLOR, borderRadius: 3, fontSize: 9, fontWeight: 700, width: 42, align: "center", padding: [3, 0] },
+            sp: { width: 8 },
+            id: { width: 150, align: "left", color: "#3a3a42" },
           },
         } },
         series: [
-          { name: "Requested", type: "bar", data: rows.map((r) => r[m.req]), itemStyle: { color: "#c7ccce", borderRadius: [0, 3, 3, 0] },
+          { name: "Requested", type: "bar", barGap: "20%",
+            data: rows.map((r, i) => ({ value: r[m.req], itemStyle: { color: colorOf(i), opacity: 0.4, borderRadius: [0, 3, 3, 0] } })),
             label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(2), fontSize: 10, color: "#6b6b73" } },
-          { name: "Used", type: "bar", data: rows.map((r, i) => ({ value: r[m.used], itemStyle: { color: colorOf(i), borderRadius: [0, 3, 3, 0] } })),
-            itemStyle: { color: IC_COLOR, borderRadius: [0, 3, 3, 0] },
+          { name: "Used", type: "bar",
+            data: rows.map((r, i) => ({ value: r[m.used], itemStyle: { color: colorOf(i), borderRadius: [0, 3, 3, 0] } })),
             label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(2), fontSize: 10, color: "#6b6b73" } },
         ],
       });
