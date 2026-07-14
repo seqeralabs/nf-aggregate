@@ -249,9 +249,9 @@
     </div>
 
     <div class="subhead">Run summary</div>
-    <p class="section-sub">Every run, grouped by pipeline. Search across id, pipeline, group and status; click a column header to sort or filter.</p>
+    <p class="section-sub">Every run, grouped by pipeline. Search across id, pipeline and group; click a column header to sort or filter.</p>
     <div class="toolbar">
-      <input id="run-search" type="search" placeholder="Search runs (id, pipeline, group, status)…" aria-label="Search runs" />
+      <input id="run-search" type="search" placeholder="Search runs (id, pipeline, group)…" aria-label="Search runs" />
     </div>
     <div id="run-table"></div>
   </section>
@@ -399,7 +399,6 @@ const durCol = (title, field, tip) => ({
       {% if show_group %}{ title: "Group", field: "group", headerFilter: "input" },{% endif %}
       { title: "Compute type", field: "compute_type", headerFilter: "input",
         formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
-      { title: "Status", field: "status", headerFilter: "input" },
       { title: "Started", field: "started_at", headerFilter: "input", sorter: "string",
         formatter: (cell) => { const v = cell.getValue(); return v ? String(v).replace("T", " ").slice(0, 16) : '<span class="muted">&mdash;</span>'; } },
       durCol("Wall time", "wall_time_ms", "Whole-workflow duration: submission → completion (same as the Platform; includes time waiting for machines)."),
@@ -412,7 +411,7 @@ const durCol = (title, field, tip) => ({
     ],
   });
   const searchEl = document.getElementById("run-search");
-  const searchKeys = ["run_id", "run_name", "pipeline", "group", "compute_type", "status", "started_at"];
+  const searchKeys = ["run_id", "run_name", "pipeline", "group", "compute_type", "started_at"];
   searchEl.addEventListener("keyup", (e) => {
     const v = (e.target.value || "").toLowerCase();
     if (!v) { table.clearFilter(true); return; }
@@ -502,8 +501,8 @@ const durCol = (title, field, tip) => ({
       chart.setOption({
         tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(names[p.dataIndex]) + " (" + esc(ids[p.dataIndex]) + ")" + (startedAts[p.dataIndex] ? "<br/>started " + esc(startedAts[p.dataIndex].replace("T", " ").slice(0, 16)) : "") + "<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " cpu-h" },
         legend: { type: "scroll", top: 0 },
-        grid: { left: 110, right: 28, top: 40, bottom: 36 },
-        xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours", max: maxByPipeline[pipeline] },
+        grid: { left: 10, right: 34, top: 40, bottom: 34, containLabel: true },
+        xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours", nameLocation: "middle", nameGap: 26, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, max: maxByPipeline[pipeline] },
         yAxis: { type: "category", data: ids, inverse: true, axisLabel: { formatter: (id) => labelMode === "date" ? (dateById[id] || id) : id } },
         dataZoom: zoom,
         series: series,
@@ -631,11 +630,16 @@ const durCol = (title, field, tip) => ({
             { offset: 1, color: "rgba(8,127,104,0.02)" },
           ]),
         },
-        // Mark the cheapest IC run — the point the "cost goes down" story lands on.
+        // Label the cheapest IC run with its cost. No pin marker — the 4-dp value never fit
+        // inside one; a plain chip above the point stays readable and inside the plot frame.
         markPoint: ic.length > 1 ? {
-          symbol: "pin", symbolSize: 44, data: [{ type: "min", name: "Lowest" }],
-          itemStyle: { color: IC_COLOR },
-          label: { formatter: (d) => fmtCost(d.value), color: "#fff", fontSize: 10, fontWeight: 600 },
+          symbol: "circle", symbolSize: 0, silent: true,
+          data: [{ type: "min" }],
+          label: {
+            formatter: (d) => fmtCost(d.value), position: "top", distance: 8,
+            color: IC_COLOR, fontSize: 11, fontWeight: 700,
+            backgroundColor: "rgba(255,255,255,0.9)", padding: [2, 5], borderRadius: 3,
+          },
         } : undefined,
         z: 3,
       });
@@ -677,7 +681,7 @@ const durCol = (title, field, tip) => ({
         },
       },
       legend: { top: 0, icon: "roundRect", data: series.map((s) => s.name) },
-      grid: { left: 64, right: 44, top: 36, bottom: 34 },
+      grid: { left: 10, right: 54, top: 44, bottom: 6, containLabel: true },
       xAxis: {
         type: "time",
         axisLabel: { formatter: (v) => { const d = new Date(v); return (d.getMonth() + 1) + "/" + d.getDate(); } },
@@ -810,7 +814,7 @@ const durCol = (title, field, tip) => ({
       chart.setOption({
         tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(names[p.dataIndex]) + ": <b>" + fmtCost(p.value) + "</b> mean per run" },
         legend: { top: 0, icon: "roundRect", data: ["Seqera Intelligent Compute", "AWS Batch"] },
-        grid: { left: 8, right: 60, top: 34, bottom: 42, containLabel: true },
+        grid: { left: 8, right: 82, top: 34, bottom: 42, containLabel: true },
         xAxis: { type: "value", name: "Cost per run (USD)", nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, axisLabel: { formatter: costAxisLabel } },
         yAxis: { type: "category", data: names, inverse: true, axisLabel: { fontSize: 11, width: 150, overflow: "truncate" } },
         series: [
@@ -870,8 +874,8 @@ const durCol = (title, field, tip) => ({
         const names = items.map((i) => i.name);
         chart.setOption({
           tooltip: { trigger: "item", formatter: (p) => { const it = items[p.dataIndex]; const pctv = cost ? Math.round(it.cost / cost * 100) : 0; return esc(it.name) + "<br/><b>" + fmtCost(it.cost) + "</b> · " + pctv + "% of run"; } },
-          grid: { left: 8, right: 58, top: 8, bottom: 24, containLabel: true },
-          xAxis: { type: "value", axisLabel: { formatter: costAxisLabel } },
+          grid: { left: 8, right: 76, top: 8, bottom: 24, containLabel: true },
+          xAxis: { type: "value", splitNumber: 3, axisLabel: { formatter: costAxisLabel, hideOverlap: true } },
           yAxis: { type: "category", data: names, inverse: true, axisLabel: { fontSize: 10, width: 120, overflow: "truncate" } },
           series: [{ type: "bar", barMaxWidth: 16, data: items.map((i) => ({ value: i.cost, itemStyle: { color: i.color } })),
             label: { show: true, position: "right", formatter: (p) => fmtCost(items[p.dataIndex].cost), fontSize: 9, color: "#6b6b73" } }],
@@ -902,7 +906,7 @@ const durCol = (title, field, tip) => ({
       chart.setOption({
         tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(labels[p.dataIndex]) + ": <b>" + fmtCost(p.value) + "</b>" },
         legend: { top: 0, icon: "roundRect", data: ["Seqera Intelligent Compute", "AWS Batch"] },
-        grid: { left: 8, right: 62, top: 34, bottom: 42, containLabel: true },
+        grid: { left: 8, right: 82, top: 34, bottom: 42, containLabel: true },
         xAxis: { type: "value", name: "Total cost (USD)", nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, axisLabel: { formatter: costAxisLabel } },
         yAxis: { type: "category", data: labels, inverse: true, axisLabel: { fontSize: 11, width: 150, overflow: "truncate" } },
         series: [
