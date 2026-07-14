@@ -16,7 +16,7 @@ def test_ic_report_shape_and_detection(tmp_path, make_ic_run, make_batch_run, wr
     jsonl_dir = _bundle(tmp_path, [make_ic_run(), make_batch_run()], write_run_json)
     data = build_ic_report_data(jsonl_dir, web_base="https://cloud.example.test")
 
-    assert set(data.keys()) == {"ic_overview", "run_summary", "machine_usage", "process_usage"}
+    assert set(data.keys()) == {"ic_overview", "run_summary", "machine_usage"}
     assert data["ic_overview"] == {
         "n_runs": 2, "n_intelligent_compute": 1, "n_batch": 1, "cost_source": None,
     }
@@ -58,25 +58,6 @@ def test_run_timing_metrics(tmp_path, make_ic_run, write_run_json):
     assert row["total_run_time_ms"] == 4 * 30 * 60 * 1000
     # staging = runtime - realtime, summed & clamped >= 0; never exceeds total run time
     assert 0 <= row["total_staging_time_ms"] <= row["total_run_time_ms"]
-
-
-def test_process_usage_mirrors_machine_totals(tmp_path, make_ic_run, make_batch_run, write_run_json):
-    jsonl_dir = _bundle(tmp_path, [make_ic_run(), make_batch_run()], write_run_json)
-    data = build_ic_report_data(jsonl_dir)
-    proc = data["process_usage"]
-
-    # one entry per run, same order as run_summary / machine_usage
-    assert [u["run_id"] for u in proc] == ["icRUN0000000001", "batchRUN00000001"]
-    ic = proc[0]
-    assert ic["compute_type"] == "intelligent_compute"
-    # IC run has 4 tasks across 4 distinct processes, one task each
-    assert len(ic["processes"]) == 4
-    assert all(p["task_count"] == 1 for p in ic["processes"])
-    # occupancy basis is identical to machine_usage, so the per-run total reconciles
-    machine_total = next(m["total_cpu_hours"] for m in data["machine_usage"] if m["run_id"] == ic["run_id"])
-    assert ic["total_cpu_hours"] == machine_total == 4.0
-    # the sum of the displayed per-process hours equals the displayed run total
-    assert round(sum(p["cpu_hours"] for p in ic["processes"]), 2) == ic["total_cpu_hours"]
 
 
 def test_machine_usage_empty_when_no_tasks(tmp_path, make_ic_run, write_run_json):

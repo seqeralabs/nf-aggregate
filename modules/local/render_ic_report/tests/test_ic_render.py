@@ -117,11 +117,13 @@ def test_ic_report_renders_cost_section_and_sidebar(tmp_path):
     assert 'id="cost"' in html
     assert 'id="cost-facets"' in html
     assert "hero-signature" in html
-    # four switchable cost views: over time / by run / by process / by instance
+    # three switchable cost views: over time / by run / by instance (per-process removed —
+    # a cpu-hour allocation, not a faithful CUR attribution)
     assert 'id="cost-view-toggle"' in html
-    assert 'data-view="run"' in html and 'data-view="process"' in html and 'data-view="instance"' in html
+    assert 'data-view="run"' in html and 'data-view="instance"' in html
+    assert 'data-view="process"' not in html
     assert 'id="cost-run-facets"' in html
-    assert 'id="cost-process-facets"' in html
+    assert 'id="cost-process-facets"' not in html
     assert 'id="cost-instance-facets"' in html
     # overview: pipeline-name pills + cost-split-by-engine mount points (filled client-side)
     assert 'id="pipeline-pills"' in html

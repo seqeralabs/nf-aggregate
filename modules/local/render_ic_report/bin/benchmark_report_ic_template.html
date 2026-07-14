@@ -281,20 +281,18 @@
 
   <section id="cost" aria-labelledby="cost-title">
     <h2 class="section-title" id="cost-title">Cost</h2>
-    <p class="section-sub">Real per-run cost from the AWS CUR export, explored four ways — over time, by run, by process, and by instance type — so you can see not just what a pipeline costs but where the cost goes.</p>
+    <p class="section-sub">Real per-run cost from the AWS CUR export, explored three ways — over time, by run, and by instance type — so you can see not just what a pipeline costs but where the cost goes.</p>
     <div class="toolbar">
       <span class="ctl-label">View:</span>
       <span class="btn-group" id="cost-view-toggle">
         <button data-view="time" class="active">Over time</button>
         <button data-view="run">By run</button>
-        <button data-view="process">By process</button>
         <button data-view="instance">By instance</button>
       </span>
       <span class="hint" id="cost-view-hint">Total cost per run over time · Seqera Intelligent Compute vs the AWS Batch baseline</span>
     </div>
     <div id="cost-facets"></div>
     <div id="cost-run-facets" hidden></div>
-    <div id="cost-process-facets" hidden></div>
     <div id="cost-instance-facets" hidden></div>
   </section>
 
@@ -714,7 +712,7 @@ const durCol = (title, field, tip) => ({
   window.addEventListener("resize", () => charts.forEach((c) => c.resize()));
 })();
 
-// ---- Cost breakdown: "By process" + "By instance" views, allocated by CPU-hour share ----
+// ---- Cost breakdown: "By instance" view, allocated by CPU-hour share ----
 (function () {
   const withCost = (DATA.run_summary || []).filter((r) => r.cost != null);
   const costById = {};
@@ -722,22 +720,20 @@ const durCol = (title, field, tip) => ({
 
   const cTime = document.getElementById("cost-facets");
   const cRun = document.getElementById("cost-run-facets");
-  const cProc = document.getElementById("cost-process-facets");
   const cInst = document.getElementById("cost-instance-facets");
   const hint = document.getElementById("cost-view-hint");
   const toggle = document.getElementById("cost-view-toggle");
   const HINTS = {
     time: "Total cost per run over time · Seqera Intelligent Compute vs the AWS Batch baseline",
     run: "Total cost of every run, one bar each, coloured by engine — the simplest side-by-side comparison. AWS Batch runs first, then Seqera Intelligent Compute oldest to newest.",
-    process: "Mean cost per run, per process — bars are each engine's average (CUR total split by CPU-hour share), dots are individual runs. Fair when run counts differ; toggle an engine in the legend.",
     instance: "One panel per run — how that run's real CUR cost split across the instance types it actually used (by CPU-hour share). Instance mix differs run to run, so each run stands alone.",
   };
 
   // No cost anywhere -> the over-time module already shows the empty state; hide the toggle.
   if (!withCost.length) { if (toggle) toggle.closest(".toolbar").style.display = "none"; return; }
 
-  const charts = { run: [], process: [], instance: [] };
-  const rendered = { run: false, process: false, instance: false };
+  const charts = { run: [], instance: [] };
+  const rendered = { run: false, instance: false };
 
   const facetCard = (pipeline, n) => {
     const grp = document.createElement("div");
@@ -752,7 +748,7 @@ const durCol = (title, field, tip) => ({
   // engine is isolated via the legend) don't collide to the same label.
   const costAxisLabel = (v) => "$" + (v >= 1 ? v.toFixed(0) : v >= 0.1 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(3) : v.toFixed(4));
 
-  // Group a usage list (machine_usage / process_usage) by pipeline, keeping only runs
+  // Group a usage list (machine_usage) by pipeline, keeping only runs
   // that actually have a CUR cost to allocate.
   function pipelineGroups(usageList) {
     const order = [], by = {};
@@ -763,70 +759,6 @@ const durCol = (title, field, tip) => ({
       by[p].push(u);
     });
     return order.map((p) => ({ pipeline: p, runs: by[p] }));
-  }
-
-  // "By process": grouped bars = each engine's MEAN per-run cost (fair when run counts
-  // differ), with faint dots for the individual runs behind each bar. Each dot scatter
-  // series shares its bar's series NAME, so a legend click toggles the bar AND its dots
-  // together (ECharts groups legend actions by series name).
-  function renderProcess() {
-    const groups = pipelineGroups(DATA.process_usage);
-    if (!groups.length) { cProc.innerHTML = '<div class="empty">No cost data to break down by process.</div>'; return; }
-    const CAP = 12;
-    const meanOf = (a) => a.reduce((s, x) => s + x, 0) / a.length;
-    groups.forEach((g) => {
-      // process -> per-run allocated costs, split by engine
-      const byKey = {};
-      g.runs.forEach((u) => {
-        const cost = costById[u.run_id];
-        const rows = u.processes || [];
-        const tot = rows.reduce((s, r) => s + (r.cpu_hours || 0), 0);
-        if (!tot) return;
-        const eng = u.compute_type === "intelligent_compute" ? "ic" : "batch";
-        rows.forEach((r) => {
-          const e = byKey[r.process] || (byKey[r.process] = { ic: [], batch: [] });
-          e[eng].push(cost * (r.cpu_hours || 0) / tot);
-        });
-      });
-      // rank by the higher engine mean so the biggest per-run cost drivers sit on top
-      let keys = Object.keys(byKey).map((k) => {
-        const e = byKey[k];
-        return { key: k, e, mIc: e.ic.length ? meanOf(e.ic) : null, mB: e.batch.length ? meanOf(e.batch) : null,
-          rank: Math.max(e.ic.length ? meanOf(e.ic) : 0, e.batch.length ? meanOf(e.batch) : 0) };
-      }).sort((a, b) => b.rank - a.rank);
-      let note = "";
-      if (keys.length > CAP) { note = " · top " + CAP + " of " + keys.length; keys = keys.slice(0, CAP); }
-
-      const grp = facetCard(g.pipeline, g.runs.length);
-      if (note) grp.querySelector("h3 .count").textContent += note;
-      const H = Math.max(170, 66 + keys.length * 40);
-      const el = chartEl(H);
-      grp.appendChild(el); cProc.appendChild(grp);
-      const chart = echarts.init(el, "seqera");
-
-      const names = keys.map((k) => k.key);
-      // approx px per category band -> vertical offset so dots sit on their grouped bar lane
-      const off = Math.max(6, Math.round((H - 34 - 42) / keys.length * 0.2));
-      const icDots = [], bDots = [];
-      keys.forEach((k, i) => { k.e.ic.forEach((c) => icDots.push([c, i])); k.e.batch.forEach((c) => bDots.push([c, i])); });
-      const barLabel = { show: true, position: "right", formatter: (p) => (p.value ? fmtCost(p.value) : ""), fontSize: 10, color: "#6b6b73" };
-
-      chart.setOption({
-        tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(names[p.dataIndex]) + ": <b>" + fmtCost(p.value) + "</b> mean per run" },
-        legend: { top: 0, icon: "roundRect", data: ["Seqera Intelligent Compute", "AWS Batch"] },
-        grid: { left: 8, right: 82, top: 34, bottom: 42, containLabel: true },
-        xAxis: { type: "value", name: "Cost per run (USD)", nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, axisLabel: { formatter: costAxisLabel } },
-        yAxis: { type: "category", data: names, inverse: true, axisLabel: { fontSize: 11, width: 150, overflow: "truncate" } },
-        series: [
-          { name: "Seqera Intelligent Compute", type: "bar", data: keys.map((k) => k.mIc), itemStyle: { color: IC_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
-          { name: "AWS Batch", type: "bar", data: keys.map((k) => k.mB), itemStyle: { color: BATCH_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
-          // dots carry the SAME name as their bar -> one legend toggle hides bar + dots
-          { name: "Seqera Intelligent Compute", type: "scatter", data: icDots, symbolSize: 6, symbolOffset: [0, -off], z: 3, itemStyle: { color: IC_COLOR, opacity: 0.55, borderColor: "#fff", borderWidth: 1 }, tooltip: { show: false } },
-          { name: "AWS Batch", type: "scatter", data: bDots, symbolSize: 6, symbolOffset: [0, off], z: 3, itemStyle: { color: BATCH_COLOR, opacity: 0.55, borderColor: "#fff", borderWidth: 1 }, tooltip: { show: false } },
-        ],
-      });
-      charts.process.push(chart);
-    });
   }
 
   // Instance mix differs run to run, so pooling instance costs across runs is misleading.
@@ -921,11 +853,9 @@ const durCol = (title, field, tip) => ({
   function show(view) {
     cTime.hidden = view !== "time";
     cRun.hidden = view !== "run";
-    cProc.hidden = view !== "process";
     cInst.hidden = view !== "instance";
     hint.textContent = HINTS[view];
     if (view === "run" && !rendered.run) { renderRun(); rendered.run = true; }
-    if (view === "process" && !rendered.process) { renderProcess(); rendered.process = true; }
     if (view === "instance" && !rendered.instance) { renderInstance(); rendered.instance = true; }
     // ECharts needs a visible container to size; resize the ones we just revealed.
     (charts[view] || []).forEach((c) => c.resize());
@@ -938,7 +868,7 @@ const durCol = (title, field, tip) => ({
       show(btn.getAttribute("data-view"));
     });
   });
-  window.addEventListener("resize", () => { charts.run.forEach((c) => c.resize()); charts.process.forEach((c) => c.resize()); charts.instance.forEach((c) => c.resize()); });
+  window.addEventListener("resize", () => { charts.run.forEach((c) => c.resize()); charts.instance.forEach((c) => c.resize()); });
 })();
 
 // ---- Sidebar scrollspy: highlight the section the reader is currently in ----

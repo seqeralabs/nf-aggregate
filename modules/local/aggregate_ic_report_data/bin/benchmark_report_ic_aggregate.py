@@ -61,23 +61,6 @@ def _machine_breakdown(jsonl_dir: Path) -> dict[str, dict[str, dict[str, float]]
     return per_run
 
 
-def _process_breakdown(jsonl_dir: Path) -> dict[str, dict[str, dict[str, float]]]:
-    """Per run, per process: task_count and occupancy cpu_hours (same basis as machines).
-
-    Keyed by ``process_short`` (falls back to ``process``) for compact chart labels.
-    """
-    per_run: dict[str, dict[str, dict[str, float]]] = defaultdict(
-        lambda: defaultdict(lambda: {"task_count": 0, "cpu_hours": 0.0})
-    )
-    for task in _iter_jsonl(Path(jsonl_dir) / "tasks.jsonl"):
-        run_id = str(task.get("run_id", ""))
-        process = task.get("process_short") or task.get("process") or "unknown"
-        acc = per_run[run_id][process]
-        acc["task_count"] += 1
-        acc["cpu_hours"] += _task_occupancy_hours(task)
-    return per_run
-
-
 def _build_machine_usage(
     per_run: dict[str, dict[str, dict[str, float]]], run_order: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -120,41 +103,6 @@ def _build_machine_usage(
             "total_tasks": total_tasks,
             "total_cpu_hours": total_cpu_hours,
             "machines": machines,
-        })
-    return usage
-
-
-def _build_process_usage(
-    per_run: dict[str, dict[str, dict[str, float]]], run_order: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
-    """Per-run process occupancy cpu-hours (mirrors machine_usage, keyed by process).
-
-    The report allocates each run's real CUR cost across these processes by cpu-hour
-    share. AWS bills Intelligent Compute as whole EC2 instances, so CUR does not itemise
-    cost per process for IC runs — this occupancy split is the shared allocation basis
-    that lets the per-process cost view cover both engines consistently.
-    """
-    usage: list[dict[str, Any]] = []
-    for run in run_order:
-        procs_raw = per_run.get(run["run_id"], {})
-        total_tasks = sum(int(m["task_count"]) for m in procs_raw.values())
-        processes = [
-            {
-                "process": p,
-                "task_count": int(m["task_count"]),
-                "cpu_hours": round(m["cpu_hours"], 2),
-            }
-            for p, m in sorted(procs_raw.items(), key=lambda kv: (-kv[1]["cpu_hours"], kv[0]))
-        ]
-        total_cpu_hours = round(sum(m["cpu_hours"] for m in processes), 2)
-        usage.append({
-            "run_id": run["run_id"],
-            "pipeline": run.get("pipeline", ""),
-            "compute_type": run["compute_type"],
-            "started_at": run.get("started_at", ""),
-            "total_tasks": total_tasks,
-            "total_cpu_hours": total_cpu_hours,
-            "processes": processes,
         })
     return usage
 
@@ -214,7 +162,6 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
     # run-level "compute hours" is then taken from each run's machine total, so the
     # two reconcile exactly (run compute_hours == displayed sum of that run's bars).
     per_run = _machine_breakdown(jsonl_dir)
-    per_run_proc = _process_breakdown(jsonl_dir)
     timing = _run_task_timing(jsonl_dir)
 
     run_summary: list[dict[str, Any]] = []
@@ -279,7 +226,6 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
     ]
 
     machine_usage = _build_machine_usage(per_run, run_order)
-    process_usage = _build_process_usage(per_run_proc, run_order)
     run_totals = {u["run_id"]: u["total_cpu_hours"] for u in machine_usage}
     for row in run_summary:
         row["compute_hours"] = run_totals.get(row["run_id"], 0.0)
@@ -294,7 +240,6 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
         },
         "run_summary": run_summary,
         "machine_usage": machine_usage,
-        "process_usage": process_usage,
     }
 
 
