@@ -51,12 +51,16 @@ def test_ic_report_is_interactive_and_embeds_data(tmp_path):
     # table height scales with rows (grows to content, caps + scrolls only when large)
     assert 'maxHeight' in html
     assert "pagination" not in html
-    # perf metrics moved out of the run-summary table into the Performance "Resource usage" table
+    # perf metrics moved out of the run-summary table into the Performance "Resource usage" view
     assert 'id="resource-table"' in html
     assert "Resource usage" in html
-    assert 'title: "Req vCPU-h"' in html and 'title: "Used vCPU-h"' in html
-    assert 'title: "Compute hours"' not in html   # moved to the resource table
+    assert 'title: "CPU req (cores)"' in html and 'title: "CPU used (cores)"' in html
+    assert 'title: "Compute hours"' not in html   # moved to the resource view
     assert 'title: "Memory (GB)"' not in html
+    # table <-> chart toggle; no efficiency columns/series (only the prose that explains its absence)
+    assert 'id="resource-view-toggle"' in html and 'id="resource-chart"' in html
+    assert 'data-rview="chart"' in html
+    assert "eff." not in html and "_efficiency" not in html
 
 
 def test_ic_report_renders_machine_chart_section(tmp_path):

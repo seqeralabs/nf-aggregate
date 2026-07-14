@@ -260,11 +260,22 @@
     <h2 class="section-title" id="perf-title">Performance</h2>
 
     <div class="subhead">Resource usage</div>
-    <p class="section-sub">Requested vs actually-used CPU and memory per run, over each task's execution time (vCPU-hours and GiB-hours). Efficiency = used ÷ requested — low values mean the run reserved more than it needed. Same basis for both engines; the scheduler's own per-task allocated size is not exposed on the Platform payload, so it isn't shown.</p>
+    <p class="section-sub">Requested vs actually-used CPU and memory per run — time-weighted average across the run's tasks, in cores and GB. Used CPU is the measured utilisation (e.g. 1.2 cores), not a percentage. Efficiency isn't shown: a faithful used-vs-allocated ratio needs the scheduler's allocated size, which the Platform payload doesn't carry (only requested + provisioned).</p>
     <div class="toolbar">
+      <span class="ctl-label">View:</span>
+      <span class="btn-group" id="resource-view-toggle">
+        <button data-rview="table" class="active">Table</button>
+        <button data-rview="chart">Chart</button>
+      </span>
+      <span class="ctl-label" id="resource-measure-label" style="margin-left:8px;display:none">Measure:</span>
+      <span class="btn-group" id="resource-measure-toggle" style="display:none">
+        <button data-rmeasure="cpu" class="active">CPU (cores)</button>
+        <button data-rmeasure="mem">Memory (GB)</button>
+      </span>
       <input id="resource-search" type="search" placeholder="Search runs (id, pipeline, group)…" aria-label="Search resource-usage runs" />
     </div>
     <div id="resource-table"></div>
+    <div id="resource-chart" hidden></div>
 
     <div class="subhead" style="margin-top:28px">Machine-type distribution</div>
     <p class="section-sub">Machine-type distribution per run, grouped by pipeline and faceted by scheduling engine. Scale is shared within each pipeline so AWS Batch and Seqera Intelligent Compute are directly comparable.</p>
@@ -424,11 +435,14 @@ const durCol = (title, field, tip) => ({
   });
 })();
 
-// ---- Resource usage table: requested vs actually-used CPU & memory per run ----
+// ---- Resource usage: requested vs actually-used CPU (cores) & memory (GB) per run ----
+// Two views over the same numbers: a Tabulator table and, per pipeline, a grouped bar chart
+// (Requested vs Used) with a CPU/Memory measure toggle. No efficiency (needs allocated size).
 (function () {
   const runs = DATA.run_summary || [];
   const num = (dp) => (cell) => { const v = cell.getValue(); return v == null ? '<span class="muted">&mdash;</span>' : Number(v).toFixed(dp); };
-  const pct = (cell) => { const v = cell.getValue(); return v == null ? '<span class="muted">&mdash;</span>' : Number(v).toFixed(1) + "%"; };
+
+  // ---- Table ----
   const table = new Tabulator("#resource-table", {
     data: runs,
     layout: "fitColumns",
@@ -442,12 +456,10 @@ const durCol = (title, field, tip) => ({
         formatter: (cell) => { const r = cell.getRow().getData(); return r.run_url ? '<a href="' + esc(r.run_url) + '" target="_blank" rel="noopener">' + esc(r.run_id) + '</a>' : esc(r.run_id); } },
       { title: "Compute type", field: "compute_type", headerFilter: "input", minWidth: 150, widthGrow: 2,
         formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
-      { title: "Req vCPU-h", field: "req_vcpu_hours", hozAlign: "right", sorter: "number", headerTooltip: "Requested CPU = Σ cpus × realtime across tasks.", formatter: num(2) },
-      { title: "Used vCPU-h", field: "used_vcpu_hours", hozAlign: "right", sorter: "number", headerTooltip: "Actually-used CPU = Σ (%cpu/100) × realtime across tasks.", formatter: num(2) },
-      { title: "CPU eff.", field: "cpu_efficiency", hozAlign: "right", sorter: "number", headerTooltip: "Used ÷ requested CPU.", formatter: pct },
-      { title: "Req GiB-h", field: "req_gib_hours", hozAlign: "right", sorter: "number", headerTooltip: "Requested memory = Σ memory × realtime across tasks.", formatter: num(2) },
-      { title: "Used GiB-h", field: "used_gib_hours", hozAlign: "right", sorter: "number", headerTooltip: "Actually-used memory = Σ peak RSS × realtime across tasks.", formatter: num(2) },
-      { title: "Mem eff.", field: "mem_efficiency", hozAlign: "right", sorter: "number", headerTooltip: "Used ÷ requested memory.", formatter: pct },
+      { title: "CPU req (cores)", field: "req_cpu_cores", hozAlign: "right", sorter: "number", headerTooltip: "Requested CPU (cores), time-weighted average of task cpus across the run.", formatter: num(2) },
+      { title: "CPU used (cores)", field: "used_cpu_cores", hozAlign: "right", sorter: "number", headerTooltip: "Actually-used CPU (cores) = %cpu/100, time-weighted average across the run.", formatter: num(2) },
+      { title: "Mem req (GB)", field: "req_mem_gb", hozAlign: "right", sorter: "number", headerTooltip: "Requested memory (GB), time-weighted average across the run.", formatter: num(2) },
+      { title: "Mem used (GB)", field: "used_mem_gb", hozAlign: "right", sorter: "number", headerTooltip: "Actually-used memory (GB) = peak RSS, time-weighted average across the run.", formatter: num(2) },
     ],
   });
   const searchEl = document.getElementById("resource-search");
@@ -457,6 +469,90 @@ const durCol = (title, field, tip) => ({
     if (!v) { table.clearFilter(true); return; }
     table.setFilter((row) => keys.some((k) => String(row[k] == null ? "" : row[k]).toLowerCase().includes(v)));
   });
+
+  // ---- Chart (one grouped-bar panel per pipeline; Requested vs Used; CPU or Memory) ----
+  const chartHost = document.getElementById("resource-chart");
+  const MEASURES = {
+    cpu: { req: "req_cpu_cores", used: "used_cpu_cores", axis: "Cores", unit: " cores" },
+    mem: { req: "req_mem_gb", used: "used_mem_gb", axis: "GB", unit: " GB" },
+  };
+  let measure = "cpu";
+  const panels = [];   // { chart, rows }
+  let built = false;
+
+  function buildPanels() {
+    const order = [], byPipe = {};
+    runs.forEach((r) => { const p = r.pipeline || "—"; if (!(p in byPipe)) { byPipe[p] = []; order.push(p); } byPipe[p].push(r); });
+    order.forEach((p) => {
+      const rows = byPipe[p].slice().sort((a, b) => (a.started_at || "").localeCompare(b.started_at || ""));
+      const grp = document.createElement("div");
+      grp.className = "pipeline-group";
+      const h = document.createElement("h3");
+      h.innerHTML = esc(p) + ' <span class="count">' + rows.length + " run" + (rows.length > 1 ? "s" : "") + "</span>";
+      grp.appendChild(h);
+      const el = document.createElement("div");
+      el.className = "cost-chart";
+      el.style.height = Math.max(150, 54 + rows.length * 40) + "px";
+      grp.appendChild(el); chartHost.appendChild(grp);
+      panels.push({ chart: echarts.init(el, "seqera"), rows });
+    });
+    built = true;
+  }
+
+  function renderPanels() {
+    const m = MEASURES[measure];
+    panels.forEach(({ chart, rows }) => {
+      const labels = rows.map((r) => (r.date_short || "") + " · " + r.run_id);
+      chart.setOption({
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" },
+          formatter: (ps) => esc(labels[ps[0].dataIndex]) + "<br/>" + ps.map((s) => s.marker + s.seriesName + ": <b>" + Number(s.value || 0).toFixed(2) + m.unit + "</b>").join("<br/>") },
+        legend: { top: 0, icon: "roundRect", data: ["Requested", "Used"] },
+        grid: { left: 8, right: 70, top: 34, bottom: 42, containLabel: true },
+        xAxis: { type: "value", name: m.axis, nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 } },
+        yAxis: { type: "category", data: labels, inverse: true, axisLabel: { fontSize: 11, width: 150, overflow: "truncate" } },
+        series: [
+          { name: "Requested", type: "bar", data: rows.map((r) => r[m.req]), itemStyle: { color: "#c7ccce", borderRadius: [0, 3, 3, 0] },
+            label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(2), fontSize: 10, color: "#6b6b73" } },
+          { name: "Used", type: "bar", data: rows.map((r) => r[m.used]),
+            itemStyle: { color: IC_COLOR, borderRadius: [0, 3, 3, 0] },
+            label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(2), fontSize: 10, color: "#6b6b73" } },
+        ],
+      });
+    });
+  }
+
+  function setView(view) {
+    const chartMode = view === "chart";
+    document.getElementById("resource-table").hidden = chartMode;
+    chartHost.hidden = !chartMode;
+    document.getElementById("resource-measure-toggle").style.display = chartMode ? "" : "none";
+    document.getElementById("resource-measure-label").style.display = chartMode ? "" : "none";
+    if (searchEl) searchEl.style.display = chartMode ? "none" : "";
+    if (chartMode) {
+      if (!built) buildPanels();
+      renderPanels();
+      panels.forEach((p) => p.chart.resize());
+    }
+  }
+
+  const viewToggle = document.getElementById("resource-view-toggle");
+  if (viewToggle) viewToggle.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      viewToggle.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      setView(btn.getAttribute("data-rview"));
+    });
+  });
+  const measureToggle = document.getElementById("resource-measure-toggle");
+  if (measureToggle) measureToggle.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      measureToggle.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      measure = btn.getAttribute("data-rmeasure");
+      renderPanels();
+    });
+  });
+  window.addEventListener("resize", () => panels.forEach((p) => p.chart.resize()));
 })();
 
 // ---- Machine-type distribution (ECharts, grouped by pipeline, faceted by scheduling engine) ----
