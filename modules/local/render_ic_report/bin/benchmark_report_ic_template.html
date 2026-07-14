@@ -267,14 +267,24 @@
         <button data-rview="table" class="active">Table</button>
         <button data-rview="chart">Chart</button>
       </span>
-      <span class="ctl-label" id="resource-measure-label" style="margin-left:8px;display:none">Measure:</span>
-      <span class="btn-group" id="resource-measure-toggle" style="display:none">
+      <span class="ctl-label rchart-ctl" style="margin-left:8px;display:none">Measure:</span>
+      <span class="btn-group rchart-ctl" id="resource-measure-toggle" style="display:none">
         <button data-rmeasure="cpu" class="active">CPU (cores)</button>
         <button data-rmeasure="mem">Memory (GB)</button>
       </span>
-      <span class="hint" id="resource-chart-hint" style="display:none">
+      <span class="ctl-label rchart-ctl" style="margin-left:8px;display:none">Value:</span>
+      <span class="btn-group rchart-ctl" id="resource-value-toggle" style="display:none">
+        <button data-rvalue="req" class="active">Requested</button>
+        <button data-rvalue="used">Used</button>
+      </span>
+      <span class="ctl-label rchart-ctl" style="margin-left:8px;display:none">Label:</span>
+      <span class="btn-group rchart-ctl" id="resource-label-toggle" style="display:none">
+        <button data-rlabel="date" class="active">Start date</button>
+        <button data-rlabel="id">Workflow ID</button>
+      </span>
+      <span class="hint rchart-ctl" id="resource-chart-hint" style="display:none">
         <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--ic);vertical-align:middle"></span> Seqera Intelligent Compute &nbsp;
-        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--batch);vertical-align:middle"></span> AWS Batch &nbsp;·&nbsp; faded = Requested, solid = Used
+        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--batch);vertical-align:middle"></span> AWS Batch
       </span>
       <input id="resource-search" type="search" placeholder="Search runs (id, pipeline, group)…" aria-label="Search resource-usage runs" />
     </div>
@@ -474,13 +484,15 @@ const durCol = (title, field, tip) => ({
     table.setFilter((row) => keys.some((k) => String(row[k] == null ? "" : row[k]).toLowerCase().includes(v)));
   });
 
-  // ---- Chart (one grouped-bar panel per pipeline; Requested vs Used; CPU or Memory) ----
+  // ---- Chart (one bar per run per pipeline; engine-coloured; Requested OR Used; CPU or Memory) ----
   const chartHost = document.getElementById("resource-chart");
   const MEASURES = {
     cpu: { req: "req_cpu_cores", used: "used_cpu_cores", axis: "Cores", unit: " cores" },
     mem: { req: "req_mem_gb", used: "used_mem_gb", axis: "GB", unit: " GB" },
   };
-  let measure = "cpu";
+  let measure = "cpu";    // cpu | mem
+  let value = "req";      // req | used  (one bar shown at a time — no faded/solid pairs)
+  let labelMode = "date"; // date | id   (one y-axis identifier — keeps the left side light)
   const panels = [];   // { chart, rows }
   let built = false;
 
@@ -498,7 +510,7 @@ const durCol = (title, field, tip) => ({
       grp.appendChild(h);
       const el = document.createElement("div");
       el.className = "cost-chart";
-      el.style.height = Math.max(150, 54 + rows.length * 40) + "px";
+      el.style.height = Math.max(140, 50 + rows.length * 34) + "px";
       grp.appendChild(el); chartHost.appendChild(grp);
       panels.push({ chart: echarts.init(el, "seqera"), rows });
     });
@@ -507,42 +519,40 @@ const durCol = (title, field, tip) => ({
 
   function renderPanels() {
     const m = MEASURES[measure];
+    const field = m[value];   // req_* or used_* column for the current CPU/Memory measure
+    const axisName = (value === "req" ? "Requested" : "Used") + " (" + m.axis + ")";
     panels.forEach(({ chart, rows }) => {
       const isIc = rows.map((r) => r.compute_type === "intelligent_compute");
-      const labels = rows.map((r) => (r.date_short || "") + " · " + r.run_id);
       const colorOf = (i) => (isIc[i] ? IC_COLOR : BATCH_COLOR);
+      // One identifier on the y-axis (date OR workflow id) + a small engine chip — no clutter.
+      const ident = rows.map((r) => (labelMode === "date" ? (r.date_short || r.run_id) : r.run_id));
       chart.setOption({
-        tooltip: { trigger: "axis", axisPointer: { type: "shadow" },
-          formatter: (ps) => {
-            const i = ps[0].dataIndex;
+        tooltip: { trigger: "item", axisPointer: { type: "shadow" },
+          formatter: (p) => {
+            const i = p.dataIndex;
             const eng = isIc[i] ? "Seqera Intelligent Compute" : "AWS Batch";
-            return esc(labels[i]) + '<br/><span style="color:' + colorOf(i) + '">● ' + eng + "</span><br/>" +
-              ps.map((s) => s.marker + s.seriesName + ": <b>" + Number(s.value || 0).toFixed(2) + m.unit + "</b>").join("<br/>");
+            return esc(rows[i].run_id) + '<br/><span style="color:' + colorOf(i) + '">● ' + eng + "</span><br/>" +
+              (value === "req" ? "Requested" : "Used") + ": <b>" + Number(p.value || 0).toFixed(2) + m.unit + "</b>";
           } },
-        // Colour = engine (green IC / blue Batch) for BOTH bars of a run; Requested is the same
-        // hue faded, Used is solid. Engine also tagged on each left-aligned y-axis row. A single
-        // HTML legend (below the toolbar) covers engine + the faded/solid convention.
+        // Bars coloured by engine only (green IC / blue Batch). One value at a time via the
+        // Value toggle — no faded/solid pairs. Engine also tagged on each y-axis row.
         legend: { show: false },
-        grid: { left: 8, right: 70, top: 12, bottom: 42, containLabel: true },
-        xAxis: { type: "value", name: m.axis, nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 } },
-        yAxis: { type: "category", data: labels, inverse: true, axisLabel: {
+        // Fixed left gutter (not containLabel) so the fixed-width rich label never clips.
+        grid: { left: 182, right: 56, top: 12, bottom: 46, containLabel: false },
+        xAxis: { type: "value", name: axisName, nameLocation: "middle", nameGap: 28, nameTextStyle: { color: "#6b6b73", fontSize: 11 } },
+        yAxis: { type: "category", data: ident, inverse: true, axisLabel: {
           fontSize: 11, margin: 10,
-          // Fixed-width engine chip + fixed-width run-id column => chips and text line up in a
-          // clean left column (labels are right-aligned in the gutter, but equal width).
           formatter: (val, idx) => (isIc[idx] ? "{ic|IC}" : "{batch|Batch}") + "{sp|}{id|" + val + "}",
           rich: {
             ic: { color: "#fff", backgroundColor: IC_COLOR, borderRadius: 3, fontSize: 9, fontWeight: 700, width: 42, align: "center", padding: [3, 0] },
             batch: { color: "#fff", backgroundColor: BATCH_COLOR, borderRadius: 3, fontSize: 9, fontWeight: 700, width: 42, align: "center", padding: [3, 0] },
             sp: { width: 8 },
-            id: { width: 150, align: "left", color: "#3a3a42" },
+            id: { width: 116, align: "left", color: "#3a3a42" },
           },
         } },
         series: [
-          { name: "Requested", type: "bar", barGap: "20%",
-            data: rows.map((r, i) => ({ value: r[m.req], itemStyle: { color: colorOf(i), opacity: 0.4, borderRadius: [0, 3, 3, 0] } })),
-            label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(2), fontSize: 10, color: "#6b6b73" } },
-          { name: "Used", type: "bar",
-            data: rows.map((r, i) => ({ value: r[m.used], itemStyle: { color: colorOf(i), borderRadius: [0, 3, 3, 0] } })),
+          { type: "bar", barMaxWidth: 22,
+            data: rows.map((r, i) => ({ value: r[field], itemStyle: { color: colorOf(i), borderRadius: [0, 3, 3, 0] } })),
             label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(2), fontSize: 10, color: "#6b6b73" } },
         ],
       });
@@ -553,9 +563,7 @@ const durCol = (title, field, tip) => ({
     const chartMode = view === "chart";
     document.getElementById("resource-table").hidden = chartMode;
     chartHost.hidden = !chartMode;
-    document.getElementById("resource-measure-toggle").style.display = chartMode ? "" : "none";
-    document.getElementById("resource-measure-label").style.display = chartMode ? "" : "none";
-    document.getElementById("resource-chart-hint").style.display = chartMode ? "" : "none";
+    document.querySelectorAll(".rchart-ctl").forEach((el) => { el.style.display = chartMode ? "" : "none"; });
     if (searchEl) searchEl.style.display = chartMode ? "none" : "";
     if (chartMode) {
       if (!built) buildPanels();
@@ -572,15 +580,20 @@ const durCol = (title, field, tip) => ({
       setView(btn.getAttribute("data-rview"));
     });
   });
-  const measureToggle = document.getElementById("resource-measure-toggle");
-  if (measureToggle) measureToggle.querySelectorAll("button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      measureToggle.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+  // Chart toggles: measure (CPU/Mem), value (Requested/Used), label (Start date/Workflow ID).
+  function wireToggle(id, apply) {
+    const grp = document.getElementById(id);
+    if (!grp) return;
+    grp.querySelectorAll("button").forEach((btn) => btn.addEventListener("click", () => {
+      grp.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
-      measure = btn.getAttribute("data-rmeasure");
+      apply(btn);
       renderPanels();
-    });
-  });
+    }));
+  }
+  wireToggle("resource-measure-toggle", (btn) => { measure = btn.getAttribute("data-rmeasure"); });
+  wireToggle("resource-value-toggle", (btn) => { value = btn.getAttribute("data-rvalue"); });
+  wireToggle("resource-label-toggle", (btn) => { labelMode = btn.getAttribute("data-rlabel"); });
   window.addEventListener("resize", () => panels.forEach((p) => p.chart.resize()));
 })();
 
