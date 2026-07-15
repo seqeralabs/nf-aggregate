@@ -263,10 +263,11 @@ def _tag_extract_expr(resource_tags_type: str, alias: str) -> str | None:
     escaped = alias.replace("'", "''")
     normalized = resource_tags_type.upper().strip()
     if normalized.startswith("MAP"):
-        # DuckDB MAP indexing returns a LIST of values for a key ([] when absent),
-        # so take the first element to get the scalar tag value rather than a
-        # bracketed "[value]" that would never join to a run id downstream.
-        return f"resource_tags['{escaped}'][1]"
+        # element_at(map, key) returns a LIST of matching values on EVERY DuckDB
+        # version; take [1] for the scalar. `map['key']` is NOT portable: it
+        # returns a list on DuckDB <=1.1 (so [1] picks the element) but a scalar
+        # on >=1.2 (so [1] picks the first CHARACTER), silently corrupting ids.
+        return f"element_at(resource_tags, '{escaped}')[1]"
     if "STRUCT" in normalized and normalized.endswith("[]"):
         return f"list_filter(resource_tags, x -> x.key = '{escaped}')[1].value"
     if normalized.endswith("[][]"):
