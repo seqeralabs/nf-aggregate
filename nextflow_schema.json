@@ -76,9 +76,7 @@
                 "benchmark_aws_cur_label_map": {
                     "type": "string",
                     "fa_icon": "fas fa-tags",
-                    "description": "Optional YAML file mapping logical benchmark cost labels to one or more CUR resource tag aliases.",
-                    "pattern": "^\\S+\\.(ya?ml)$",
-                    "format": "file-path"
+                    "description": "Optional overrides for the CUR resource-label search. Maps the logical fields run_id / process / task_hash to your own CUR tag keys (useful when AWS Batch runs are tagged with custom keys). Accepts a path to a YAML file OR inline YAML/JSON pasted directly (e.g. {run_id: user_my_run_tag}). Custom keys are searched in addition to the built-in Seqera defaults, so IC and Batch runs both resolve."
                 },
                 "report_type": {
                     "type": "string",

@@ -130,9 +130,28 @@ workflow NF_AGGREGATE {
             ? Channel.fromPath(params.benchmark_aws_cur_report, type: 'any')
             : Channel.value([])
 
-        ch_cur_label_map = params.benchmark_aws_cur_label_map
-            ? Channel.fromPath(params.benchmark_aws_cur_label_map)
-            : Channel.value([])
+        // Cost-label overrides for the CUR search: accept EITHER a YAML/JSON file
+        // (path, local or S3) OR inline YAML/JSON pasted straight into the launch form.
+        // A real file is used as-is; anything else is treated as inline content and
+        // materialised to a file, so NORMALIZE_BENCHMARK_JSONL always receives a plain
+        // YAML file. Custom keys are searched IN ADDITION to the built-in Seqera defaults.
+        ch_cur_label_map = Channel.value([])
+        if (params.benchmark_aws_cur_label_map) {
+            def raw_label_map = params.benchmark_aws_cur_label_map
+            // A pasted form value is a String (path or inline YAML/JSON); a -params-file
+            // may already parse it into a Map/List — serialise that to JSON (valid YAML).
+            def label_map_content = (raw_label_map instanceof CharSequence)
+                ? raw_label_map.toString()
+                : groovy.json.JsonOutput.toJson(raw_label_map)
+            // glob: false — inline YAML/JSON contains { and [ which file() would
+            // otherwise treat as glob metacharacters and return a list.
+            def label_map_file = file(label_map_content, glob: false)
+            if (!label_map_file.exists()) {
+                label_map_file = file(benchmark_work_root.resolve('cost_label_map.yml'))
+                label_map_file.text = label_map_content
+            }
+            ch_cur_label_map = Channel.value(label_map_file)
+        }
 
         // Collect machine metrics CSVs from external runs (if present)
         ch_machines_dir = ch_split.external
