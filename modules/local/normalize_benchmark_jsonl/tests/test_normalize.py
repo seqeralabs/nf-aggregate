@@ -225,6 +225,45 @@ def test_normalize_cost_rows_accepts_v2_struct_list_resource_tags(tmp_path):
     ]
 
 
+def test_normalize_cost_rows_accepts_map_resource_tags(tmp_path):
+    """CUR exports whose resource_tags is a genuine MAP(VARCHAR, VARCHAR).
+
+    DuckDB MAP indexing returns a LIST per key, so the scalar tag value must be
+    unwrapped — otherwise run_id lands as "[value]" and never joins to a run.
+    """
+    parquet_path = tmp_path / "costs-map.parquet"
+    tag_type = pa.map_(pa.string(), pa.string())
+    table = pa.table(
+        {
+            "resource_tags": pa.array(
+                [
+                    [
+                        ("user_seqera_io_platform_workflow_id", "run-map-real"),
+                        ("user_pipeline_process", "PROC_MAP_REAL"),
+                        ("user_task_hash", "cafebabe0002"),
+                    ]
+                ],
+                type=tag_type,
+            ),
+            "line_item_unblended_cost": [7.0],
+        }
+    )
+    pq.write_table(table, parquet_path)
+
+    rows = _normalize_cost_rows(parquet_path)
+
+    assert rows == [
+        {
+            "run_id": "run-map-real",
+            "process": "PROC_MAP_REAL",
+            "hash": "cafebabe",
+            "cost": 7.0,
+            "used_cost": 7.0,
+            "unused_cost": 0.0,
+        }
+    ]
+
+
 def test_normalize_cost_rows_prefers_user_aliases_before_defaults(tmp_path):
     parquet_path = tmp_path / "costs-prefer-custom.parquet"
     label_map_path = tmp_path / "cur_label_map.yml"

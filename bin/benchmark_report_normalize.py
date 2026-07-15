@@ -263,7 +263,10 @@ def _tag_extract_expr(resource_tags_type: str, alias: str) -> str | None:
     escaped = alias.replace("'", "''")
     normalized = resource_tags_type.upper().strip()
     if normalized.startswith("MAP"):
-        return f"resource_tags['{escaped}']"
+        # DuckDB MAP indexing returns a LIST of values for a key ([] when absent),
+        # so take the first element to get the scalar tag value rather than a
+        # bracketed "[value]" that would never join to a run id downstream.
+        return f"resource_tags['{escaped}'][1]"
     if "STRUCT" in normalized and normalized.endswith("[]"):
         return f"list_filter(resource_tags, x -> x.key = '{escaped}')[1].value"
     if normalized.endswith("[][]"):
