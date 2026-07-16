@@ -371,6 +371,31 @@ const durCol = (title, field, tip) => ({
   formatter: (cell) => cell.getValue() == null ? '<span class="muted">&mdash;</span>' : fmtDuration(cell.getValue()),
 });
 
+// ---- Perf: lazy chart init + throttled resize ----
+// A report can hold dozens of charts (2-3 per pipeline). Building them all up front
+// is what makes a many-run report feel sluggish, so each chart is created only when
+// its container nears the viewport. Container heights are set inline, so the page lays
+// out identically whether or not a chart has painted yet — only the work is deferred.
+const _lazyObs = new IntersectionObserver((entries, obs) => {
+  entries.forEach((e) => {
+    if (!e.isIntersecting) return;
+    obs.unobserve(e.target);
+    const fn = e.target._lazyRender; e.target._lazyRender = null;
+    if (fn) fn();
+  });
+}, { rootMargin: "300px 0px" });
+function lazyChart(el, render) { el._lazyRender = render; _lazyObs.observe(el); }
+
+// One debounced pass over every registered chart on resize — avoids the O(charts)×O(events)
+// relayout storm from each section resizing on every raw resize event while the window drags.
+const _resizeFns = [];
+let _resizeTimer = null;
+function onResize(fn) { _resizeFns.push(fn); }
+window.addEventListener("resize", () => {
+  if (_resizeTimer) return;
+  _resizeTimer = setTimeout(() => { _resizeTimer = null; _resizeFns.forEach((f) => f()); }, 150);
+});
+
 // ---- Overview: pipeline-name pills + cost split by engine (from run_summary) ----
 (function () {
   const runs = DATA.run_summary || [];
@@ -411,13 +436,24 @@ const durCol = (title, field, tip) => ({
   }
 })();
 
+// Fixed virtual-scroll height for the Tabulator tables, sized to content and capped at 75vh.
+// Tabulator's `maxHeight` recomputes height via offsetHeight on every ResizeObserver tick; while
+// the rest of the report settles after load that becomes a multi-second forced-layout storm
+// (~10s of blocked main thread at 30+ runs). A fixed height sizes the virtual-scroll viewport
+// exactly once, so it stays fast while still virtualising rows for large reports.
+function tableHeight(runs) {
+  const groups = new Set(runs.map((r) => r.pipeline || "—")).size;
+  const content = 96 + (runs.length + groups) * 34; // header + (data + group-header) rows
+  return Math.min(Math.round(window.innerHeight * 0.75), content);
+}
+
 // ---- Run summary table (Tabulator: searchable + per-column filterable + sortable) ----
 (function () {
   const runs = DATA.run_summary || [];
   const table = new Tabulator("#run-table", {
     data: runs,
     layout: "fitDataStretch",
-    maxHeight: "75vh",
+    height: tableHeight(runs),
     movableColumns: true,
     placeholder: "No runs",
     groupBy: "pipeline",
@@ -460,7 +496,7 @@ const durCol = (title, field, tip) => ({
   const table = new Tabulator("#resource-table", {
     data: runs,
     layout: "fitColumns",
-    maxHeight: "75vh",
+    height: tableHeight(runs),
     movableColumns: true,
     placeholder: "No runs",
     groupBy: "pipeline",
@@ -492,8 +528,11 @@ const durCol = (title, field, tip) => ({
   };
   let measure = "cpu";    // cpu | mem
   let labelMode = "date"; // date | id   (one y-axis identifier — keeps the left side light)
-  const panels = [];   // { chart, rows }
+  const panels = [];   // { el, chart, rows }
   let built = false;
+  // Diagonal white stripes mark the Requested bar — same engine colour as Used, a pattern not
+  // a second colour. Both bars shown together so requested-vs-used is directly comparable.
+  const REQ_DECAL = { color: "rgba(255,255,255,0.6)", dashArrayX: [1, 0], dashArrayY: [2, 4], rotation: -Math.PI / 4 };
 
   function buildPanels() {
     const order = [], byPipe = {};
@@ -511,17 +550,22 @@ const durCol = (title, field, tip) => ({
       el.className = "cost-chart";
       el.style.height = Math.max(140, 50 + rows.length * 34) + "px";
       grp.appendChild(el); chartHost.appendChild(grp);
-      panels.push({ chart: echarts.init(el, "seqera"), rows });
+      const panel = { el, chart: null, rows };
+      panels.push(panel);
+      lazyChart(el, () => renderPanel(panel));  // init + first paint when scrolled into view
     });
     built = true;
   }
 
-  function renderPanels() {
+  // Re-render only panels already on screen; off-screen panels pick up the current
+  // measure/label state when they lazily initialise.
+  function renderPanels() { panels.forEach((p) => { if (p.chart) renderPanel(p); }); }
+
+  function renderPanel(panel) {
+    if (!panel.chart) panel.chart = echarts.init(panel.el, "seqera");
+    const chart = panel.chart, rows = panel.rows;
     const m = MEASURES[measure];
-    // Diagonal white stripes mark the Requested bar — same engine colour as Used, a pattern not
-    // a second colour. Both bars shown together so requested-vs-used is directly comparable.
-    const REQ_DECAL = { color: "rgba(255,255,255,0.6)", dashArrayX: [1, 0], dashArrayY: [2, 4], rotation: -Math.PI / 4 };
-    panels.forEach(({ chart, rows }) => {
+    {
       const isIc = rows.map((r) => r.compute_type === "intelligent_compute");
       const colorOf = (i) => (isIc[i] ? IC_COLOR : BATCH_COLOR);
       // One identifier on the y-axis (date OR workflow id) + a small engine chip — no clutter.
@@ -559,7 +603,7 @@ const durCol = (title, field, tip) => ({
             label: { show: true, position: "right", formatter: (p) => Number(p.value || 0).toFixed(m.dp), fontSize: 10, color: "#6b6b73" } },
         ],
       });
-    });
+    }
   }
 
   function setView(view) {
@@ -569,9 +613,8 @@ const durCol = (title, field, tip) => ({
     document.querySelectorAll(".rchart-ctl").forEach((el) => { el.style.display = chartMode ? "" : "none"; });
     if (searchEl) searchEl.style.display = chartMode ? "none" : "";
     if (chartMode) {
-      if (!built) buildPanels();
-      renderPanels();
-      panels.forEach((p) => p.chart.resize());
+      if (!built) buildPanels();       // lazy observers paint panels as they scroll in
+      panels.forEach((p) => p.chart && p.chart.resize());
     }
   }
 
@@ -596,7 +639,7 @@ const durCol = (title, field, tip) => ({
   }
   wireToggle("resource-measure-toggle", (btn) => { measure = btn.getAttribute("data-rmeasure"); });
   wireToggle("resource-label-toggle", (btn) => { labelMode = btn.getAttribute("data-rlabel"); });
-  window.addEventListener("resize", () => panels.forEach((p) => p.chart.resize()));
+  onResize(() => panels.forEach((p) => p.chart && p.chart.resize()));
 })();
 
 // ---- Machine-type distribution (ECharts, grouped by pipeline, faceted by scheduling engine) ----
@@ -644,7 +687,7 @@ const durCol = (title, field, tip) => ({
       el.style.height = Math.max(120, 46 + runs.length * 42) + "px";
       wrap.appendChild(el);
       grp.appendChild(wrap);
-      charts.push({ chart: echarts.init(el, "seqera"), runs, pipeline: p });
+      charts.push({ el, chart: null, runs, pipeline: p });
     });
   });
 
@@ -657,12 +700,18 @@ const durCol = (title, field, tip) => ({
   let currentMetric = "task_count";
   let labelMode = "date";
 
-  function renderAll() {
+  // Re-render only charts already on screen; off-screen facets pick up the current
+  // metric/label state when they lazily initialise.
+  function renderAll() { charts.forEach((c) => { if (c.chart) renderChart(c); }); }
+
+  function renderChart(c) {
+    if (!c.chart) c.chart = echarts.init(c.el, "seqera");
+    const chart = c.chart, runs = c.runs, pipeline = c.pipeline;
     const metric = currentMetric;
     const totalKey = metric === "task_count" ? "total_tasks" : "total_cpu_hours";
-    const maxByPipeline = {};
-    mu.forEach((u) => { const p = u.pipeline || "—"; maxByPipeline[p] = Math.max(maxByPipeline[p] || 1, u[totalKey] || 0); });
-    charts.forEach(({ chart, runs, pipeline }) => {
+    let pmax = 1;
+    mu.forEach((u) => { if ((u.pipeline || "—") === pipeline) pmax = Math.max(pmax, u[totalKey] || 0); });
+    {
       const ids = runs.map((u) => u.run_id);
       const names = runs.map((u) => u.run_name || u.run_id);
       const startedAts = runs.map((u) => u.started_at || "");
@@ -682,14 +731,14 @@ const durCol = (title, field, tip) => ({
         tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(names[p.dataIndex]) + " (" + esc(ids[p.dataIndex]) + ")" + (startedAts[p.dataIndex] ? "<br/>started " + esc(startedAts[p.dataIndex].replace("T", " ").slice(0, 16)) : "") + "<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " cpu-h" },
         legend: { type: "scroll", top: 0 },
         grid: { left: 10, right: 34, top: 40, bottom: 34, containLabel: true },
-        xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours", nameLocation: "middle", nameGap: 26, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, max: maxByPipeline[pipeline] },
+        xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours", nameLocation: "middle", nameGap: 26, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, max: pmax },
         yAxis: { type: "category", data: ids, inverse: true, axisLabel: { formatter: (id) => labelMode === "date" ? (dateById[id] || id) : id } },
         dataZoom: zoom,
         series: series,
       }, true);
-    });
+    }
   }
-  renderAll();
+  charts.forEach((c) => lazyChart(c.el, () => renderChart(c)));  // init + paint on scroll-in
 
   document.querySelectorAll("#metric-toggle button").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -707,7 +756,7 @@ const durCol = (title, field, tip) => ({
       renderAll();
     });
   });
-  window.addEventListener("resize", () => charts.forEach((c) => c.chart.resize()));
+  onResize(() => charts.forEach((c) => c.chart && c.chart.resize()));
 })();
 
 // ---- Cost over time (ECharts line, per pipeline, Seqera Intelligent Compute vs AWS Batch) ----
@@ -789,9 +838,6 @@ const durCol = (title, field, tip) => ({
     grp.appendChild(el);
     container.appendChild(grp);
 
-    charts.push(echarts.init(el, "seqera"));
-    const chart = charts[charts.length - 1];
-
     const series = [];
     if (ic.length) {
       series.push({
@@ -845,7 +891,7 @@ const durCol = (title, field, tip) => ({
       });
     }
 
-    chart.setOption({
+    const option = {
       color: [IC_COLOR, BATCH_COLOR],
       tooltip: {
         trigger: "axis",
@@ -874,7 +920,8 @@ const durCol = (title, field, tip) => ({
         scale: true,
       },
       series: series,
-    });
+    };
+    lazyChart(el, () => { const chart = echarts.init(el, "seqera"); chart.setOption(option); charts.push(chart); });
   });
 
   // Hero signature: average latest-IC-vs-Batch saving across pipelines where both exist.
@@ -891,7 +938,7 @@ const durCol = (title, field, tip) => ({
     }
   }
 
-  window.addEventListener("resize", () => charts.forEach((c) => c.resize()));
+  onResize(() => charts.forEach((c) => c.resize()));
 })();
 
 // ---- Cost breakdown: "By instance" view, allocated by CPU-hour share ----
@@ -984,17 +1031,16 @@ const durCol = (title, field, tip) => ({
         el.style.height = Math.max(120, 40 + items.length * 24) + "px";
         rf.appendChild(el); runGrid.appendChild(rf);
 
-        const chart = echarts.init(el, "seqera");
         const names = items.map((i) => i.name);
-        chart.setOption({
+        const opt = {
           tooltip: { trigger: "item", formatter: (p) => { const it = items[p.dataIndex]; const pctv = cost ? Math.round(it.cost / cost * 100) : 0; return esc(it.name) + "<br/><b>" + fmtCost(it.cost) + "</b> · " + pctv + "% of run"; } },
           grid: { left: 8, right: 76, top: 8, bottom: 24, containLabel: true },
           xAxis: { type: "value", splitNumber: 3, axisLabel: { formatter: costAxisLabel, hideOverlap: true } },
           yAxis: { type: "category", data: names, inverse: true, axisLabel: { fontSize: 10, width: 120, overflow: "truncate" } },
           series: [{ type: "bar", barMaxWidth: 16, data: items.map((i) => ({ value: i.cost, itemStyle: { color: i.color } })),
             label: { show: true, position: "right", formatter: (p) => fmtCost(items[p.dataIndex].cost), fontSize: 9, color: "#6b6b73" } }],
-        });
-        charts.instance.push(chart);
+        };
+        lazyChart(el, () => { const chart = echarts.init(el, "seqera"); chart.setOption(opt); charts.instance.push(chart); });
       });
     });
   }
@@ -1015,9 +1061,8 @@ const durCol = (title, field, tip) => ({
       const grp = facetCard(g.pipeline, g.runs.length);
       const el = chartEl(Math.max(150, 54 + runs.length * 34));
       grp.appendChild(el); cRun.appendChild(grp);
-      const chart = echarts.init(el, "seqera");
       const barLabel = { show: true, position: "right", formatter: (p) => (p.value != null ? fmtCost(p.value) : ""), fontSize: 10, color: "#6b6b73" };
-      chart.setOption({
+      const opt = {
         tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(labels[p.dataIndex]) + ": <b>" + fmtCost(p.value) + "</b>" },
         legend: { top: 0, icon: "roundRect", data: ["Seqera Intelligent Compute", "AWS Batch"] },
         grid: { left: 8, right: 82, top: 34, bottom: 42, containLabel: true },
@@ -1027,8 +1072,8 @@ const durCol = (title, field, tip) => ({
           { name: "Seqera Intelligent Compute", type: "bar", stack: "t", barMaxWidth: 22, data: icData, itemStyle: { color: IC_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
           { name: "AWS Batch", type: "bar", stack: "t", barMaxWidth: 22, data: bData, itemStyle: { color: BATCH_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
         ],
-      });
-      charts.run.push(chart);
+      };
+      lazyChart(el, () => { const chart = echarts.init(el, "seqera"); chart.setOption(opt); charts.run.push(chart); });
     });
   }
 
@@ -1050,7 +1095,7 @@ const durCol = (title, field, tip) => ({
       show(btn.getAttribute("data-view"));
     });
   });
-  window.addEventListener("resize", () => { charts.run.forEach((c) => c.resize()); charts.instance.forEach((c) => c.resize()); });
+  onResize(() => { charts.run.forEach((c) => c.resize()); charts.instance.forEach((c) => c.resize()); });
 })();
 
 // ---- Sidebar scrollspy: highlight the section the reader is currently in ----
@@ -1075,8 +1120,14 @@ const durCol = (title, field, tip) => ({
     if (window.scrollY + window.innerHeight >= scroller.scrollHeight - 2) current = sections[sections.length - 1].id;
     setActive(current);
   }
-  window.addEventListener("scroll", onScroll, { passive: true });
-  window.addEventListener("resize", onScroll);
+  // rAF-throttle: onScroll reads offsetTop (forced reflow), so run it at most once per frame.
+  let ticking = false;
+  window.addEventListener("scroll", () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => { ticking = false; onScroll(); });
+  }, { passive: true });
+  onResize(onScroll);
   onScroll();
 })();
 </script>
