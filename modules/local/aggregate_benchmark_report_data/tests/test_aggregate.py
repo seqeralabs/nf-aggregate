@@ -107,8 +107,8 @@ def test_cur_zero_costs_do_not_fall_back_to_task_cost(tmp_path):
     data = build_report_data(jsonl_dir)
 
     assert data["run_costs"][0]["cost"] == 0.0
-    assert data["run_costs"][0]["used_cost"] == 0.0
-    assert data["run_costs"][0]["unused_cost"] == 0.0
+    assert data["run_costs"][0]["used_cost"] is None
+    assert data["run_costs"][0]["unused_cost"] is None
     assert data["cost_overview"][0]["total_cost"] == 0.0
     assert data["cost_overview"][0]["used_cost"] == 0.0
     assert data["cost_coverage"]["cur_supplied"] is True
@@ -357,8 +357,8 @@ def test_cost_join_uses_process_and_hash(tmp_path):
         },
     ]
     costs = [
-        {"run_id": "run1", "process": "foo:PROC_A", "hash": "abcdef12", "cost": 5.0, "used_cost": 4.0, "unused_cost": 1.0},
-        {"run_id": "run1", "process": "foo:PROC_B", "hash": "abcdef12", "cost": 7.0, "used_cost": 6.0, "unused_cost": 1.0},
+        {"run_id": "run1", "process": "foo:PROC_A", "hash": "abcdef12", "cost": 5.0, "used_cost": 4.0, "unused_cost": 1.0, "split_cost_present": True},
+        {"run_id": "run1", "process": "foo:PROC_B", "hash": "abcdef12", "cost": 7.0, "used_cost": 6.0, "unused_cost": 1.0, "split_cost_present": True},
     ]
 
     (jsonl_dir / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in runs))

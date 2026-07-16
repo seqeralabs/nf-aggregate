@@ -258,6 +258,7 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
             "cost": 0.0,
             "used_cost": 0.0,
             "unused_cost": 0.0,
+            "split_cost_present": False,
         }
 
     costs_jsonl_path = jsonl_dir / "costs.jsonl"
@@ -276,11 +277,14 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
                 "cost": 0.0,
                 "used_cost": 0.0,
                 "unused_cost": 0.0,
+                "split_cost_present": False,
             }
 
         costs_index[key]["cost"] += float(c.get("cost") or 0.0)
         costs_index[key]["used_cost"] += float(c.get("used_cost") or 0.0)
         costs_index[key]["unused_cost"] += float(c.get("unused_cost") or 0.0)
+        if c.get("split_cost_present"):
+            costs_index[key]["split_cost_present"] = True
 
     process_acc: dict[tuple[str, str, str], dict[str, float | int | str]] = defaultdict(
         lambda: {
@@ -334,6 +338,7 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
                 "cost": 0.0,
                 "used_cost": 0.0,
                 "unused_cost": 0.0,
+                "split_cost_present": False,
             }
 
         cost_row = _lookup_cost(costs_index, run_id=run_id, process=process, process_short=process_short, hash_short=hash_short)
@@ -365,6 +370,8 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
             run_cost_acc[run_group_key]["cost"] += _cost_or_task(cost_row, "cost")
             run_cost_acc[run_group_key]["used_cost"] += _cost_or_task(cost_row, "used_cost")
             run_cost_acc[run_group_key]["unused_cost"] += _cost_or_task(cost_row, "unused_cost")
+            if cost_row.get("split_cost_present"):
+                run_cost_acc[run_group_key]["split_cost_present"] = True
 
         if has_cost_rows:
             overview_key = (group, process_short)
@@ -518,8 +525,9 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
                 "run_id": row["run_id"],
                 "group": row["group"],
                 "cost": _round(row["cost"], 2),
-                "used_cost": _round(row["used_cost"], 2) if has_cost_rows else None,
-                "unused_cost": _round(row["unused_cost"], 2) if has_cost_rows else None,
+                "used_cost": _round(row["used_cost"], 2) if has_cost_rows and row.get("split_cost_present") else None,
+                "unused_cost": _round(row["unused_cost"], 2) if has_cost_rows and row.get("split_cost_present") else None,
+                "split_cost_present": bool(row.get("split_cost_present")),
             }
             for row in run_cost_acc.values()
         ],

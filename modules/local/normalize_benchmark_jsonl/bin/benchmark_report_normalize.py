@@ -400,7 +400,8 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
             substr(COALESCE({task_hash_expr}, ''), 1, 8)  AS hash,
             SUM(({used_cost}) + ({unused_cost}))          AS cost,
             SUM({used_cost})                              AS used_cost,
-            SUM({unused_cost})                            AS unused_cost
+            SUM({unused_cost})                            AS unused_cost,
+            MAX(CASE WHEN {split_cost} <> 0 OR {unused_cost} <> 0 THEN 1 ELSE 0 END) AS split_cost_present
         FROM {scan}
         WHERE {run_id_expr} IS NOT NULL AND {run_id_expr} <> ''
         GROUP BY 1, 2, 3
