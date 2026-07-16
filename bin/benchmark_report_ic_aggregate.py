@@ -8,7 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from benchmark_report_aggregate import _build_workspace_run_url, _iter_jsonl
+from benchmark_report_aggregate import _build_workspace_run_url, _classify_workflow_status, _iter_jsonl
 from benchmark_report_normalize import _duration_ms
 
 
@@ -192,7 +192,9 @@ def _run_task_timing(jsonl_dir: Path) -> dict[str, dict[str, float]]:
     return agg
 
 
-def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.io") -> dict[str, Any]:
+def build_ic_report_data(
+    jsonl_dir: Path, web_base: str = "https://cloud.seqera.io", include_failed_runs: bool = False
+) -> dict[str, Any]:
     jsonl_dir = Path(jsonl_dir)
 
     # Real per-run costs from an AWS CUR export, if one was supplied. Empty otherwise.
@@ -210,6 +212,15 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
     n_batch = 0
 
     for run in _iter_jsonl(jsonl_dir / "runs.jsonl"):
+        # Drop failed runs from the report entirely (and never surface their CUR costs)
+        # unless include_failed_runs is set; cancelled/aborted are always dropped. Same
+        # rule as the benchmark report — see _classify_workflow_status.
+        _, _, report_included = _classify_workflow_status(
+            run.get("status"), include_failed_runs=include_failed_runs
+        )
+        if not report_included:
+            continue
+
         compute_type = _compute_type(run)
         if compute_type == "intelligent_compute":
             n_ic += 1
@@ -298,7 +309,10 @@ def build_ic_report_data(jsonl_dir: Path, web_base: str = "https://cloud.seqera.
 
 
 def aggregate_ic_report_data(
-    jsonl_dir: Path, output: Path, web_base: str = "https://cloud.seqera.io"
+    jsonl_dir: Path,
+    output: Path,
+    web_base: str = "https://cloud.seqera.io",
+    include_failed_runs: bool = False,
 ) -> None:
-    data = build_ic_report_data(jsonl_dir, web_base=web_base)
+    data = build_ic_report_data(jsonl_dir, web_base=web_base, include_failed_runs=include_failed_runs)
     Path(output).write_text(json.dumps(data, indent=2, default=str))

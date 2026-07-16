@@ -183,6 +183,7 @@ workflow NF_AGGREGATE {
             AGGREGATE_IC_REPORT_DATA(
                 NORMALIZE_BENCHMARK_JSONL.out.jsonl,
                 params.seqera_web_url,
+                params.include_failed_runs,
             )
             ch_versions = ch_versions.mix(AGGREGATE_IC_REPORT_DATA.out.versions)
 

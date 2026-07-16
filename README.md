@@ -92,11 +92,16 @@ nextflow run seqeralabs/nf-aggregate \
     --report_type intelligent_compute
 ```
 
-This produces a run-summary table (run ID deep-link, compute hours, memory, and an empty
-cost column pending a core cost report) written to `${outdir}/intelligent_compute_report/`.
-Run deep-links are built from `--seqera_web_url` (default `https://cloud.seqera.io`). The
-optional `--intelligent_compute_core_report` param is a stub for a future core cost report
-and is not yet wired into the aggregation logic.
+This produces a run-summary table (run ID deep-link, compute hours, memory, and a cost
+column) written to `${outdir}/intelligent_compute_report/`. Run deep-links are built from
+`--seqera_web_url` (default `https://cloud.seqera.io`). Real per-run costs are joined from
+an AWS CUR export when `--benchmark_aws_cur_report` is supplied (same parameter as the
+benchmark report — see [Incorporate AWS split cost allocation data](#incorporate-aws-split-cost-allocation-data)); the
+cost column is otherwise blank. The Seqera cost estimate is never used.
+
+By default, failed workflows are dropped from the IC report entirely and their CUR costs
+are not attributed. Pass `--include_failed_runs` to include failed runs (and their costs).
+Cancelled/aborted runs are always excluded.
 
 ## Use logs from an external Seqera Platform deployment
 
@@ -172,7 +177,7 @@ user_pipeline_process=${task.process}
 user_task_hash=${task.hash}
 ```
 
-If you want workflow-level failed runs to appear in downstream benchmark sections (run metrics, charts, task tables), pass `--include_failed_runs`. By default, failed workflows are listed in the run summary but excluded from downstream metrics. Cancelled workflows remain excluded.
+If you want workflow-level failed runs to appear in downstream benchmark sections (run metrics, charts, task tables), pass `--include_failed_runs`. By default, failed workflows are listed in the run summary but excluded from downstream metrics. Cancelled workflows remain excluded. The same `--include_failed_runs` flag applies to the Intelligent Compute report, where failed runs are dropped from the report and their CUR costs are not attributed unless the flag is set.
 
 For a checked-in real-world example that exercises external run JSON directories plus a tiny filtered cost parquet, see:
 

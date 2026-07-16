@@ -6,16 +6,19 @@ process AGGREGATE_IC_REPORT_DATA {
     input:
     path jsonl_bundle
     val web_base
+    val include_failed_runs
 
     output:
     path "report_data_ic.json", emit: data
     path "versions.yml", emit: versions
 
     script:
+    include_failed_runs_arg = include_failed_runs ? '--include-failed-runs' : ''
     """
     aggregate_ic_report_data.py \\
         --jsonl-dir ${jsonl_bundle} \\
         --web-base ${web_base} \\
+        ${include_failed_runs_arg} \\
         --output report_data_ic.json
 
     cat <<-END_VERSIONS > versions.yml

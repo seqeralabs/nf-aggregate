@@ -189,6 +189,41 @@ def test_runs_sorted_newest_first_within_pipeline_and_facet(tmp_path, make_ic_ru
     assert [u["run_id"] for u in data["machine_usage"]] == ["icNEW0000001", "icOLD0000001", "batchRUN00001"]
 
 
+def test_failed_runs_excluded_by_default(tmp_path, make_ic_run, write_run_json):
+    """A FAILED workflow is dropped from the report by default; cancelled always dropped."""
+    ok = make_ic_run(run_id="icOK000000001")
+    failed = make_ic_run(run_id="icFAIL0000001")
+    failed["workflow"]["status"] = "FAILED"
+    cancelled = make_ic_run(run_id="icCANCEL00001")
+    cancelled["workflow"]["status"] = "CANCELLED"
+    jsonl_dir = _bundle(tmp_path, [ok, failed, cancelled], write_run_json)
+
+    data = build_ic_report_data(jsonl_dir)
+    assert [r["run_id"] for r in data["run_summary"]] == ["icOK000000001"]
+    assert [u["run_id"] for u in data["machine_usage"]] == ["icOK000000001"]
+    assert data["ic_overview"]["n_runs"] == 1
+    assert data["ic_overview"]["n_intelligent_compute"] == 1
+
+
+def test_failed_runs_included_with_flag(tmp_path, make_ic_run, write_run_json):
+    """include_failed_runs=True keeps FAILED runs (and their CUR cost); cancelled still dropped."""
+    ok = make_ic_run(run_id="icOK000000001")
+    failed = make_ic_run(run_id="icFAIL0000001")
+    failed["workflow"]["status"] = "FAILED"
+    cancelled = make_ic_run(run_id="icCANCEL00001")
+    cancelled["workflow"]["status"] = "CANCELLED"
+    jsonl_dir = _bundle(tmp_path, [ok, failed, cancelled], write_run_json)
+    (jsonl_dir / "costs.jsonl").write_text(
+        json.dumps({"run_id": "icFAIL0000001", "process": "FOO", "hash": "abcd1234", "cost": 4.0}) + "\n"
+    )
+
+    data = build_ic_report_data(jsonl_dir, include_failed_runs=True)
+    run_ids = {r["run_id"] for r in data["run_summary"]}
+    assert run_ids == {"icOK000000001", "icFAIL0000001"}  # cancelled still excluded
+    failed_row = next(r for r in data["run_summary"] if r["run_id"] == "icFAIL0000001")
+    assert failed_row["cost"] == 4.0
+
+
 def test_run_cost_none_without_cur(tmp_path, make_ic_run, write_run_json):
     """No CUR export -> run costs stay empty (never the Seqera estimate)."""
     jsonl_dir = _bundle(tmp_path, [make_ic_run(run_id="icRUN0000000001")], write_run_json)

@@ -14,8 +14,18 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--jsonl-dir", type=Path, required=True, help="Directory containing JSONL bundle")
     parser.add_argument("--output", type=Path, default=Path("report_data_ic.json"), help="Output path")
     parser.add_argument("--web-base", type=str, default="https://cloud.seqera.io", help="Seqera web base URL for run links")
+    parser.add_argument(
+        "--include-failed-runs",
+        action="store_true",
+        help="Include workflow-level failed runs in the report and their CUR costs",
+    )
     args = parser.parse_args(argv)
-    aggregate_ic_report_data(jsonl_dir=args.jsonl_dir, output=args.output, web_base=args.web_base)
+    aggregate_ic_report_data(
+        jsonl_dir=args.jsonl_dir,
+        output=args.output,
+        web_base=args.web_base,
+        include_failed_runs=args.include_failed_runs,
+    )
     print(f"IC report data written to {args.output}")
 
 
