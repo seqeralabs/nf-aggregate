@@ -194,9 +194,11 @@ def _run_cost_details(jsonl_dir: Path) -> dict[str, dict[str, Any]]:
       - ``unused_cost``        cost of provisioned-but-idle capacity
       - ``split_cost_present`` whether any row carried genuine split cost allocation
 
-    Split cost allocation only appears on shared instances (Intelligent Compute /
-    Fusion); dedicated AWS Batch instances report a single blended line item, so
-    ``split_cost_present`` stays False and used/unused are not meaningful there.
+    We want split cost allocation for every run (Intelligent Compute and Batch). In
+    practice Batch runs reliably carry it; IC runs sometimes don't yet — we're still
+    investigating why. A run with no split cost keeps ``split_cost_present`` False, and
+    its ``used_cost`` falls back to the unblended line-item cost (see ``normalize``); in
+    practice that fallback only affects IC runs.
     """
     details: dict[str, dict[str, Any]] = defaultdict(
         lambda: {"cost": 0.0, "used_cost": 0.0, "unused_cost": 0.0, "split_cost_present": False}
@@ -292,11 +294,12 @@ def build_ic_report_data(
         eff_mem_gib = round(res.get("mem_used", 0.0), 1)
 
         # Cost, preferring ECS split cost allocation (used vs idle) when the CUR export
-        # carries it for this run, else the blended total. Intelligent Compute runs on
-        # shared instances can report split cost; dedicated AWS Batch instances only ever
-        # report a blended line item. When a CUR file was supplied but no row matched this
-        # run, cost_status explains why (propagating vs not_found); with no CUR at all the
-        # whole cost story is off and every field stays None.
+        # carries it for this run, else the unblended total. We want split cost for every
+        # run (Intelligent Compute and Batch); in practice Batch reliably has it while IC
+        # sometimes doesn't yet (under investigation), so the blended fallback here in
+        # practice only affects IC runs. When a CUR file was supplied but no row matched
+        # this run, cost_status explains why (propagating vs not_found); with no CUR at all
+        # the whole cost story is off and every field stays None.
         detail = cost_details.get(run_id)
         if detail is not None:
             split_present = bool(detail["split_cost_present"])

@@ -384,10 +384,11 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
     process_expr = _label_expr(label_aliases["process"], columns)
     task_hash_expr = _label_expr(label_aliases["task_hash"], columns)
 
-    # Split line items (shared instances, e.g. Fusion / Intelligent Compute) carry
-    # cost in split_line_item_split_cost with line_item_unblended_cost zeroed; normal
-    # usage rows (e.g. dedicated Batch instances) are the reverse. A split cost of 0
-    # therefore means "fall back to unblended".
+    # Split line items carry cost in split_line_item_split_cost with
+    # line_item_unblended_cost zeroed; plain usage rows are the reverse. We want split
+    # cost for every run (Intelligent Compute and Batch); in practice Batch reliably has
+    # it while IC sometimes doesn't yet (under investigation). A split cost of 0 therefore
+    # means "fall back to unblended" — in practice that fallback only affects IC runs.
     split_cost = _numeric_expr("split_line_item_split_cost", columns)
     unblended_cost = _numeric_expr("line_item_unblended_cost", columns)
     used_cost = f"CASE WHEN {split_cost} <> 0 THEN {split_cost} ELSE {unblended_cost} END"
