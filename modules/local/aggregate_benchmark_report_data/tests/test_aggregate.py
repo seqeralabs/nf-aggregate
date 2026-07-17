@@ -1,7 +1,9 @@
 import json
+from datetime import datetime, timedelta, timezone
 
 from benchmark_report_aggregate import (
     _build_workspace_run_url,
+    _classify_missing_cost,
     _compute_scheduler_booked,
     _iter_jsonl,
     _positive_gap,
@@ -1065,3 +1067,90 @@ def test_pr132_style_scheduler_vm_semantics(tmp_path):
     assert sched["schedulerOverbookCpuH"] == 1.0
     assert sched["vmPackingSlackCpuH"] == 3.0
     assert sched["realVmCpuEfficiency"] == 33.33
+
+def test_classify_missing_cost_recent_run_is_propagating():
+    now = datetime(2026, 7, 16, 12, 0, 0, tzinfo=timezone.utc)
+    recent = (now - timedelta(hours=3)).isoformat()
+    assert _classify_missing_cost(recent, now) == "propagating"
+
+
+def test_classify_missing_cost_old_run_is_not_found():
+    now = datetime(2026, 7, 16, 12, 0, 0, tzinfo=timezone.utc)
+    old = (now - timedelta(days=5)).isoformat()
+    assert _classify_missing_cost(old, now) == "not_found"
+
+
+def test_classify_missing_cost_boundary_uses_24h_window():
+    now = datetime(2026, 7, 16, 12, 0, 0, tzinfo=timezone.utc)
+    just_inside = (now - timedelta(hours=23, minutes=59)).isoformat()
+    just_outside = (now - timedelta(hours=24, minutes=1)).isoformat()
+    assert _classify_missing_cost(just_inside, now) == "propagating"
+    assert _classify_missing_cost(just_outside, now) == "not_found"
+
+
+def test_classify_missing_cost_handles_z_suffix_and_missing_timestamp():
+    now = datetime(2026, 7, 16, 12, 0, 0, tzinfo=timezone.utc)
+    assert _classify_missing_cost("2026-07-16T10:00:00Z", now) == "propagating"
+    assert _classify_missing_cost(None, now) == "not_found"
+    assert _classify_missing_cost("not-a-timestamp", now) == "not_found"
+
+
+def _write_cost_status_bundle(jsonl_dir, complete_ts):
+    jsonl_dir.mkdir(parents=True, exist_ok=True)
+    runs = [
+        {"run_id": "run_ok", "group": "g", "pipeline": "p", "status": "SUCCEEDED", "complete": complete_ts},
+        {"run_id": "run_missing", "group": "g", "pipeline": "p", "status": "SUCCEEDED", "complete": complete_ts},
+    ]
+    tasks = [
+        {"run_id": "run_ok", "group": "g", "hash": "ab/cdef12", "process": "foo:PROC", "process_short": "PROC",
+         "name": "PROC", "status": "COMPLETED", "staging_ms": 0, "realtime_ms": 1000, "duration_ms": 1000, "cost": 0.0},
+        {"run_id": "run_missing", "group": "g", "hash": "cd/ef3456", "process": "foo:PROC", "process_short": "PROC",
+         "name": "PROC", "status": "COMPLETED", "staging_ms": 0, "realtime_ms": 1000, "duration_ms": 1000, "cost": 0.0},
+    ]
+    # Only run_ok has a matching CUR cost row; run_missing has none.
+    costs = [
+        {"run_id": "run_ok", "process": "foo:PROC", "hash": "abcdef12", "cost": 5.0, "used_cost": 4.0, "unused_cost": 1.0},
+    ]
+    (jsonl_dir / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in runs))
+    (jsonl_dir / "tasks.jsonl").write_text("".join(json.dumps(t) + "\n" for t in tasks))
+    (jsonl_dir / "costs.jsonl").write_text("".join(json.dumps(c) + "\n" for c in costs))
+
+
+def test_run_costs_flag_recent_missing_as_propagating(tmp_path):
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    recent = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    _write_cost_status_bundle(jsonl_dir, recent)
+
+    costs = {row["run_id"]: row for row in build_report_data(jsonl_dir)["run_costs"]}
+
+    assert costs["run_ok"]["cost_status"] == "available"
+    assert costs["run_ok"]["cost"] == 5.0
+
+    missing = costs["run_missing"]
+    assert missing["cost_status"] == "propagating"
+    assert missing["cost"] is None
+    assert missing["used_cost"] is None
+    assert missing["unused_cost"] is None
+
+
+def test_run_costs_flag_old_missing_as_not_found(tmp_path):
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    old = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+    _write_cost_status_bundle(jsonl_dir, old)
+
+    costs = {row["run_id"]: row for row in build_report_data(jsonl_dir)["run_costs"]}
+
+    assert costs["run_ok"]["cost_status"] == "available"
+    assert costs["run_missing"]["cost_status"] == "not_found"
+    assert costs["run_missing"]["cost"] is None
+
+
+def test_run_costs_without_cur_have_no_cost_status(tmp_path, make_run, flat_task, write_run_json):
+    from benchmark_report_normalize import normalize_jsonl
+
+    data_dir = tmp_path / "data"
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    write_run_json(data_dir, [make_run(tasks=[flat_task(cost=4.2)])])
+    normalize_jsonl(data_dir, jsonl_dir)
+
+    assert build_report_data(jsonl_dir)["run_costs"][0]["cost_status"] is None

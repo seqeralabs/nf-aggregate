@@ -112,6 +112,7 @@ def test_normalize_cost_rows_reads_parquet_in_batches(tmp_path):
             "cost": 5.0,
             "used_cost": 4.0,
             "unused_cost": 1.0,
+            "split_cost_present": True,
         }
     ]
 
@@ -148,6 +149,7 @@ def test_normalize_cost_rows_accepts_custom_flat_aliases(tmp_path):
             "cost": 3.75,
             "used_cost": 3.0,
             "unused_cost": 0.75,
+            "split_cost_present": True,
         }
     ]
 
@@ -185,6 +187,7 @@ def test_normalize_cost_rows_accepts_custom_resource_tag_aliases(tmp_path):
             "cost": 3.0,
             "used_cost": 2.5,
             "unused_cost": 0.5,
+            "split_cost_present": True,
         }
     ]
 
@@ -221,6 +224,7 @@ def test_normalize_cost_rows_accepts_v2_struct_list_resource_tags(tmp_path):
             "cost": 4.0,
             "used_cost": 4.0,
             "unused_cost": 0.0,
+            "split_cost_present": False,
         }
     ]
 
@@ -260,6 +264,7 @@ def test_normalize_cost_rows_accepts_map_resource_tags(tmp_path):
             "cost": 7.0,
             "used_cost": 7.0,
             "unused_cost": 0.0,
+            "split_cost_present": False,
         }
     ]
 
@@ -323,6 +328,7 @@ def test_normalize_cost_rows_reads_directory_of_parquets(tmp_path):
             "cost": 3.0,
             "used_cost": 3.0,
             "unused_cost": 0.0,
+            "split_cost_present": True,
         }
     ]
 
@@ -352,6 +358,7 @@ def test_normalize_cost_rows_ignores_rows_without_run_label(tmp_path):
             "cost": 1.0,
             "used_cost": 1.0,
             "unused_cost": 0.0,
+            "split_cost_present": True,
         }
     ]
 

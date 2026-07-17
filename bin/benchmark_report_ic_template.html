@@ -128,6 +128,16 @@
   .badge.batch { background: #eaf2f6; color: #2a6c85; }
   .muted { opacity: 0.45; }
 
+  /* Cost basis + availability chips (run table + cost-coverage note) */
+  .basis { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; cursor: help; }
+  .basis.split { background: var(--accent-surface); color: var(--accent); }
+  .basis.blended { background: #eef0f2; color: #52565c; }
+  .cost-note { display: inline-block; padding: 1px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; cursor: help; }
+  .cost-note.propagating { background: rgba(255, 193, 7, 0.18); color: #997404; }
+  .cost-note.not-found { background: rgba(108, 117, 125, 0.14); color: #495057; }
+  .cost-coverage { font-size: 12.5px; color: var(--muted); margin: 4px 0 14px; }
+  .cost-coverage b { color: var(--ink); font-weight: 600; }
+
   /* ---- Toolbar / controls ---- */
   .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
   .toolbar input[type=search] { padding: 8px 11px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; min-width: 280px; font-family: inherit; }
@@ -142,7 +152,12 @@
   a { color: var(--accent); }
 
   /* ---- Table ---- */
-  .tabulator { font-size: 13px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  /* Tabulator's base .tabulator background defaults to #888; it is normally hidden behind the
+     columns, but any time the columns don't span the full width (autosize, resizing a column,
+     content-fit) it shows through the transparent tableholder as a gray strip. Paint it the card
+     colour so any such gap is invisible instead of gray, whatever the column widths. */
+  .tabulator { font-size: 13px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--white); }
+  .tabulator .tabulator-tableholder { background: var(--white); }
   .tabulator .tabulator-header { background: var(--accent-surface); border-bottom: 1px solid var(--border); }
   .tabulator .tabulator-header .tabulator-col { background: transparent; }
 
@@ -314,6 +329,7 @@
   <section id="cost" aria-labelledby="cost-title">
     <h2 class="section-title" id="cost-title">Cost</h2>
     <p class="section-sub">Real per-run cost from the AWS CUR export, explored three ways — over time, by run, and by instance type — so you can see not just what a pipeline costs but where the cost goes.</p>
+    <p class="cost-coverage" id="cost-coverage" hidden></p>
     <div class="toolbar">
       <span class="ctl-label">View:</span>
       <span class="btn-group" id="cost-view-toggle">
@@ -354,6 +370,23 @@ function fmtCost(v) {
   const n = Number(v);
   const dp = n < 0.01 ? 4 : n < 1 ? 3 : 2;
   return "$" + n.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp });
+}
+
+// Cost cell that explains an absent value: the real cost, else why it is missing.
+// "pending" = CUR data likely hasn't propagated (run < 24h old); "no data" = genuinely
+// unmatched; a plain em-dash means no CUR export was supplied at all.
+function fmtCostStatus(v, status) {
+  if (v != null) return fmtCost(v);
+  if (status === "propagating") return '<span class="cost-note propagating" title="AWS cost data likely not propagated yet — run finished less than 24h ago">pending</span>';
+  if (status === "not_found") return '<span class="cost-note not-found" title="No matching AWS cost data found for this run">no data</span>';
+  return '<span class="muted">&mdash;</span>';
+}
+
+// How a run's cost was derived: split cost allocation (used vs idle) or a single blended line item.
+function fmtCostBasis(basis) {
+  if (basis === "split") return '<span class="basis split" title="ECS split cost allocation: cost split into used vs idle capacity">Split</span>';
+  if (basis === "blended") return '<span class="basis blended" title="Single blended cost line item; no split cost allocation available">Blended</span>';
+  return '<span class="muted">&mdash;</span>';
 }
 
 // Human-readable duration from milliseconds: "1h 23m", "23m 4s", "4s".
@@ -436,15 +469,52 @@ window.addEventListener("resize", () => {
   }
 })();
 
-// Fixed virtual-scroll height for the Tabulator tables, sized to content and capped at 75vh.
-// Tabulator's `maxHeight` recomputes height via offsetHeight on every ResizeObserver tick; while
-// the rest of the report settles after load that becomes a multi-second forced-layout storm
-// (~10s of blocked main thread at 30+ runs). A fixed height sizes the virtual-scroll viewport
-// exactly once, so it stays fast while still virtualising rows for large reports.
-function tableHeight(runs) {
+// ---- Cost section note: coverage + whether Intelligent Compute used split or blended cost ----
+// Answers, in one line, "did we find costs for these runs, and is IC cost split or blended?".
+(function () {
+  const el = document.getElementById("cost-coverage");
+  if (!el) return;
+  const ov = DATA.ic_overview || {};
+  // No CUR export at all -> the cost charts already show their own empty state.
+  if (!ov.cur_supplied) return;
+  const runs = DATA.run_summary || [];
+  const withCost = ov.n_runs_with_cost || 0;
+  const split = ov.n_runs_split_cost || 0;
+  const blended = ov.n_runs_blended_cost || 0;
+  const missing = ov.n_runs_missing_cost || 0;
+  const icRuns = runs.filter((r) => r.compute_type === "intelligent_compute");
+  const icSplit = icRuns.filter((r) => r.cost_basis === "split").length;
+  const icBlended = icRuns.filter((r) => r.cost_basis === "blended").length;
+  const s = (n) => (n === 1 ? "" : "s");
+  const parts = [];
+  parts.push("Costs found for <b>" + withCost + "</b> of <b>" + runs.length + "</b> run" + s(runs.length) + ".");
+  if (icSplit && !icBlended) {
+    parts.push("Intelligent Compute cost uses <b>split cost allocation</b> (used vs idle capacity).");
+  } else if (icSplit && icBlended) {
+    parts.push("<b>" + icSplit + "</b> Intelligent Compute run" + s(icSplit) + " use split cost allocation; <b>" + icBlended + "</b> use blended cost only.");
+  } else if (icBlended) {
+    parts.push("Intelligent Compute cost is <b>blended</b> — no split cost allocation was found for these runs.");
+  }
+  if (split && !icSplit && !icBlended) {
+    parts.push("<b>" + split + "</b> run" + s(split) + " report split cost allocation.");
+  }
+  if (missing) parts.push("<b>" + missing + "</b> run" + s(missing) + " have no matching cost yet (pending or absent).");
+  el.innerHTML = parts.join(" ");
+  el.hidden = false;
+})();
+
+// Table sizing. Short tables get NO fixed height, so Tabulator shrinks the tableholder to
+// exactly the rows it holds (no empty gray strip beneath the last row). Only once the content
+// would exceed 75vh do we pin a fixed height, which caps the table AND turns on row
+// virtualisation — sized once here, so we never touch Tabulator's `maxHeight` (whose
+// ResizeObserver recompute caused a multi-second forced-layout storm at 30+ runs).
+function tableSizing(runs) {
   const groups = new Set(runs.map((r) => r.pipeline || "—")).size;
-  const content = 96 + (runs.length + groups) * 34; // header + (data + group-header) rows
-  return Math.min(Math.round(window.innerHeight * 0.75), content);
+  // ~53px header + ~28px per data/group row (measured); a small over-estimate is fine — it
+  // only decides *whether* to cap, and a capped table is full of rows so it never shows gray.
+  const content = 56 + (runs.length + groups) * 28;
+  const cap = Math.round(window.innerHeight * 0.75);
+  return content > cap ? { height: cap } : {};
 }
 
 // ---- Run summary table (Tabulator: searchable + per-column filterable + sortable) ----
@@ -452,8 +522,9 @@ function tableHeight(runs) {
   const runs = DATA.run_summary || [];
   const table = new Tabulator("#run-table", {
     data: runs,
-    layout: "fitDataStretch",
-    height: tableHeight(runs),
+    layout: "fitColumns",        // columns always fill the available width
+    resizableColumnFit: true,    // resizing a column pulls width from its neighbour so the total stays constant (no gray gap)
+    ...tableSizing(runs),
     movableColumns: true,
     placeholder: "No runs",
     groupBy: "pipeline",
@@ -471,7 +542,12 @@ function tableHeight(runs) {
       durCol("Run time", "total_run_time_ms", "Time machines were actually working: sum of each task's start → complete (includes staging, excludes machine-startup waiting)."),
       durCol("Staging time", "total_staging_time_ms", "Sum of each task's staging = (start → complete) − realtime; the run-time not spent executing the tool."),
       { title: "Cost", field: "cost", hozAlign: "right",
-        formatter: (cell) => cell.getValue() == null ? '<span class="muted">&mdash;</span>' : fmtCost(cell.getValue()) },
+        formatter: (cell) => fmtCostStatus(cell.getValue(), cell.getRow().getData().cost_status) },
+      // Rightmost column stays resizable so you can drag its right edge back to the container
+      // border to re-fill the width after shrinking another column. Any transient gap shows the
+      // card colour, not gray (see .tabulator background above).
+      { title: "Cost basis", field: "cost_basis", hozAlign: "center", headerFilter: "input",
+        formatter: (cell) => fmtCostBasis(cell.getValue()) },
     ],
   });
   const searchEl = document.getElementById("run-search");
@@ -496,7 +572,8 @@ function tableHeight(runs) {
   const table = new Tabulator("#resource-table", {
     data: runs,
     layout: "fitColumns",
-    height: tableHeight(runs),
+    resizableColumnFit: true,    // resize adjusts the neighbour so the table stays full-width (no gray gap)
+    ...tableSizing(runs),
     movableColumns: true,
     placeholder: "No runs",
     groupBy: "pipeline",

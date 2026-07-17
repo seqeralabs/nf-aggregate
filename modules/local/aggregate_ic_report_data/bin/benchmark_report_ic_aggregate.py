@@ -5,11 +5,18 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from benchmark_report_aggregate import _build_workspace_run_url, _classify_workflow_status, _iter_jsonl
 from benchmark_report_normalize import _duration_ms
+
+# AWS Cost and Usage Report data can lag pipeline completion by roughly a day.
+# A run that finished inside this window and still lacks cost rows is treated as
+# "likely not propagated yet" rather than "genuinely missing". Mirrors the
+# benchmark report's cost-availability vocabulary so the two reports read alike.
+_COST_PROPAGATION_WINDOW_HOURS = 24
 
 
 def _compute_type(run: dict[str, Any]) -> str:
@@ -147,24 +154,64 @@ def _build_machine_usage(
     return usage
 
 
-def _run_costs_from_cur(jsonl_dir: Path) -> dict[str, float]:
-    """Per-run cost totals from a real AWS CUR export (``costs.jsonl``), keyed by run_id.
+def _parse_timestamp(ts: Any) -> datetime | None:
+    if not isinstance(ts, str) or not ts:
+        return None
+    try:
+        if ts.endswith("Z"):
+            ts = ts[:-1] + "+00:00"
+        return datetime.fromisoformat(ts)
+    except ValueError:
+        return None
 
-    ``costs.jsonl`` is only written when a CUR parquet is supplied to the normalize step,
-    so an absent/empty file leaves run costs unset — we never fall back to Seqera's
-    unreliable cost estimate. CUR rows are task-grained (run_id, process, task_hash);
-    they are summed here into one cost per run. The run_id here is whatever the CUR
-    resource-label map resolves to; the label that ties a CUR row to a Seqera run is
-    finalised in a follow-up step.
+
+def _classify_missing_cost(reference_ts: Any, now: datetime) -> str:
+    """Explain why a run that a CUR export was supplied for still has no cost rows.
+
+    A run that finished inside the CUR propagation window is ``propagating`` (cost
+    data likely just hasn't landed yet); anything older — or with no usable
+    timestamp — is ``not_found`` (we looked and there was nothing to match).
     """
-    totals: dict[str, float] = defaultdict(float)
+    ts = _parse_timestamp(reference_ts)
+    if ts is not None:
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        age_hours = (now - ts).total_seconds() / 3600.0
+        if age_hours < _COST_PROPAGATION_WINDOW_HOURS:
+            return "propagating"
+    return "not_found"
+
+
+def _run_cost_details(jsonl_dir: Path) -> dict[str, dict[str, Any]]:
+    """Per-run CUR cost breakdown from ``costs.jsonl``, keyed by run_id.
+
+    ``costs.jsonl`` is only written when a CUR parquet is supplied to the normalize
+    step, so an absent file leaves run costs unset — we never fall back to Seqera's
+    unreliable cost estimate. CUR rows are task-grained (run_id, process, task_hash);
+    they are summed here into one entry per run carrying:
+      - ``cost``               blended total (used + unused) — the amount actually billed
+      - ``used_cost``          cost of compute that was consumed (ECS split cost allocation)
+      - ``unused_cost``        cost of provisioned-but-idle capacity
+      - ``split_cost_present`` whether any row carried genuine split cost allocation
+
+    Split cost allocation only appears on shared instances (Intelligent Compute /
+    Fusion); dedicated AWS Batch instances report a single blended line item, so
+    ``split_cost_present`` stays False and used/unused are not meaningful there.
+    """
+    details: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {"cost": 0.0, "used_cost": 0.0, "unused_cost": 0.0, "split_cost_present": False}
+    )
     for row in _iter_jsonl(jsonl_dir / "costs.jsonl"):
         run_id = str(row.get("run_id") or "")
         if not run_id:
             continue
-        totals[run_id] += float(row.get("cost") or 0.0)
-    # 4 decimal places: CUR run costs are often sub-cent, so 2 dp collapses them to 0.00.
-    return {run_id: round(total, 4) for run_id, total in totals.items()}
+        entry = details[run_id]
+        entry["cost"] += float(row.get("cost") or 0.0)
+        entry["used_cost"] += float(row.get("used_cost") or 0.0)
+        entry["unused_cost"] += float(row.get("unused_cost") or 0.0)
+        if row.get("split_cost_present"):
+            entry["split_cost_present"] = True
+    return dict(details)
 
 
 def _run_task_timing(jsonl_dir: Path) -> dict[str, dict[str, float]]:
@@ -198,7 +245,11 @@ def build_ic_report_data(
     jsonl_dir = Path(jsonl_dir)
 
     # Real per-run costs from an AWS CUR export, if one was supplied. Empty otherwise.
-    cur_costs = _run_costs_from_cur(jsonl_dir)
+    # ``costs.jsonl`` exists iff a CUR parquet was passed to normalize, so its presence
+    # is how we tell "cost analysis is off" (no file) from "on, but this run has no rows".
+    cur_supplied = (jsonl_dir / "costs.jsonl").exists()
+    cost_details = _run_cost_details(jsonl_dir)
+    now = datetime.now(timezone.utc)
 
     # Machine/instance breakdown defines the shared occupancy cpu-hours basis; the
     # run-level "compute hours" is then taken from each run's machine total, so the
@@ -240,6 +291,27 @@ def build_ic_report_data(
         req_mem_gib = round(res.get("mem_req", 0.0), 1)
         eff_mem_gib = round(res.get("mem_used", 0.0), 1)
 
+        # Cost, preferring ECS split cost allocation (used vs idle) when the CUR export
+        # carries it for this run, else the blended total. Intelligent Compute runs on
+        # shared instances can report split cost; dedicated AWS Batch instances only ever
+        # report a blended line item. When a CUR file was supplied but no row matched this
+        # run, cost_status explains why (propagating vs not_found); with no CUR at all the
+        # whole cost story is off and every field stays None.
+        detail = cost_details.get(run_id)
+        if detail is not None:
+            split_present = bool(detail["split_cost_present"])
+            cost = round(detail["cost"], 4)
+            used_cost = round(detail["used_cost"], 4) if split_present else None
+            unused_cost = round(detail["unused_cost"], 4) if split_present else None
+            cost_basis = "split" if split_present else "blended"
+            cost_status = "available"
+        else:
+            cost = used_cost = unused_cost = None
+            cost_basis = None
+            cost_status = None if not cur_supplied else _classify_missing_cost(
+                run.get("complete") or started_at, now
+            )
+
         run_summary.append({
             "run_id": run_id,
             "run_url": run_url,
@@ -268,7 +340,14 @@ def build_ic_report_data(
             "run_cost_platform": run.get("run_cost"),
             # Real cost from the AWS CUR export; None when no CUR row matched this run
             # (renders as an em-dash). The Seqera estimate above is never used here.
-            "cost": cur_costs.get(run_id),
+            "cost": cost,
+            # Split cost allocation (used vs idle) when present, else None -> em-dash.
+            "used_cost": used_cost,
+            "unused_cost": unused_cost,
+            # "split" | "blended" | None (no cost row): how this run's cost was derived.
+            "cost_basis": cost_basis,
+            # "available" | "propagating" | "not_found" | None (no CUR at all).
+            "cost_status": cost_status,
         })
 
     # Default order: group by pipeline, then facet (IC before Batch), then newest run
@@ -295,13 +374,24 @@ def build_ic_report_data(
     for row in run_summary:
         row["compute_hours"] = run_totals.get(row["run_id"], 0.0)
 
+    runs_with_cost = [r for r in run_summary if r["cost_status"] == "available"]
     return {
         "ic_overview": {
             "n_runs": len(run_summary),
             "n_intelligent_compute": n_ic,
             "n_batch": n_batch,
             # "aws_cur" when real CUR costs were joined onto at least one run, else None.
-            "cost_source": "aws_cur" if cur_costs else None,
+            "cost_source": "aws_cur" if cost_details else None,
+            # Whether a CUR export was supplied at all (distinguishes "no cost analysis"
+            # from "analysis on, but nothing matched this set of runs").
+            "cur_supplied": cur_supplied,
+            # Cost-coverage tallies driving the report's cost-availability note.
+            "n_runs_with_cost": len(runs_with_cost),
+            "n_runs_split_cost": sum(1 for r in runs_with_cost if r["cost_basis"] == "split"),
+            "n_runs_blended_cost": sum(1 for r in runs_with_cost if r["cost_basis"] == "blended"),
+            "n_runs_missing_cost": sum(
+                1 for r in run_summary if r["cost_status"] in ("propagating", "not_found")
+            ),
         },
         "run_summary": run_summary,
         "machine_usage": machine_usage,

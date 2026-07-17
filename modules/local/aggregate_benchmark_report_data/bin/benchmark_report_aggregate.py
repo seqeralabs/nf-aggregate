@@ -5,11 +5,17 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from datetime import datetime, timezone
 from math import sqrt
 from pathlib import Path
 from typing import Any, Iterator
 
 _HIGHLIGHT_KEYWORDS = ("qc", "qualimap", "multiqc", "rseqc", "dupradar")
+
+# AWS Cost and Usage Report data can lag pipeline completion by roughly a day.
+# A run that finished inside this window and still lacks cost rows is treated as
+# "likely not propagated yet" rather than "genuinely missing".
+_COST_PROPAGATION_WINDOW_HOURS = 24
 
 
 def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
@@ -71,6 +77,35 @@ def _cost_or_task(cost_row: dict[str, Any] | None, key: str, default: float = 0.
         return default
 
     return float(value)
+
+
+def _parse_timestamp(ts: Any) -> datetime | None:
+    if not isinstance(ts, str) or not ts:
+        return None
+    try:
+        if ts.endswith("Z"):
+            ts = ts[:-1] + "+00:00"
+        return datetime.fromisoformat(ts)
+    except ValueError:
+        return None
+
+
+def _classify_missing_cost(reference_ts: Any, now: datetime) -> str:
+    """Explain why a run has no cost rows.
+
+    A run that finished inside the CUR propagation window is flagged
+    ``propagating`` (cost data likely just hasn't landed yet); anything older —
+    or with no usable timestamp — is ``not_found`` (we looked and there was
+    nothing to match).
+    """
+    ts = _parse_timestamp(reference_ts)
+    if ts is not None:
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        age_hours = (now - ts).total_seconds() / 3600.0
+        if age_hours < _COST_PROPAGATION_WINDOW_HOURS:
+            return "propagating"
+    return "not_found"
 
 
 def _summarize_missing_processes(
@@ -162,6 +197,7 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
 
     run_cost_acc: dict[tuple[str, str], dict[str, Any]] = {}
     run_pipeline: dict[str, str] = {}
+    run_end_ts: dict[str, Any] = {}
     included_run_ids: set[str] = set()
     machines_index = _load_machines_index(jsonl_dir)
 
@@ -169,6 +205,7 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
         run_id = str(r.get("run_id", ""))
         group = str(r.get("group", ""))
         run_pipeline[run_id] = str(r.get("pipeline") or "unknown")
+        run_end_ts[run_id] = r.get("complete") or r.get("start")
         status_label, status_category, report_included = _classify_workflow_status(
             r.get("status"), include_failed_runs=include_failed_runs
         )
@@ -512,19 +549,30 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
     run_summary.sort(key=lambda x: str(x.get("group", "")))
     run_metrics.sort(key=lambda x: str(x.get("group", "")))
 
-    run_costs = sorted(
-        [
+    now = datetime.now(timezone.utc)
+    run_costs = []
+    for row in run_cost_acc.values():
+        run_id = row["run_id"]
+        group = row["group"]
+        if not cur_supplied:
+            # No CUR file at all — cost analysis is off, keep prior behaviour.
+            cost_status = None
+        else:
+            coverage = cost_coverage_runs.get((run_id, group))
+            matched = int(coverage["matched_tasks"]) if coverage else 0
+            cost_status = "available" if matched > 0 else _classify_missing_cost(run_end_ts.get(run_id), now)
+        missing = cost_status in ("propagating", "not_found")
+        run_costs.append(
             {
-                "run_id": row["run_id"],
-                "group": row["group"],
-                "cost": _round(row["cost"], 2),
-                "used_cost": _round(row["used_cost"], 2) if has_cost_rows else None,
-                "unused_cost": _round(row["unused_cost"], 2) if has_cost_rows else None,
+                "run_id": run_id,
+                "group": group,
+                "cost": None if missing else _round(row["cost"], 2),
+                "used_cost": None if missing else (_round(row["used_cost"], 2) if has_cost_rows else None),
+                "unused_cost": None if missing else (_round(row["unused_cost"], 2) if has_cost_rows else None),
+                "cost_status": cost_status,
             }
-            for row in run_cost_acc.values()
-        ],
-        key=lambda x: str(x.get("group", "")),
-    )
+        )
+    run_costs.sort(key=lambda x: str(x.get("group", "")))
 
     process_stats = []
     for (group, process, process_short), acc in process_acc.items():

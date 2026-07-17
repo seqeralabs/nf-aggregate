@@ -323,3 +323,19 @@ def test_render_html_uses_custom_template(tmp_path):
         template_path=template,
     )
     assert "RUNS=2" in out.read_text()
+
+def test_render_emits_cost_status_formatter(tmp_path, minimal_report_data):
+    out = tmp_path / "report.html"
+    render_html(minimal_report_data, out)
+    text = out.read_text()
+    # Status-aware cost cell: value when present, short reason when absent.
+    assert "function fmtCostStatus(v, status)" in text
+    assert "fmtCostStatus(c.cost, c.cost_status)" in text
+    assert "fmtCostStatus(c.used_cost, c.cost_status)" in text
+    assert "fmtCostStatus(c.unused_cost, c.cost_status)" in text
+    assert "propagating" in text
+    assert "not_found" in text
+    assert ">pending<" in text
+    assert ">no data<" in text
+    assert ".cost-note.propagating" in text
+    assert ".cost-note.not-found" in text

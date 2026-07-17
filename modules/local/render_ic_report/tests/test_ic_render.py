@@ -160,3 +160,34 @@ def test_ic_report_hides_group_column_when_undefined(tmp_path):
     })
     assert 'title: "Group"' not in html
     assert '"wall_time_ms"' in html              # timing columns still present
+
+
+def test_ic_report_renders_cost_basis_columns_and_coverage_note(tmp_path):
+    """Run table shows the cost-basis column (not Used/Idle) and the coverage-note mount; used/idle stay in the data."""
+    split_run = dict(
+        _RUN, cost=4.0, used_cost=3.0, unused_cost=1.0,
+        cost_basis="split", cost_status="available",
+    )
+    blended_run = dict(
+        _RUN, run_id="icRUN0000000002", cost=2.5, used_cost=None, unused_cost=None,
+        cost_basis="blended", cost_status="available",
+    )
+    html = _render(tmp_path, {
+        "ic_overview": {
+            "n_runs": 2, "n_intelligent_compute": 2, "n_batch": 0, "cost_source": "aws_cur",
+            "cur_supplied": True, "n_runs_with_cost": 2, "n_runs_split_cost": 1,
+            "n_runs_blended_cost": 1, "n_runs_missing_cost": 0,
+        },
+        "run_summary": [split_run, blended_run],
+        "machine_usage": [],
+    })
+    # Cost basis column + the status/basis formatters that back it
+    assert 'title: "Cost basis"' in html
+    assert "function fmtCostStatus" in html and "function fmtCostBasis" in html
+    # Used/Idle are tracked in the data but intentionally NOT shown as table columns
+    assert 'title: "Used"' not in html and 'title: "Idle"' not in html
+    # per-run cost-availability + split/blended coverage note mount point
+    assert 'id="cost-coverage"' in html
+    # used vs idle split values are still carried into the embedded blob (back-end tracking)
+    assert '"used_cost": 3.0' in html and '"unused_cost": 1.0' in html
+    assert '"cost_basis": "split"' in html and '"cost_basis": "blended"' in html

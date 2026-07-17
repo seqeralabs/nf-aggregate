@@ -19,6 +19,8 @@ def test_ic_report_shape_and_detection(tmp_path, make_ic_run, make_batch_run, wr
     assert set(data.keys()) == {"ic_overview", "run_summary", "machine_usage"}
     assert data["ic_overview"] == {
         "n_runs": 2, "n_intelligent_compute": 1, "n_batch": 1, "cost_source": None,
+        "cur_supplied": False, "n_runs_with_cost": 0, "n_runs_split_cost": 0,
+        "n_runs_blended_cost": 0, "n_runs_missing_cost": 0,
     }
     assert {r["compute_type"] for r in data["run_summary"]} == {"intelligent_compute", "batch"}
 
@@ -247,3 +249,86 @@ def test_run_cost_summed_from_cur_costs_jsonl(tmp_path, make_ic_run, write_run_j
     assert data["ic_overview"]["cost_source"] == "aws_cur"
     row = next(r for r in data["run_summary"] if r["run_id"] == "icRUN0000000001")
     assert row["cost"] == 3.75
+
+
+def _write_costs(jsonl_dir, rows):
+    jsonl_dir.joinpath("costs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+
+def test_ic_run_cost_prefers_split_allocation(tmp_path, make_ic_run, write_run_json):
+    """When CUR rows carry split cost allocation, the run shows used vs idle cost."""
+    jsonl_dir = _bundle(tmp_path, [make_ic_run(run_id="icRUN0000000001")], write_run_json)
+    _write_costs(jsonl_dir, [
+        {"run_id": "icRUN0000000001", "process": "FOO", "hash": "abcd1234",
+         "cost": 3.0, "used_cost": 2.0, "unused_cost": 1.0, "split_cost_present": True},
+        {"run_id": "icRUN0000000001", "process": "BAR", "hash": "ef567890",
+         "cost": 1.0, "used_cost": 1.0, "unused_cost": 0.0, "split_cost_present": False},
+    ])
+    data = build_ic_report_data(jsonl_dir)
+    row = next(r for r in data["run_summary"] if r["run_id"] == "icRUN0000000001")
+    assert row["cost"] == 4.0            # blended total is always used + unused
+    assert row["used_cost"] == 3.0       # summed across rows
+    assert row["unused_cost"] == 1.0
+    assert row["cost_basis"] == "split"  # any split row flips the whole run to split
+    assert row["cost_status"] == "available"
+    assert data["ic_overview"]["n_runs_split_cost"] == 1
+
+
+def test_ic_run_cost_falls_back_to_blended(tmp_path, make_ic_run, write_run_json):
+    """No split cost allocation -> blended total only, used/idle hidden (None)."""
+    jsonl_dir = _bundle(tmp_path, [make_ic_run(run_id="icRUN0000000001")], write_run_json)
+    _write_costs(jsonl_dir, [
+        {"run_id": "icRUN0000000001", "process": "FOO", "hash": "abcd1234",
+         "cost": 2.5, "used_cost": 2.5, "unused_cost": 0.0, "split_cost_present": False},
+    ])
+    data = build_ic_report_data(jsonl_dir)
+    row = next(r for r in data["run_summary"] if r["run_id"] == "icRUN0000000001")
+    assert row["cost"] == 2.5
+    assert row["used_cost"] is None
+    assert row["unused_cost"] is None
+    assert row["cost_basis"] == "blended"
+    assert row["cost_status"] == "available"
+    assert data["ic_overview"]["n_runs_blended_cost"] == 1
+    assert data["ic_overview"]["n_runs_split_cost"] == 0
+
+
+def test_ic_run_cost_status_not_found_when_cur_supplied_but_unmatched(tmp_path, make_ic_run, write_run_json):
+    """CUR supplied but nothing matched this run (no timestamp) -> not_found."""
+    jsonl_dir = _bundle(tmp_path, [make_ic_run(run_id="icRUN0000000001")], write_run_json)
+    _write_costs(jsonl_dir, [
+        {"run_id": "otherRUN", "process": "FOO", "hash": "abcd1234",
+         "cost": 9.0, "used_cost": 9.0, "unused_cost": 0.0, "split_cost_present": False},
+    ])
+    data = build_ic_report_data(jsonl_dir)
+    row = next(r for r in data["run_summary"] if r["run_id"] == "icRUN0000000001")
+    assert row["cost"] is None
+    assert row["cost_basis"] is None
+    assert row["cost_status"] == "not_found"
+    assert data["ic_overview"]["n_runs_missing_cost"] == 1
+
+
+def test_ic_run_cost_status_propagating_for_recent_run(tmp_path, make_ic_run, write_run_json):
+    """A run that finished < 24h ago with no cost yet is 'propagating', not 'not_found'."""
+    from datetime import datetime, timedelta, timezone
+
+    run = make_ic_run(run_id="icRUN0000000001")
+    run["workflow"]["complete"] = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    jsonl_dir = _bundle(tmp_path, [run], write_run_json)
+    _write_costs(jsonl_dir, [
+        {"run_id": "otherRUN", "process": "FOO", "hash": "abcd1234", "cost": 9.0},
+    ])
+    data = build_ic_report_data(jsonl_dir)
+    row = next(r for r in data["run_summary"] if r["run_id"] == "icRUN0000000001")
+    assert row["cost"] is None
+    assert row["cost_status"] == "propagating"
+
+
+def test_ic_run_cost_status_none_without_cur(tmp_path, make_ic_run, write_run_json):
+    """No CUR export at all -> cost_status is None (cost analysis off), not a miss."""
+    jsonl_dir = _bundle(tmp_path, [make_ic_run(run_id="icRUN0000000001")], write_run_json)
+    data = build_ic_report_data(jsonl_dir)
+    row = data["run_summary"][0]
+    assert row["cost_status"] is None
+    assert row["cost_basis"] is None
+    assert data["ic_overview"]["cur_supplied"] is False
+    assert data["ic_overview"]["n_runs_missing_cost"] == 0

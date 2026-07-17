@@ -205,6 +205,10 @@
   .status-cancelled { background: #fef3c7; color: #92400e; }
   .status-other, .status-unknown { background: {{ brand_neutral }}; color: {{ brand_heading }}; }
   .status-note { display: block; margin-top: 4px; font-size: 11px; white-space: normal; color: {{ brand_heading }}; }
+  .cost-note { display: inline-block; padding: 1px 6px; border-radius: 9999px; font-size: 11px;
+                font-weight: 600; line-height: 1.6; white-space: nowrap; cursor: help; }
+  .cost-note.propagating { background: rgba(255, 193, 7, 0.18); color: #997404; }
+  .cost-note.not-found { background: rgba(108, 117, 125, 0.14); color: #495057; }
 </style>
 </head>
 <body>
@@ -579,6 +583,12 @@ function fmtDurationCompact(ms) {
   return `${s}s`;
 }
 function fmtCost(v) { return v != null ? '$' + Number(v).toFixed(2) : '\u2014'; }
+function fmtCostStatus(v, status) {
+  if (v != null) return fmtCost(v);
+  if (status === 'propagating') return '<span class="cost-note propagating" title="AWS cost data likely not propagated yet - run finished less than 24h ago">pending</span>';
+  if (status === 'not_found') return '<span class="cost-note not-found" title="No matching AWS cost data found for this run">no data</span>';
+  return '\u2014';
+}
 function fmtPct(v) { return v != null ? Number(v).toFixed(1) + '%' : '\u2014'; }
 function fmtGB(v) { return v != null ? Number(v).toLocaleString() : '\u2014'; }
 function fmtHours(v) { return v != null ? Number(v).toFixed(1) : '\u2014'; }
@@ -724,7 +734,7 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
     html += '<td>' + fmtDuration(r.duration) + '</td>';
     html += '<td>' + fmtHours(r.cpuTime) + '</td>';
     html += '<td>' + fmtHours(r.vmCpuH) + '</td>';
-    html += '<td>' + fmtCost(c.cost) + '</td>';
+    html += '<td>' + fmtCostStatus(c.cost, c.cost_status) + '</td>';
     html += '<td>' + fmtGB(r.readBytes) + '</td>';
     html += '<td>' + fmtGB(r.writeBytes) + '</td>';
     html += '<td>' + fmtPct(r.cpuEfficiency) + '</td>';
@@ -733,8 +743,8 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
     html += '<td>' + fmtPct(r.schedAllocMemEfficiency) + '</td>';
     html += '<td>' + fmtPct(r.realVmCpuEfficiency) + '</td>';
     html += '<td>' + fmtPct(r.realVmMemEfficiency) + '</td>';
-    html += '<td>' + fmtCost(c.used_cost) + '</td>';
-    html += '<td>' + fmtCost(c.unused_cost) + '</td>';
+    html += '<td>' + fmtCostStatus(c.used_cost, c.cost_status) + '</td>';
+    html += '<td>' + fmtCostStatus(c.unused_cost, c.cost_status) + '</td>';
     html += '<td>' + prtFmt + '</td>';
     html += '</tr>';
   });
