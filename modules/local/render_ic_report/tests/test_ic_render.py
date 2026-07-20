@@ -54,7 +54,7 @@ def test_ic_report_is_interactive_and_embeds_data(tmp_path):
     # perf metrics moved out of the run-summary table into the Performance "Resource usage" view
     assert 'id="resource-table"' in html
     assert "Resource usage" in html
-    assert 'title: "CPU req (vCPU-h)"' in html and 'title: "CPU eff (vCPU-h)"' in html
+    assert 'helpTitle("CPU req (vCPU-h)"' in html and 'helpTitle("CPU eff (vCPU-h)"' in html
     assert 'title: "Compute hours"' not in html   # moved to the resource view
     assert 'title: "Memory (GB)"' not in html
     # table <-> chart toggle; no efficiency columns/series (only the prose that explains its absence)
@@ -182,7 +182,7 @@ def test_ic_report_renders_cost_basis_columns_and_coverage_note(tmp_path):
         "machine_usage": [],
     })
     # Cost basis column + the status/basis formatters that back it
-    assert 'title: "Cost basis"' in html
+    assert 'helpTitle("Cost basis"' in html
     assert "function fmtCostStatus" in html and "function fmtCostBasis" in html
     # Used/Idle are tracked in the data but intentionally NOT shown as table columns
     assert 'title: "Used"' not in html and 'title: "Idle"' not in html

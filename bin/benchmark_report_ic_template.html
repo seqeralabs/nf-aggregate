@@ -138,6 +138,20 @@
   .cost-coverage { font-size: 12.5px; color: var(--muted); margin: 4px 0 14px; }
   .cost-coverage b { color: var(--ink); font-weight: 600; }
 
+  /* ---- Metric help: a hoverable "?" that explains a metric in plain language ---- */
+  /* Prototype — wired to the run-summary time columns only, before a wider rollout. */
+  .help { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;
+    margin-left: 5px; border-radius: 50%; background: var(--border); color: var(--white);
+    font-size: 10px; font-weight: 700; line-height: 1; cursor: help; vertical-align: middle;
+    user-select: none; flex: none; }
+  .help:hover { background: var(--accent); }
+  /* Tip is appended to <body>, so it is never clipped by the table's overflow:hidden. */
+  .help-tip { position: absolute; z-index: 60; max-width: 260px; background: var(--ink); color: #fff;
+    font-size: 12px; font-weight: 400; line-height: 1.45; text-align: left; padding: 8px 10px;
+    border-radius: 8px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); pointer-events: none;
+    opacity: 0; transform: translateY(-2px); transition: opacity 0.12s, transform 0.12s; }
+  .help-tip.show { opacity: 1; transform: translateY(0); }
+
   /* ---- Toolbar / controls ---- */
   .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
   .toolbar input[type=search] { padding: 8px 11px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; min-width: 280px; font-family: inherit; }
@@ -399,10 +413,51 @@ function fmtDuration(ms) {
   if (m) return m + "m " + s + "s";
   return s + "s";
 }
+// A metric column title with a hoverable "?" that explains it in plain language.
+// The tip is author-authored static text, so it is embedded as trusted HTML via
+// titleFormatter:"html". Any column using helpTitle should set minWidth: helpMinWidth(title).
+const helpTitle = (title, help) =>
+  esc(title) + '<span class="help" data-help="' + esc(help) + '" aria-label="' + esc(help) + '">?</span>';
+
+// Minimum column width that keeps a header's title AND its "?" icon fully visible (never
+// ellipsis-clipped) at the default fitColumns layout, whatever the title length. The header
+// text is measured with a canvas so long titles (e.g. "Staging time", "CPU req (vCPU-h)")
+// reserve enough room for the trailing icon; a length-based estimate is the fallback if the
+// font metrics aren't available yet.
+const _titleCtx = document.createElement("canvas").getContext("2d");
+function helpMinWidth(title) {
+  _titleCtx.font = '700 13px Inter, -apple-system, "Segoe UI", Roboto, sans-serif';
+  const textW = _titleCtx.measureText(title).width || title.length * 8;
+  // title text + "?" icon (14 + 5 margin) + sort arrow (~24) + header padding (~18) + slack (8)
+  return Math.ceil(textW + 19 + 24 + 18 + 8);
+}
+
 const durCol = (title, field, tip) => ({
-  title: title, field: field, hozAlign: "right", sorter: "number", headerTooltip: tip,
+  // minWidth keeps the title + "?" icon from being ellipsis-clipped under fitColumns.
+  title: helpTitle(title, tip), field: field, titleFormatter: "html", hozAlign: "right", sorter: "number", minWidth: helpMinWidth(title),
   formatter: (cell) => cell.getValue() == null ? '<span class="muted">&mdash;</span>' : fmtDuration(cell.getValue()),
 });
+
+// Floating tooltip for every ".help" affordance. Delegated (so it also covers Tabulator's
+// dynamically-rendered headers) and mounted on <body> (so table overflow never clips it).
+(function () {
+  let tip = null;
+  const tipEl = () => (tip || (tip = document.body.appendChild(Object.assign(document.createElement("div"), { className: "help-tip" }))));
+  function show(el) {
+    const t = tipEl();
+    t.textContent = el.getAttribute("data-help") || "";
+    t.classList.add("show");
+    const r = el.getBoundingClientRect();
+    const maxLeft = window.scrollX + document.documentElement.clientWidth - t.offsetWidth - 8;
+    t.style.top = (r.bottom + window.scrollY + 6) + "px";
+    t.style.left = Math.max(window.scrollX + 8, Math.min(r.left + window.scrollX + r.width / 2 - t.offsetWidth / 2, maxLeft)) + "px";
+  }
+  const hide = () => { if (tip) tip.classList.remove("show"); };
+  document.addEventListener("mouseover", (e) => { const el = e.target.closest && e.target.closest(".help"); if (el) show(el); });
+  document.addEventListener("mouseout", (e) => { const el = e.target.closest && e.target.closest(".help"); if (el) hide(); });
+  // A click on the "?" must not trigger the header's sort.
+  document.addEventListener("click", (e) => { const el = e.target.closest && e.target.closest(".help"); if (el) { e.stopPropagation(); e.preventDefault(); } }, true);
+})();
 
 // ---- Perf: lazy chart init + throttled resize ----
 // A report can hold dozens of charts (2-3 per pipeline). Building them all up front
@@ -538,15 +593,16 @@ function tableSizing(runs) {
         formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
       { title: "Started", field: "started_at", headerFilter: "input", sorter: "string",
         formatter: (cell) => { const v = cell.getValue(); return v ? String(v).replace("T", " ").slice(0, 16) : '<span class="muted">&mdash;</span>'; } },
-      durCol("Wall time", "wall_time_ms", "Whole-workflow duration: submission → completion (same as the Platform; includes time waiting for machines)."),
-      durCol("Run time", "total_run_time_ms", "Time machines were actually working: sum of each task's start → complete (includes staging, excludes machine-startup waiting)."),
-      durCol("Staging time", "total_staging_time_ms", "Sum of each task's staging = (start → complete) − realtime; the run-time not spent executing the tool."),
+      durCol("Wall time", "wall_time_ms", "Total time from submitting the run to it finishing — including any time spent waiting for machines to start. This is the clock time you actually wait."),
+      durCol("Run time", "total_run_time_ms", "Time the machines spent actually working on your tasks, added up across all tasks. Excludes waiting for machines to start, but includes moving data in and out."),
+      durCol("Staging time", "total_staging_time_ms", "The slice of run time spent moving data in and out (staging) rather than running the tool itself."),
       { title: "Cost", field: "cost", hozAlign: "right",
         formatter: (cell) => fmtCostStatus(cell.getValue(), cell.getRow().getData().cost_status) },
       // Rightmost column stays resizable so you can drag its right edge back to the container
       // border to re-fill the width after shrinking another column. Any transient gap shows the
       // card colour, not gray (see .tabulator background above).
-      { title: "Cost basis", field: "cost_basis", hozAlign: "center", headerFilter: "input",
+      { title: helpTitle("Cost basis", "How this run's cost was measured. Split = separated into capacity you actually used vs idle capacity you still paid for. Blended = a single combined figure, used when no split is available."),
+        field: "cost_basis", titleFormatter: "html", hozAlign: "center", headerFilter: "input", minWidth: helpMinWidth("Cost basis"),
         formatter: (cell) => fmtCostBasis(cell.getValue()) },
     ],
   });
@@ -583,10 +639,14 @@ function tableSizing(runs) {
         formatter: (cell) => { const r = cell.getRow().getData(); return r.run_url ? '<a href="' + esc(r.run_url) + '" target="_blank" rel="noopener">' + esc(r.run_id) + '</a>' : esc(r.run_id); } },
       { title: "Compute type", field: "compute_type", headerFilter: "input", minWidth: 150, widthGrow: 2,
         formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
-      { title: "CPU req (vCPU-h)", field: "req_cpu_vcpu_h", hozAlign: "right", sorter: "number", headerTooltip: "Requested CPU, vCPU-hours = Σ(task cpus × runtime). Matches the IC scheduler.", formatter: num(2) },
-      { title: "CPU eff (vCPU-h)", field: "eff_cpu_vcpu_h", hozAlign: "right", sorter: "number", headerTooltip: "Effective CPU, vCPU-hours = Σ(%cpu/100 × runtime) — measured utilisation.", formatter: num(2) },
-      { title: "Mem req (GiB)", field: "req_mem_gib", hozAlign: "right", sorter: "number", headerTooltip: "Requested memory, GiB = Σ(task memory) over the run. Matches the IC scheduler.", formatter: num(1) },
-      { title: "Mem eff (GiB)", field: "eff_mem_gib", hozAlign: "right", sorter: "number", headerTooltip: "Effective memory, GiB = Σ(peak RSS) over the run — peak-resident memory.", formatter: num(1) },
+      { title: helpTitle("CPU req (vCPU-h)", "Requested CPU — how much CPU the run asked for. Measured in vCPU-hours: one virtual CPU busy for one hour."),
+        field: "req_cpu_vcpu_h", titleFormatter: "html", hozAlign: "right", sorter: "number", minWidth: helpMinWidth("CPU req (vCPU-h)"), formatter: num(2) },
+      { title: helpTitle("CPU eff (vCPU-h)", "Effective CPU — how much CPU was actually used, from measured utilisation. Well below requested means the run reserved more CPU than it needed."),
+        field: "eff_cpu_vcpu_h", titleFormatter: "html", hozAlign: "right", sorter: "number", minWidth: helpMinWidth("CPU eff (vCPU-h)"), formatter: num(2) },
+      { title: helpTitle("Mem req (GiB)", "Requested memory — how much RAM the run reserved, in gibibytes (GiB, roughly a GB)."),
+        field: "req_mem_gib", titleFormatter: "html", hozAlign: "right", sorter: "number", minWidth: helpMinWidth("Mem req (GiB)"), formatter: num(1) },
+      { title: helpTitle("Mem eff (GiB)", "Effective memory — the peak RAM actually used (peak RSS), in GiB. Well below requested means the run reserved more memory than it needed."),
+        field: "eff_mem_gib", titleFormatter: "html", hozAlign: "right", sorter: "number", minWidth: helpMinWidth("Mem eff (GiB)"), formatter: num(1) },
     ],
   });
   const searchEl = document.getElementById("resource-search");
