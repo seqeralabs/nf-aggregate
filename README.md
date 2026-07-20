@@ -92,6 +92,16 @@ nextflow run seqeralabs/nf-aggregate \
     --report_type intelligent_compute
 ```
 
+Or use the `intelligent_compute_report` profile, which bundles those settings so you only
+supply your own `--input`/`--outdir` (and optionally `--benchmark_aws_cur_report`):
+
+```
+nextflow run seqeralabs/nf-aggregate \
+    --input run_ids.csv \
+    --outdir ./results \
+    -profile docker,intelligent_compute_report
+```
+
 This produces a run-summary table (run ID deep-link, compute hours, memory, and a cost
 column) written to `${outdir}/intelligent_compute_report/`. Run deep-links are built from
 `--seqera_web_url` (default `https://cloud.seqera.io`). Real per-run costs are joined from

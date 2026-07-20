@@ -39,6 +39,11 @@ and never an input.
 | `seqera_web_url`              | `https://cloud.seqera.io`    | Platform web base URL for run deep-links          |
 | `intelligent_compute_core_report` | null                     | Optional core cost report for IC (not yet wired)  |
 
+The `intelligent_compute_report` profile bundles the IC-report flags
+(`generate_benchmark_report = true`, `report_type = 'intelligent_compute'`) so a run only
+needs `--input`/`--outdir` (and optionally `--benchmark_aws_cur_report`), e.g.
+`-profile docker,intelligent_compute_report`. It intentionally sets no input/output paths.
+
 ## Plugins
 
 - `nf-core-utils@0.4.0` — utility helpers such as Conda checks and software-version reporting
