@@ -128,10 +128,7 @@
   .badge.batch { background: #eaf2f6; color: #2a6c85; }
   .muted { opacity: 0.45; }
 
-  /* Cost basis + availability chips (run table + cost-coverage note) */
-  .basis { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; cursor: help; }
-  .basis.split { background: var(--accent-surface); color: var(--accent); }
-  .basis.blended { background: #eef0f2; color: #52565c; }
+  /* Cost-availability chips (run table + cost-coverage note) */
   .cost-note { display: inline-block; padding: 1px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; cursor: help; }
   .cost-note.propagating { background: rgba(255, 193, 7, 0.18); color: #997404; }
   .cost-note.not-found { background: rgba(108, 117, 125, 0.14); color: #495057; }
@@ -267,7 +264,7 @@
       <div class="stat"><div class="n">{{ ic_overview.n_batch }}</div><div class="l">AWS Batch</div></div>
       <div class="stat" id="stat-cost">
         <div class="n muted">—</div>
-        <div class="l">Cost (CUR)</div>
+        <div class="l">Cost billed (CUR)</div>
         <div class="split" id="cost-split" hidden></div>
       </div>
     </div>
@@ -342,7 +339,7 @@
 
   <section id="cost" aria-labelledby="cost-title">
     <h2 class="section-title" id="cost-title">Cost</h2>
-    <p class="section-sub">Real per-run cost from the AWS CUR export, explored three ways — over time, by run, and by instance type — so you can see not just what a pipeline costs but where the cost goes.</p>
+    <p class="section-sub">Real per-run cost from the AWS CUR export, explored three ways — over time, by run, and by instance type — so you can see not just what a pipeline costs but where the cost goes. The comparison views use the ECS split figure, the only basis AWS Batch also reports, so runs without one are omitted rather than compared on different terms.</p>
     <p class="cost-coverage" id="cost-coverage" hidden></p>
     <div class="toolbar">
       <span class="ctl-label">View:</span>
@@ -378,6 +375,15 @@ function esc(s) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+// The ECS split figure for cross-engine comparison, or null when this run has none.
+// AWS Batch only ever reports this basis, and an Intelligent Compute run on the VM
+// architecture never does (no ECS tasks to split), so comparison views must skip those
+// rather than fall back to the billed instance cost — mixing the two bases in one chart
+// would compare an amortized per-task allocation against a raw instance charge.
+function comparableCost(r) {
+  return r && r.comparable_cost != null ? Number(r.comparable_cost) : null;
+}
+
 // Shared cost formatter: sub-cent CUR costs need up to 4 dp, larger costs read better with fewer.
 function fmtCost(v) {
   if (v == null) return "—";
@@ -393,13 +399,6 @@ function fmtCostStatus(v, status) {
   if (v != null) return fmtCost(v);
   if (status === "propagating") return '<span class="cost-note propagating" title="AWS cost data likely not propagated yet — run finished less than 24h ago">pending</span>';
   if (status === "not_found") return '<span class="cost-note not-found" title="No matching AWS cost data found for this run">no data</span>';
-  return '<span class="muted">&mdash;</span>';
-}
-
-// How a run's cost was derived: split cost allocation (used vs idle) or a single blended line item.
-function fmtCostBasis(basis) {
-  if (basis === "split") return '<span class="basis split" title="ECS split cost allocation: cost split into used vs idle capacity">Split</span>';
-  if (basis === "blended") return '<span class="basis blended" title="Single blended cost line item; no split cost allocation available">Blended</span>';
   return '<span class="muted">&mdash;</span>';
 }
 
@@ -507,25 +506,37 @@ window.addEventListener("resize", () => {
     band.hidden = false;
   }
 
-  // Cost split by engine — only runs with a real CUR cost contribute.
+  // Billed machine cost by engine. AWS Batch has no billed figure at all (it labels tasks, not
+  // machines), so it is shown as an em-dash pointing at the split basis instead of a $0.00 that
+  // would read as "Batch was free".
   const costed = runs.filter((r) => r.cost != null);
   if (costed.length) {
     const total = costed.reduce((s, r) => s + Number(r.cost), 0);
-    const icCost = costed.filter((r) => r.compute_type === "intelligent_compute").reduce((s, r) => s + Number(r.cost), 0);
-    const batchCost = total - icCost;
+    const perEngine = (type) => {
+      const rows = costed.filter((r) => r.compute_type === type);
+      return rows.length ? fmtCost(rows.reduce((s, r) => s + Number(r.cost), 0)) : null;
+    };
+    const icCost = perEngine("intelligent_compute");
+    const batchCost = perEngine("batch");
     const el = document.querySelector("#stat-cost .n");
     el.classList.remove("muted");
     el.textContent = fmtCost(total);
     const split = document.getElementById("cost-split");
+    const row = (dot, label, value, title) =>
+      '<span class="row"' + (title ? ' title="' + esc(title) + '"' : "") + '><span class="' + dot + '"></span>' + label + " <b>" +
+      (value != null ? value : '<span class="muted">&mdash;</span>') + "</b></span>";
     split.innerHTML =
-      '<span class="row"><span class="dot-ic"></span>Seqera Intelligent Compute <b>' + fmtCost(icCost) + '</b></span>' +
-      '<span class="row"><span class="dot-batch"></span>AWS Batch <b>' + fmtCost(batchCost) + '</b></span>';
+      row("dot-ic", "Seqera Intelligent Compute", icCost) +
+      row("dot-batch", "AWS Batch", batchCost,
+          batchCost == null ? "AWS Batch labels its tasks, not the machines underneath, so no billed machine cost can be attributed to a run. See the ECS split figure." : "");
     split.hidden = false;
   }
 })();
 
-// ---- Cost section note: coverage + whether Intelligent Compute used split or blended cost ----
-// Answers, in one line, "did we find costs for these runs, and is IC cost split or blended?".
+// ---- Cost section note: coverage + which runs can be compared across engines ----
+// Answers, in one line, "did we find costs for these runs, and how many can be compared
+// engine-to-engine?". Runs with no ECS split figure carry a billed instance cost only, which
+// is not comparable against AWS Batch, so they sit out the comparison charts.
 (function () {
   const el = document.getElementById("cost-coverage");
   if (!el) return;
@@ -534,24 +545,17 @@ window.addEventListener("resize", () => {
   if (!ov.cur_supplied) return;
   const runs = DATA.run_summary || [];
   const withCost = ov.n_runs_with_cost || 0;
-  const split = ov.n_runs_split_cost || 0;
-  const blended = ov.n_runs_blended_cost || 0;
+  const comparable = ov.n_runs_comparable_cost || 0;
+  const billed = ov.n_runs_billed_cost || 0;
   const missing = ov.n_runs_missing_cost || 0;
-  const icRuns = runs.filter((r) => r.compute_type === "intelligent_compute");
-  const icSplit = icRuns.filter((r) => r.cost_basis === "split").length;
-  const icBlended = icRuns.filter((r) => r.cost_basis === "blended").length;
   const s = (n) => (n === 1 ? "" : "s");
   const parts = [];
   parts.push("Costs found for <b>" + withCost + "</b> of <b>" + runs.length + "</b> run" + s(runs.length) + ".");
-  if (icSplit && !icBlended) {
-    parts.push("Intelligent Compute cost uses <b>split cost allocation</b> (used vs idle capacity).");
-  } else if (icSplit && icBlended) {
-    parts.push("<b>" + icSplit + "</b> Intelligent Compute run" + s(icSplit) + " use split cost allocation; <b>" + icBlended + "</b> use blended cost only.");
-  } else if (icBlended) {
-    parts.push("Intelligent Compute cost is <b>blended</b> — no split cost allocation was found for these runs.");
-  }
-  if (split && !icSplit && !icBlended) {
-    parts.push("<b>" + split + "</b> run" + s(split) + " report split cost allocation.");
+  // The two bases are independent, so state each one's coverage rather than implying a
+  // fallback between them. A blank cell means that basis does not exist for the run.
+  parts.push("<b>" + billed + "</b> run" + s(billed) + " report a billed machine cost; <b>" + comparable + "</b> report the ECS split figure the cost charts compare on.");
+  if (comparable < runs.length) {
+    parts.push("Runs without a split figure are omitted from the comparison charts rather than compared on a different basis.");
   }
   if (missing) parts.push("<b>" + missing + "</b> run" + s(missing) + " have no matching cost yet (pending or absent).");
   el.innerHTML = parts.join(" ");
@@ -596,14 +600,17 @@ function tableSizing(runs) {
       durCol("Wall time", "wall_time_ms", "Total time from submitting the run to it finishing — including any time spent waiting for machines to start. This is the clock time you actually wait."),
       durCol("Run time", "total_run_time_ms", "Time the machines spent actually working on your tasks, added up across all tasks. Excludes waiting for machines to start, but includes moving data in and out."),
       durCol("Staging time", "total_staging_time_ms", "The slice of run time spent moving data in and out (staging) rather than running the tool itself."),
-      { title: "Cost", field: "cost", hozAlign: "right",
-        formatter: (cell) => fmtCostStatus(cell.getValue(), cell.getRow().getData().cost_status) },
+      // Comparable first, then the billed total. Each column is a FIXED basis, so a blank cell
+      // means that basis does not exist for the run — never that cost data is missing.
+      { title: helpTitle("Comparable (split)", "AWS ECS split cost allocation: the machine cost divided up across the tasks that ran on it. AWS Batch only ever reports this figure, so it is the only fair basis for comparing engines — the cost charts all use it. Blank when a run has no ECS tasks to divide up (Intelligent Compute on the VM architecture), and those runs sit out the comparison charts. Note this figure is amortized (it uses your Savings Plan rate where one applies), so it is not directly comparable with the billed Cost beside it."),
+        field: "comparable_cost", titleFormatter: "html", hozAlign: "right", minWidth: helpMinWidth("Comparable (split)"),
+        formatter: (cell) => fmtCost(cell.getValue()) },
       // Rightmost column stays resizable so you can drag its right edge back to the container
       // border to re-fill the width after shrinking another column. Any transient gap shows the
       // card colour, not gray (see .tabulator background above).
-      { title: helpTitle("Cost basis", "How this run's cost was measured. Split = separated into capacity you actually used vs idle capacity you still paid for. Blended = a single combined figure, used when no split is available."),
-        field: "cost_basis", titleFormatter: "html", hozAlign: "center", headerFilter: "input", minWidth: helpMinWidth("Cost basis"),
-        formatter: (cell) => fmtCostBasis(cell.getValue()) },
+      { title: helpTitle("Cost", "What AWS actually billed for the machines this run used, straight from the EC2 charge in the Cost & Usage Report — including start-up, idle and shut-down time. Blank for AWS Batch: it labels only its tasks, never the machines underneath, so no billed machine charge can be tied back to the run. Use the Comparable figure for Batch."),
+        field: "cost", titleFormatter: "html", hozAlign: "right", minWidth: helpMinWidth("Cost"),
+        formatter: (cell) => fmtCostStatus(cell.getValue(), cell.getRow().getData().cost_status) },
     ],
   });
   const searchEl = document.getElementById("run-search");
@@ -901,11 +908,14 @@ function tableSizing(runs) {
   const container = document.getElementById("cost-facets");
   if (!container) return;
 
-  // Only runs with a real CUR cost + a start timestamp can be placed on the time axis.
-  const runs = (DATA.run_summary || []).filter((r) => r.cost != null && r.started_at);
+  // This chart compares engines, so it plots the comparable ECS split figure — not the billed
+  // instance cost. Runs without one (VM-architecture IC) are excluded rather than mixed in.
+  const runs = (DATA.run_summary || []).filter((r) => comparableCost(r) != null && r.started_at);
   if (!runs.length) {
-    container.innerHTML =
-      '<div class="empty"><strong>No cost data yet.</strong><br/>Cost charts appear once an AWS Cost &amp; Usage Report (CUR) export is joined onto these runs.</div>';
+    const anyCost = (DATA.run_summary || []).some((r) => r.cost != null);
+    container.innerHTML = anyCost
+      ? '<div class="empty"><strong>No comparable cost data.</strong><br/>These runs report a billed instance cost but no ECS split cost allocation, so there is no basis on which to compare them against AWS Batch. Per-run billed costs are in the run summary table.</div>'
+      : '<div class="empty"><strong>No cost data yet.</strong><br/>Cost charts appear once an AWS Cost &amp; Usage Report (CUR) export is joined onto these runs.</div>';
     return;
   }
 
@@ -918,7 +928,7 @@ function tableSizing(runs) {
     byPipeline[p].push(r);
   });
 
-  const point = (r) => [new Date(r.started_at).getTime(), Number(r.cost), r];
+  const point = (r) => [new Date(r.started_at).getTime(), comparableCost(r), r];
   const byTime = (a, b) => a[0] - b[0];
   const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
@@ -1051,7 +1061,7 @@ function tableSizing(runs) {
       },
       yAxis: {
         type: "value",
-        name: "Cost (USD)",
+        name: "ECS split cost (USD)",
         nameTextStyle: { color: "#6b6b73", fontSize: 11 },
         axisLabel: { formatter: (v) => "$" + (v >= 1 ? v.toFixed(0) : v.toFixed(v < 0.01 ? 3 : 2)) },
         scale: true,
@@ -1069,7 +1079,7 @@ function tableSizing(runs) {
     const cap = document.getElementById("hero-caption");
     if (avg > 0) {
       fig.textContent = avg + "%";
-      cap.textContent = "lower cost with Seqera Intelligent Compute vs AWS Batch on the latest runs, averaged across " +
+      cap.textContent = "lower ECS split cost with Seqera Intelligent Compute vs AWS Batch on the latest runs, averaged across " +
         savingsSamples.length + " pipeline" + (savingsSamples.length > 1 ? "s" : "") + ".";
       sig.classList.remove("hidden");
     }
@@ -1080,9 +1090,18 @@ function tableSizing(runs) {
 
 // ---- Cost breakdown: "By instance" view, allocated by CPU-hour share ----
 (function () {
-  const withCost = (DATA.run_summary || []).filter((r) => r.cost != null);
+  // Two bases, two purposes (see comparableCost):
+  //   costById       what to allocate across a run's instance types. Prefers the billed charge
+  //                  and falls back to that run's own split figure, which is safe here ONLY
+  //                  because each panel covers a single run — nothing is compared across runs,
+  //                  so no panel ever mixes bases. Without the fallback AWS Batch runs (which
+  //                  have no billed charge) would vanish from this view entirely.
+  //   comparableById ECS split figure — the only cross-engine basis, used for the run comparison
+  const withCost = (DATA.run_summary || []).filter((r) => r.cost != null || comparableCost(r) != null);
   const costById = {};
-  withCost.forEach((r) => { costById[r.run_id] = Number(r.cost); });
+  withCost.forEach((r) => { costById[r.run_id] = r.cost != null ? Number(r.cost) : comparableCost(r); });
+  const comparableById = {};
+  withCost.forEach((r) => { const c = comparableCost(r); if (c != null) comparableById[r.run_id] = c; });
 
   const cTime = document.getElementById("cost-facets");
   const cRun = document.getElementById("cost-run-facets");
@@ -1090,9 +1109,9 @@ function tableSizing(runs) {
   const hint = document.getElementById("cost-view-hint");
   const toggle = document.getElementById("cost-view-toggle");
   const HINTS = {
-    time: "Total cost per run over time · Seqera Intelligent Compute vs the AWS Batch baseline",
-    run: "Total cost of every run, one bar each, coloured by engine — the simplest side-by-side comparison. AWS Batch runs first, then Seqera Intelligent Compute oldest to newest.",
-    instance: "One panel per run — how that run's real CUR cost split across the instance types it actually used (by CPU-hour share). Instance mix differs run to run, so each run stands alone.",
+    time: "ECS split cost per run over time · Seqera Intelligent Compute vs the AWS Batch baseline · the comparable basis, so runs without one are omitted",
+    run: "ECS split cost of every comparable run, one bar each, coloured by engine — the simplest side-by-side comparison. AWS Batch runs first, then Seqera Intelligent Compute oldest to newest.",
+    instance: "One panel per run — how that run's cost split across the instance types it actually used (by CPU-hour share), billed cost where there is one and the run's own ECS split figure otherwise. Instance mix differs run to run, so each run stands alone.",
   };
 
   // No cost anywhere -> the over-time module already shows the empty state; hide the toggle.
@@ -1114,12 +1133,13 @@ function tableSizing(runs) {
   // engine is isolated via the legend) don't collide to the same label.
   const costAxisLabel = (v) => "$" + (v >= 1 ? v.toFixed(0) : v >= 0.1 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(3) : v.toFixed(4));
 
-  // Group a usage list (machine_usage) by pipeline, keeping only runs
-  // that actually have a CUR cost to allocate.
-  function pipelineGroups(usageList) {
+  // Group a usage list (machine_usage) by pipeline, keeping only runs that have a cost on
+  // the basis this view uses — billed cost for the instance split, the comparable ECS split
+  // figure for the cross-engine comparison.
+  function pipelineGroups(usageList, index) {
     const order = [], by = {};
     (usageList || []).forEach((u) => {
-      if (!(u.run_id in costById)) return;
+      if (!(u.run_id in (index || costById))) return;
       const p = u.pipeline || "—";
       if (!(p in by)) { by[p] = []; order.push(p); }
       by[p].push(u);
@@ -1182,19 +1202,20 @@ function tableSizing(runs) {
     });
   }
 
-  // "By run": one bar per run = its total CUR cost, coloured by engine. Two stacked series
-  // (each run non-null in only one) keep bars centred per row AND let a legend click filter
-  // an engine. Ordered Batch first, then Seqera Intelligent Compute oldest -> newest.
+  // "By run": one bar per run = its ECS split cost, coloured by engine. This view exists to
+  // compare engines, so it uses the comparable basis and omits runs that have none. Two
+  // stacked series (each run non-null in only one) keep bars centred per row AND let a legend
+  // click filter an engine. Ordered Batch first, then Seqera Intelligent Compute oldest -> newest.
   function renderRun() {
-    const groups = pipelineGroups(DATA.run_summary);
-    if (!groups.length) { cRun.innerHTML = '<div class="empty">No cost data to compare by run.</div>'; return; }
+    const groups = pipelineGroups(DATA.run_summary, comparableById);
+    if (!groups.length) { cRun.innerHTML = '<div class="empty">No run reports an ECS split cost, so there is nothing to compare across engines. Billed per-run costs are in the run summary table.</div>'; return; }
     const engRank = (u) => (u.compute_type === "intelligent_compute" ? 1 : 0);
     groups.forEach((g) => {
       const runs = g.runs.slice().sort((a, b) =>
         engRank(a) - engRank(b) || (a.started_at || "").localeCompare(b.started_at || ""));
       const labels = runs.map((u) => (u.date_short || "") + " · " + u.run_id);
-      const icData = runs.map((u) => u.compute_type === "intelligent_compute" ? costById[u.run_id] : null);
-      const bData = runs.map((u) => u.compute_type === "intelligent_compute" ? null : costById[u.run_id]);
+      const icData = runs.map((u) => u.compute_type === "intelligent_compute" ? comparableById[u.run_id] : null);
+      const bData = runs.map((u) => u.compute_type === "intelligent_compute" ? null : comparableById[u.run_id]);
       const grp = facetCard(g.pipeline, g.runs.length);
       const el = chartEl(Math.max(150, 54 + runs.length * 34));
       grp.appendChild(el); cRun.appendChild(grp);
@@ -1203,7 +1224,7 @@ function tableSizing(runs) {
         tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(labels[p.dataIndex]) + ": <b>" + fmtCost(p.value) + "</b>" },
         legend: { top: 0, icon: "roundRect", data: ["Seqera Intelligent Compute", "AWS Batch"] },
         grid: { left: 8, right: 82, top: 34, bottom: 42, containLabel: true },
-        xAxis: { type: "value", name: "Total cost (USD)", nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, axisLabel: { formatter: costAxisLabel } },
+        xAxis: { type: "value", name: "ECS split cost (USD)", nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, axisLabel: { formatter: costAxisLabel } },
         yAxis: { type: "category", data: labels, inverse: true, axisLabel: { fontSize: 11, width: 150, overflow: "truncate" } },
         series: [
           { name: "Seqera Intelligent Compute", type: "bar", stack: "t", barMaxWidth: 22, data: icData, itemStyle: { color: IC_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },

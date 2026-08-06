@@ -188,28 +188,34 @@ def _run_cost_details(jsonl_dir: Path) -> dict[str, dict[str, Any]]:
     ``costs.jsonl`` is only written when a CUR parquet is supplied to the normalize
     step, so an absent file leaves run costs unset — we never fall back to Seqera's
     unreliable cost estimate. CUR rows are task-grained (run_id, process, task_hash);
-    they are summed here into one entry per run carrying:
-      - ``cost``               blended total (used + unused) — the amount actually billed
-      - ``used_cost``          cost of compute that was consumed (ECS split cost allocation)
-      - ``unused_cost``        cost of provisioned-but-idle capacity
+    they are summed here into one entry per run carrying the two cost bases SEPARATELY:
+      - ``unblended_cost``     instance-basis charge — what AWS actually billed for the
+                               instances, including boot/idle/drain time
+      - ``split_cost``         consumed capacity, from ECS split cost allocation
+      - ``unused_cost``        provisioned-but-idle capacity, from ECS split cost allocation
       - ``split_cost_present`` whether any row carried genuine split cost allocation
 
-    We want split cost allocation for every run (Intelligent Compute and Batch). In
-    practice Batch runs reliably carry it; IC runs sometimes don't yet — we're still
-    investigating why. A run with no split cost keeps ``split_cost_present`` False, and
-    its ``used_cost`` falls back to the unblended line-item cost (see ``normalize``); in
-    practice that fallback only affects IC runs.
+    The two bases must never be added: for an Intelligent Compute run on the ECS
+    architecture, the scheduler tags the EC2 instances, so both the instance rows and the
+    ECS split rows describing tasks on those instances carry the run-id tag — and the split
+    rows are a re-expression of the very cost the instance rows already state. Summing them
+    overstated affected runs by ~1.5x. See ``_normalize_cost_rows``.
     """
     details: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {"cost": 0.0, "used_cost": 0.0, "unused_cost": 0.0, "split_cost_present": False}
+        lambda: {
+            "unblended_cost": 0.0,
+            "split_cost": 0.0,
+            "unused_cost": 0.0,
+            "split_cost_present": False,
+        }
     )
     for row in _iter_jsonl(jsonl_dir / "costs.jsonl"):
         run_id = str(row.get("run_id") or "")
         if not run_id:
             continue
         entry = details[run_id]
-        entry["cost"] += float(row.get("cost") or 0.0)
-        entry["used_cost"] += float(row.get("used_cost") or 0.0)
+        entry["unblended_cost"] += float(row.get("unblended_cost") or 0.0)
+        entry["split_cost"] += float(row.get("split_cost") or 0.0)
         entry["unused_cost"] += float(row.get("unused_cost") or 0.0)
         if row.get("split_cost_present"):
             entry["split_cost_present"] = True
@@ -293,24 +299,31 @@ def build_ic_report_data(
         req_mem_gib = round(res.get("mem_req", 0.0), 1)
         eff_mem_gib = round(res.get("mem_used", 0.0), 1)
 
-        # Cost, preferring ECS split cost allocation (used vs idle) when the CUR export
-        # carries it for this run, else the unblended total. We want split cost for every
-        # run (Intelligent Compute and Batch); in practice Batch reliably has it while IC
-        # sometimes doesn't yet (under investigation), so the blended fallback here in
-        # practice only affects IC runs. When a CUR file was supplied but no row matched
-        # this run, cost_status explains why (propagating vs not_found); with no CUR at all
-        # the whole cost story is off and every field stays None.
+        # Two cost figures on FIXED bases, never summed and never substituted for one another
+        # (see _run_cost_details). Each is None when its own basis is absent, so a blank cell
+        # always means "this basis does not exist for this run" rather than "no cost data":
+        #   cost            the billed EC2 instance charge (line_item_unblended_cost). Blank for
+        #                   AWS Batch, which tags only its ECS tasks — its instance rows carry
+        #                   no run tag, so no billed charge can be attributed to the run.
+        #   comparable_cost the ECS split basis (consumed + idle). Blank for Intelligent Compute
+        #                   on the VM architecture, which runs no ECS tasks for AWS to split.
+        # An IC run on ECS is the only shape carrying both. Keeping the bases fixed is what makes
+        # the columns readable: no run ever shows the same number twice under two headings.
+        # When a CUR file was supplied but no row matched this run, cost_status explains why
+        # (propagating vs not_found); with no CUR at all every field stays None.
         detail = cost_details.get(run_id)
         if detail is not None:
             split_present = bool(detail["split_cost_present"])
-            cost = round(detail["cost"], 4)
-            used_cost = round(detail["used_cost"], 4) if split_present else None
+            billed = round(detail["unblended_cost"], 4)
+            cost = billed if billed else None
+            comparable_cost = (
+                round(detail["split_cost"] + detail["unused_cost"], 4) if split_present else None
+            )
+            used_cost = round(detail["split_cost"], 4) if split_present else None
             unused_cost = round(detail["unused_cost"], 4) if split_present else None
-            cost_basis = "split" if split_present else "blended"
             cost_status = "available"
         else:
-            cost = used_cost = unused_cost = None
-            cost_basis = None
+            cost = used_cost = unused_cost = comparable_cost = None
             cost_status = None if not cur_supplied else _classify_missing_cost(
                 run.get("complete") or started_at, now
             )
@@ -341,14 +354,16 @@ def build_ic_report_data(
             "req_mem_gib": req_mem_gib,
             "eff_mem_gib": eff_mem_gib,
             "run_cost_platform": run.get("run_cost"),
-            # Real cost from the AWS CUR export; None when no CUR row matched this run
-            # (renders as an em-dash). The Seqera estimate above is never used here.
+            # Billed EC2 instance charge from the AWS CUR export (never the Seqera estimate).
+            # None -> em-dash: either no CUR row matched, or this run has no instance rows of
+            # its own (AWS Batch).
             "cost": cost,
+            # ECS split basis (consumed + idle) for like-for-like IC vs Batch comparison.
+            # None when the run has no split rows -> excluded from comparison charts.
+            "comparable_cost": comparable_cost,
             # Split cost allocation (used vs idle) when present, else None -> em-dash.
             "used_cost": used_cost,
             "unused_cost": unused_cost,
-            # "split" | "blended" | None (no cost row): how this run's cost was derived.
-            "cost_basis": cost_basis,
             # "available" | "propagating" | "not_found" | None (no CUR at all).
             "cost_status": cost_status,
         })
@@ -388,10 +403,14 @@ def build_ic_report_data(
             # Whether a CUR export was supplied at all (distinguishes "no cost analysis"
             # from "analysis on, but nothing matched this set of runs").
             "cur_supplied": cur_supplied,
-            # Cost-coverage tallies driving the report's cost-availability note.
+            # Cost-coverage tallies driving the report's cost-availability note. The two bases
+            # are counted independently: a run can have either, both, or (pre-propagation)
+            # neither. Only runs with a comparable figure can appear in IC-vs-Batch charts.
             "n_runs_with_cost": len(runs_with_cost),
-            "n_runs_split_cost": sum(1 for r in runs_with_cost if r["cost_basis"] == "split"),
-            "n_runs_blended_cost": sum(1 for r in runs_with_cost if r["cost_basis"] == "blended"),
+            "n_runs_billed_cost": sum(1 for r in runs_with_cost if r["cost"] is not None),
+            "n_runs_comparable_cost": sum(
+                1 for r in runs_with_cost if r["comparable_cost"] is not None
+            ),
             "n_runs_missing_cost": sum(
                 1 for r in run_summary if r["cost_status"] in ("propagating", "not_found")
             ),

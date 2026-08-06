@@ -366,6 +366,11 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
     reconciles differing CUR schemas), keeps only rows carrying a run-id resource
     label and sums the costs with a single vectorized GROUP BY. Far faster than
     iterating a multi-GB, hundreds-of-columns export row by row in Python.
+
+    Each output row carries both cost bases separately — ``unblended_cost`` (instance)
+    and ``split_cost``/``unused_cost`` (ECS split cost allocation) — because they can
+    describe the *same* compute and must never be added together. See the comment on the
+    query below for why. ``cost``/``used_cost`` are single-basis conveniences.
     """
     label_aliases = _load_cost_label_aliases(cost_label_map)
     sources = _parquet_sources(costs_parquet)
@@ -384,27 +389,67 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
     process_expr = _label_expr(label_aliases["process"], columns)
     task_hash_expr = _label_expr(label_aliases["task_hash"], columns)
 
-    # Split line items carry cost in split_line_item_split_cost with
-    # line_item_unblended_cost zeroed; plain usage rows are the reverse. We want split
-    # cost for every run (Intelligent Compute and Batch); in practice Batch reliably has
-    # it while IC sometimes doesn't yet (under investigation). A split cost of 0 therefore
-    # means "fall back to unblended" — in practice that fallback only affects IC runs.
+    # TWO DISTINCT COST BASES, NEVER SUMMED.
+    #
+    # AWS adds split cost allocation rows *in addition to* the parent EC2 instance rows they
+    # were derived from — "two new usage records are added for each ECS task ... per hour"
+    # (https://docs.aws.amazon.com/cur/latest/userguide/split-cost-allocation-data.html).
+    # The parent charge is not zeroed; it is the quantity being split, so Σ(split + unused)
+    # over an instance's tasks reproduces that instance's own cost. Adding both therefore
+    # counts the same compute twice.
+    #
+    # This bit Intelligent Compute specifically: the scheduler tags the EC2 instances, so
+    # both the instance rows AND the ECS split rows for tasks on them carry the run-id tag
+    # and both used to land in one total. AWS Batch tags only the ECS task, so its instance
+    # rows carry no run tag and never matched.
+    #
+    # So the bases are kept apart:
+    #   unblended_cost  instance-basis charge (what was actually billed, incl. idle/boot)
+    #   split_cost      consumed capacity, from ECS split line items (amortized)
+    #   unused_cost     provisioned-but-idle capacity, from ECS split line items
+    # ``cost``/``used_cost`` remain the single-basis figures the benchmark report consumes:
+    # the billed instance charge when this group has one, else the split basis. Intelligent
+    # Compute needs both bases side by side, so it reads the three raw fields instead.
+    #
+    # A single group CAN hold both bases. Intelligent Compute's split rows carry no
+    # ``pipeline_process``/``task_hash`` labels (verified across a real export: 0 of 49,106),
+    # so they collapse into the same ``(run_id, '', '')`` key as the instance rows. That is
+    # exactly why the bases are summed independently rather than deduplicated by row class —
+    # by the time rows are grouped, the classes are no longer separable. AWS Batch is
+    # unaffected either way: its instance rows carry no run tag, so its groups are split-only.
     split_cost = _numeric_expr("split_line_item_split_cost", columns)
-    unblended_cost = _numeric_expr("line_item_unblended_cost", columns)
-    used_cost = f"CASE WHEN {split_cost} <> 0 THEN {split_cost} ELSE {unblended_cost} END"
     unused_cost = _numeric_expr("split_line_item_unused_cost", columns)
+    unblended_cost = _numeric_expr("line_item_unblended_cost", columns)
+    is_split_row = f"CASE WHEN {split_cost} <> 0 OR {unused_cost} <> 0 THEN 1 ELSE 0 END"
 
     query = f"""
+        WITH classified AS (
+            SELECT
+                {run_id_expr}                                 AS run_id,
+                COALESCE({process_expr}, '')                  AS process,
+                substr(COALESCE({task_hash_expr}, ''), 1, 8)  AS hash,
+                {unblended_cost}                              AS unblended_cost,
+                {split_cost}                                  AS split_cost,
+                {unused_cost}                                 AS unused_cost,
+                {is_split_row}                                AS is_split_row
+            FROM {scan}
+            WHERE {run_id_expr} IS NOT NULL AND {run_id_expr} <> ''
+        )
         SELECT
-            {run_id_expr}                                 AS run_id,
-            COALESCE({process_expr}, '')                  AS process,
-            substr(COALESCE({task_hash_expr}, ''), 1, 8)  AS hash,
-            SUM(({used_cost}) + ({unused_cost}))          AS cost,
-            SUM({used_cost})                              AS used_cost,
-            SUM({unused_cost})                            AS unused_cost,
-            MAX(CASE WHEN {split_cost} <> 0 OR {unused_cost} <> 0 THEN 1 ELSE 0 END) AS split_cost_present
-        FROM {scan}
-        WHERE {run_id_expr} IS NOT NULL AND {run_id_expr} <> ''
+            run_id,
+            process,
+            hash,
+            SUM(unblended_cost)  AS unblended_cost,
+            SUM(split_cost)      AS split_cost,
+            SUM(unused_cost)     AS unused_cost,
+            MAX(is_split_row)    AS split_cost_present,
+            CASE WHEN SUM(unblended_cost) <> 0
+                 THEN SUM(unblended_cost)
+                 ELSE SUM(split_cost) + SUM(unused_cost) END AS cost,
+            CASE WHEN SUM(unblended_cost) <> 0
+                 THEN SUM(unblended_cost)
+                 ELSE SUM(split_cost) END AS used_cost
+        FROM classified
         GROUP BY 1, 2, 3
         ORDER BY 1, 2, 3
     """
