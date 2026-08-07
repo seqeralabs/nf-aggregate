@@ -264,7 +264,7 @@
       <div class="stat"><div class="n">{{ ic_overview.n_batch }}</div><div class="l">AWS Batch</div></div>
       <div class="stat" id="stat-cost">
         <div class="n muted">—</div>
-        <div class="l">Cost billed (CUR)</div>
+        <div class="l">Total cost (CUR)<span class="help" data-help="Total spend across every run, from the AWS Cost &amp; Usage Report. Intelligent Compute runs contribute what AWS billed for their machines; AWS Batch runs contribute their ECS split figure, the only basis AWS reports for them. That mixes a billed charge with an amortized allocation, so read it as the best available total rather than an invoice line. The Intelligent Compute split figure below is another view of that same spend, not an addition to it.">?</span></div>
         <div class="split" id="cost-split" hidden></div>
       </div>
     </div>
@@ -519,11 +519,17 @@ window.addEventListener("resize", () => {
     const of = (rows, type) => rows.filter((r) => r.compute_type === type);
     const figure = (rows, pick) => (rows.length ? fmtCost(sum(rows, pick)) : null);
 
-    // Headline stays the billed total; left muted when nothing has a billed charge at all.
-    if (billed.length) {
+    // Headline = best figure available per run: the billed charge where there is one, otherwise
+    // that run's split figure. In practice that is IC billed + Batch split, since IC is the only
+    // engine with a billed charge and Batch the only one without. A billed-only total would
+    // silently omit every AWS Batch run and read as the whole spend, which is worse than mixing
+    // bases — but it IS a mix, so the card label says so.
+    const totalFor = (r) => (r.cost != null ? Number(r.cost) : comparableCost(r));
+    const counted = runs.filter((r) => totalFor(r) != null);
+    if (counted.length) {
       const el = document.querySelector("#stat-cost .n");
       el.classList.remove("muted");
-      el.textContent = fmtCost(sum(billed, (r) => r.cost));
+      el.textContent = fmtCost(sum(counted, totalFor));
     }
 
     const row = (dot, label, value, title) =>
@@ -541,7 +547,7 @@ window.addEventListener("resize", () => {
       out.push(row("dot-ic", "Intelligent Compute &middot; split", icSplit,
         icSplit == null
           ? "No Intelligent Compute run here reports an ECS split figure - on the VM architecture there are no ECS tasks for AWS to split."
-          : "ECS split cost allocation, the basis comparable with AWS Batch. Amortized, so not directly comparable with the billed figure above."));
+          : "ECS split cost allocation, shown so it can be read against AWS Batch below. This is an alternative view of the billed cost above, NOT extra spend, so it is not part of the total. Amortized, so not directly comparable with the billed figure."));
     }
     if (has("batch")) {
       out.push(row("dot-batch", "AWS Batch &middot; split",
