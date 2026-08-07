@@ -506,29 +506,50 @@ window.addEventListener("resize", () => {
     band.hidden = false;
   }
 
-  // Billed machine cost by engine. AWS Batch has no billed figure at all (it labels tasks, not
-  // machines), so it is shown as an em-dash pointing at the split basis instead of a $0.00 that
-  // would read as "Batch was free".
-  const costed = runs.filter((r) => r.cost != null);
-  if (costed.length) {
-    const total = costed.reduce((s, r) => s + Number(r.cost), 0);
-    const perEngine = (type) => {
-      const rows = costed.filter((r) => r.compute_type === type);
-      return rows.length ? fmtCost(rows.reduce((s, r) => s + Number(r.cost), 0)) : null;
-    };
-    const icCost = perEngine("intelligent_compute");
-    const batchCost = perEngine("batch");
-    const el = document.querySelector("#stat-cost .n");
-    el.classList.remove("muted");
-    el.textContent = fmtCost(total);
-    const split = document.getElementById("cost-split");
+  // Cost by engine AND basis. Three rows rather than one per engine, because the two engines do
+  // not report the same basis: Intelligent Compute has a billed machine charge and (on ECS) a
+  // split figure, while AWS Batch only ever has the split figure. Pairing "IC billed" against
+  // "Batch billed" would set a real charge against a permanent em-dash; pairing the two split
+  // rows is the like-for-like read, with IC's billed total above it as the real spend.
+  const billed = runs.filter((r) => r.cost != null);
+  const comparable = runs.filter((r) => comparableCost(r) != null);
+  if (billed.length || comparable.length) {
+    const sum = (rows, pick) => rows.reduce((s, r) => s + Number(pick(r)), 0);
+    const has = (type) => runs.some((r) => r.compute_type === type);
+    const of = (rows, type) => rows.filter((r) => r.compute_type === type);
+    const figure = (rows, pick) => (rows.length ? fmtCost(sum(rows, pick)) : null);
+
+    // Headline stays the billed total; left muted when nothing has a billed charge at all.
+    if (billed.length) {
+      const el = document.querySelector("#stat-cost .n");
+      el.classList.remove("muted");
+      el.textContent = fmtCost(sum(billed, (r) => r.cost));
+    }
+
     const row = (dot, label, value, title) =>
       '<span class="row"' + (title ? ' title="' + esc(title) + '"' : "") + '><span class="' + dot + '"></span>' + label + " <b>" +
       (value != null ? value : '<span class="muted">&mdash;</span>') + "</b></span>";
-    split.innerHTML =
-      row("dot-ic", "Seqera Intelligent Compute", icCost) +
-      row("dot-batch", "AWS Batch", batchCost,
-          batchCost == null ? "AWS Batch labels its tasks, not the machines underneath, so no billed machine cost can be attributed to a run. See the ECS split figure." : "");
+
+    // A row per engine/basis that could exist, so an em-dash means "this engine reports nothing
+    // on that basis" rather than the row silently vanishing.
+    const out = [];
+    if (has("intelligent_compute")) {
+      out.push(row("dot-ic", "Intelligent Compute &middot; billed",
+        figure(of(billed, "intelligent_compute"), (r) => r.cost),
+        "What AWS billed for the machines these runs used, including start-up and idle time."));
+      const icSplit = figure(of(comparable, "intelligent_compute"), comparableCost);
+      out.push(row("dot-ic", "Intelligent Compute &middot; split", icSplit,
+        icSplit == null
+          ? "No Intelligent Compute run here reports an ECS split figure - on the VM architecture there are no ECS tasks for AWS to split."
+          : "ECS split cost allocation, the basis comparable with AWS Batch. Amortized, so not directly comparable with the billed figure above."));
+    }
+    if (has("batch")) {
+      out.push(row("dot-batch", "AWS Batch &middot; split",
+        figure(of(comparable, "batch"), comparableCost),
+        "ECS split cost allocation. AWS Batch labels only its tasks, never the machines underneath, so this is the only basis it reports - there is no billed machine charge for it."));
+    }
+    const split = document.getElementById("cost-split");
+    split.innerHTML = out.join("");
     split.hidden = false;
   }
 })();
