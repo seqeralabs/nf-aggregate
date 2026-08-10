@@ -38,7 +38,7 @@ jobs:
 
       - name: List nf-test files
         id: list
-        uses: adamrtalbot/detect-nf-test-changes@v0.0.3
+        uses: adamrtalbot/detect-nf-test-changes@v0.0.6
         with:
           head: ${{ github.sha }}
           base: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.sha }}
