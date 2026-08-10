@@ -163,7 +163,7 @@ def test_ic_report_hides_group_column_when_undefined(tmp_path):
 
 
 def test_ic_report_renders_both_cost_bases_and_coverage_note(tmp_path):
-    """Comparable (split) sits LEFT of the billed Cost, and each column is a fixed basis.
+    """Compute cost (the split basis) sits LEFT of the billed Total cost, each a fixed basis.
 
     Neither figure ever substitutes for the other, so a blank cell means that basis does not
     exist for the run: Batch has no billed machine charge, VM-architecture IC has no split
@@ -191,9 +191,9 @@ def test_ic_report_renders_both_cost_bases_and_coverage_note(tmp_path):
         "run_summary": [ecs_run, vm_run, batch_run],
         "machine_usage": [],
     })
-    # Both columns present, comparable BEFORE cost.
-    assert 'helpTitle("Comparable (split)"' in html
-    assert 'helpTitle("Cost"' in html
+    # Both columns present, the split basis BEFORE the billed total.
+    assert 'helpTitle("Compute cost"' in html
+    assert 'helpTitle("Total cost"' in html
     assert html.index('field: "comparable_cost"') < html.index('field: "cost"')
     # The vacuous basis column is gone now that each column is a fixed basis.
     assert "fmtCostBasis" not in html and 'field: "cost_basis"' not in html

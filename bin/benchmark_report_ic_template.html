@@ -627,16 +627,17 @@ function tableSizing(runs) {
       durCol("Wall time", "wall_time_ms", "Total time from submitting the run to it finishing — including any time spent waiting for machines to start. This is the clock time you actually wait."),
       durCol("Run time", "total_run_time_ms", "Time the machines spent actually working on your tasks, added up across all tasks. Excludes waiting for machines to start, but includes moving data in and out."),
       durCol("Staging time", "total_staging_time_ms", "The slice of run time spent moving data in and out (staging) rather than running the tool itself."),
-      // Comparable first, then the billed total. Each column is a FIXED basis, so a blank cell
-      // means that basis does not exist for the run — never that cost data is missing.
-      { title: helpTitle("Comparable (split)", "AWS ECS split cost allocation: the machine cost divided up across the tasks that ran on it. AWS Batch only ever reports this figure, so it is the only fair basis for comparing engines — the cost charts all use it. Blank when a run has no ECS tasks to divide up (Intelligent Compute on the VM architecture), and those runs sit out the comparison charts. Note this figure is amortized (it uses your Savings Plan rate where one applies), so it is not directly comparable with the billed Cost beside it."),
-        field: "comparable_cost", titleFormatter: "html", hozAlign: "right", minWidth: helpMinWidth("Comparable (split)"),
+      // Compute cost (the split basis) first, then the billed total. Each column is a FIXED
+      // basis, so a blank cell means that basis does not exist for the run — never that cost
+      // data is missing.
+      { title: helpTitle("Compute cost", "The CPU and memory every task in the run used, added up and priced by AWS ECS split cost allocation — plus any capacity left idle on the machines beside them. AWS Batch reports only this figure, so the cost charts compare engines on it. Blank when a run has no ECS tasks to price (Intelligent Compute on the VM architecture), and those runs sit out the comparison charts. Amortized, so it will not tally exactly with the Total cost beside it."),
+        field: "comparable_cost", titleFormatter: "html", hozAlign: "right", minWidth: helpMinWidth("Compute cost"),
         formatter: (cell) => fmtCost(cell.getValue()) },
       // Rightmost column stays resizable so you can drag its right edge back to the container
       // border to re-fill the width after shrinking another column. Any transient gap shows the
       // card colour, not gray (see .tabulator background above).
-      { title: helpTitle("Cost", "What AWS actually billed for the machines this run used, straight from the EC2 charge in the Cost & Usage Report — including start-up, idle and shut-down time. Blank for AWS Batch: it labels only its tasks, never the machines underneath, so no billed machine charge can be tied back to the run. Use the Comparable figure for Batch."),
-        field: "cost", titleFormatter: "html", hozAlign: "right", minWidth: helpMinWidth("Cost"),
+      { title: helpTitle("Total cost", "The unblended cost of every line item AWS tagged to this run, whatever the service — the same figure you would see for it in Cost Explorer. Covers the machines end to end, including start-up, idle and shut-down time. Blank for AWS Batch: it labels only its tasks, never the machines underneath, so no charge can be tied back to the run — read Compute cost there."),
+        field: "cost", titleFormatter: "html", hozAlign: "right", minWidth: helpMinWidth("Total cost"),
         formatter: (cell) => fmtCostStatus(cell.getValue(), cell.getRow().getData().cost_status) },
     ],
   });
