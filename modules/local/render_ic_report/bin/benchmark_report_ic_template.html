@@ -1176,8 +1176,10 @@ function tableSizing(runs) {
   };
   const chartEl = (h) => { const el = document.createElement("div"); el.className = "cost-chart"; el.style.height = h + "px"; return el; };
   // More decimals as values shrink so closely-spaced ticks (sub-cent costs, e.g. when one
-  // engine is isolated via the legend) don't collide to the same label.
-  const costAxisLabel = (v) => "$" + (v >= 1 ? v.toFixed(0) : v >= 0.1 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(3) : v.toFixed(4));
+  // engine is isolated via the legend) don't collide to the same label. Zero is special-cased:
+  // it is not a small number needing precision, and the sub-cent branch rendered the origin
+  // tick as "$0.0000" next to a plain "$50", which reads as a broken axis.
+  const costAxisLabel = (v) => "$" + (!v ? "0" : v >= 1 ? v.toFixed(0) : v >= 0.1 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(3) : v.toFixed(4));
 
   // Group a usage list (machine_usage) by pipeline, keeping only runs that have a cost on
   // the basis this view uses — billed cost for the instance split, the comparable ECS split

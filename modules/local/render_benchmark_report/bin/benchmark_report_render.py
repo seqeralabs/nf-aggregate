@@ -36,7 +36,7 @@ def load_brand(brand_path: Path | None = None) -> dict[str, Any]:
     }
 
     if brand_path and brand_path.exists():
-        with brand_path.open() as f:
+        with brand_path.open(encoding="utf-8") as f:
             raw = yaml.safe_load(f) or {}
         colors = raw.get("colors", {})
         gp = colors.get("green_palette", {})
@@ -80,7 +80,7 @@ def _load_report_template() -> str:
     template_path = Path(__file__).resolve().parent / "benchmark_report_template.html"
     if not template_path.exists():
         raise FileNotFoundError(f"Report template not found at {template_path}")
-    return template_path.read_text()
+    return template_path.read_text(encoding="utf-8")
 
 
 def load_echarts_theme(theme_path: Path | None = None) -> str:
@@ -91,7 +91,7 @@ def load_echarts_theme(theme_path: Path | None = None) -> str:
     ]
     for p in candidates:
         if p and p.exists():
-            return p.read_text()
+            return p.read_text(encoding="utf-8")
     return "{}"
 
 
@@ -104,7 +104,7 @@ def render_html(
     template_path: Path | None = None,
 ) -> None:
     brand = brand or load_brand()
-    template_str = Path(template_path).read_text() if template_path else REPORT_TEMPLATE
+    template_str = Path(template_path).read_text(encoding="utf-8") if template_path else REPORT_TEMPLATE
     template = Environment(loader=BaseLoader()).from_string(template_str)
     run_metrics = data.get("run_metrics") or []
     has_performance_gains = any((row or {}).get("vmCpuH") for row in run_metrics)
@@ -131,7 +131,7 @@ def render_html(
         show_group=show_group,
         **data,
     )
-    output_path.write_text(html)
+    output_path.write_text(html, encoding="utf-8")
 
 
 def render_report_from_json(
@@ -141,9 +141,9 @@ def render_report_from_json(
     logo_path: Path | None = None,
     template_path: Path | None = None,
 ) -> None:
-    data = json.loads(report_data_path.read_text())
+    data = json.loads(report_data_path.read_text(encoding="utf-8"))
     brand = load_brand(brand_path)
-    logo_svg = logo_path.read_text() if logo_path and logo_path.exists() else None
+    logo_svg = logo_path.read_text(encoding="utf-8") if logo_path and logo_path.exists() else None
     render_html(data, output_path=output, brand=brand, logo_svg=logo_svg, template_path=template_path)
 
 

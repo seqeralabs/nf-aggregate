@@ -254,3 +254,30 @@ def test_ic_report_surfaces_spot_mix_for_intelligent_compute(tmp_path):
     assert '"spot_cost": null' in html
     # Deliberately NOT a run summary column — the table is already crowded.
     assert 'field: "spot_cost"' not in html and 'field: "spot_pct"' not in html
+    # The money axis special-cases zero. Without the guard the sub-cent branch formatted the
+    # origin tick as "$0.0000" beside a plain "$50", which reads as a broken axis. Shared by
+    # the By run / By instance / Spot mix views, so the guard has to live in the one formatter.
+    assert '!v ? "0"' in html
+
+
+def test_ic_report_is_written_as_utf8(tmp_path):
+    """The report declares <meta charset="utf-8">, so it must be WRITTEN as utf-8.
+
+    read_text/write_text without an explicit encoding follow the process locale, which differs
+    between a laptop and a pipeline container. The separators and em-dashes in the chart labels
+    are inside JS string literals, where an HTML entity is not an option — if the bytes are
+    wrong the browser renders U+FFFD and there is no fallback.
+    """
+    data_path = tmp_path / "report_data_ic.json"
+    data_path.write_text(json.dumps({
+        "ic_overview": {"n_runs": 1, "n_intelligent_compute": 1, "n_batch": 0, "cost_source": None},
+        "run_summary": [_RUN], "machine_usage": [],
+    }), encoding="utf-8")
+    out = tmp_path / "ic_report.html"
+    render_report_from_json(report_data_path=data_path, output=out, template_path=IC_TEMPLATE)
+
+    raw = out.read_bytes()
+    raw.decode("utf-8")                       # raises if anything was written in another codec
+    assert b"\xc2\xb7" in raw                 # the run-label separator, as utf-8
+    # A lone 0xB7 is what a legacy-codec write would leave behind, and what renders as U+FFFD.
+    assert bytes([0xB7]) not in raw.replace(b"\xc2\xb7", b"")
