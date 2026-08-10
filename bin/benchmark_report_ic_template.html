@@ -84,11 +84,6 @@
   .hero-grid { display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; flex-wrap: wrap; max-width: 1320px; }
   .hero h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; margin: 10px 0 8px; line-height: 1.08; }
   .hero p.lead { font-size: 15px; color: var(--muted); margin: 0; max-width: 560px; line-height: 1.5; }
-  .signature { flex: none; text-align: right; }
-  .signature .figure { font-size: 54px; font-weight: 700; line-height: 1; letter-spacing: -0.03em; color: var(--accent); display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
-  .signature .arrow { font-size: 34px; }
-  .signature .cap { font-size: 12.5px; color: var(--muted); max-width: 220px; margin: 8px 0 0; line-height: 1.4; }
-  .signature.hidden { display: none; }
 
   /* ---- Section headings ---- */
   h2.section-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin: 40px 0 4px; display: flex; align-items: center; gap: 10px; }
@@ -113,6 +108,7 @@
   .pipelines-band { margin: 2px 0 20px; }
   .pipelines-label { font-size: 12px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 8px; }
   .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
   .pill.pipeline {
     display: inline-block; max-width: 340px; padding: 5px 12px; border-radius: 20px;
     background: var(--accent-surface); font-size: 12.5px; line-height: 1.3;
@@ -180,13 +176,8 @@
   .facet h4 { font-size: 12px; font-weight: 600; margin: 10px 0 2px; color: var(--accent); }
   .facet-chart { width: 100%; }
 
-  /* Cost facet header with savings badges */
+  /* Cost facet header */
   .cost-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
-  .savings { display: flex; gap: 8px; flex-wrap: wrap; }
-  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
-  .pill.good { background: var(--accent-surface); color: var(--accent); }
-  .pill.up { background: #fdf0e2; color: #a15c12; }
-  .pill.flat { background: var(--neutral); color: var(--muted); }
   .cost-chart { width: 100%; height: 260px; }
 
   /* Per-run small multiples (By instance view) */
@@ -212,8 +203,6 @@
     .sidebar .foot { margin: 0 0 0 auto; padding: 0; }
     .content, footer { margin-left: 0; }
     section, .hero { padding-left: 20px; padding-right: 20px; }
-    .signature { text-align: left; }
-    .signature .figure { justify-content: flex-start; }
   }
 </style>
 </head>
@@ -246,10 +235,6 @@
         <div class="eyebrow">Seqera Intelligent Compute</div>
         <h1>Seqera Intelligent Compute Report</h1>
         <p class="lead">Machine usage, performance and cost across {{ ic_overview.n_runs }} run{{ "s" if ic_overview.n_runs != 1 else "" }} — comparing AWS Batch against Seqera Intelligent Compute, pipeline by pipeline.</p>
-      </div>
-      <div class="signature hidden" id="hero-signature">
-        <div class="figure"><span class="arrow">▼</span><span id="hero-figure">—</span></div>
-        <p class="cap" id="hero-caption"></p>
       </div>
     </div>
   </div>
@@ -960,19 +945,7 @@ function tableSizing(runs) {
   const byTime = (a, b) => a[0] - b[0];
   const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
-  // Compare a baseline (from) to a value (to). Reductions read best as a percent
-  // (bounded 0-100%); a big increase reads best as a multiple (e.g. 18.8×) — a
-  // "1775%" pill is technically right but unreadable. Returns null if from is 0.
-  function deltaLabel(from, to) {
-    if (!from) return null;
-    if (to <= from) return { cls: "good", arrow: "▼", mag: Math.round((1 - to / from) * 100) + "%" };
-    const ratio = to / from;
-    const mag = ratio >= 2 ? (Math.round(ratio * 10) / 10) + "×" : Math.round((ratio - 1) * 100) + "%";
-    return { cls: "up", arrow: "▲", mag: mag };
-  }
-
   const charts = [];
-  const savingsSamples = []; // latest-IC vs Batch-baseline %, per pipeline, for the hero figure
 
   order.forEach((p) => {
     const rows = byPipeline[p];
@@ -988,24 +961,11 @@ function tableSizing(runs) {
     title.innerHTML = esc(p) + ' <span class="count">' + rows.length + " run" + (rows.length > 1 ? "s" : "") + "</span>";
     head.appendChild(title);
 
-    // Savings story: baseline = mean Batch cost; compare latest IC run to it, and IC's own
-    // first -> latest trend. Rendered as pills; the direction/wording is data-driven.
-    const savingsEl = document.createElement("div");
-    savingsEl.className = "savings";
+    // Mean AWS Batch cost for this pipeline, drawn on the chart as a reference line. It is
+    // deliberately NOT turned into a headline saving: reading "N% cheaper" off two run sets
+    // that differ in date, input and instance mix is a claim the data does not support, and
+    // it is the reader's to draw from the series, with their own caveats.
     const batchBaseline = batch.length ? mean(batch.map((d) => d[1])) : null;
-    const latestIC = ic.length ? ic[ic.length - 1][1] : null;
-    const firstIC = ic.length ? ic[0][1] : null;
-
-    if (batchBaseline != null && latestIC != null) {
-      savingsSamples.push(Math.round((1 - latestIC / batchBaseline) * 100)); // +ve = IC cheaper
-      const d = deltaLabel(batchBaseline, latestIC);
-      if (d) savingsEl.innerHTML += '<span class="pill ' + d.cls + '">' + d.arrow + " " + d.mag + " vs AWS Batch</span>";
-    }
-    if (ic.length > 1) {
-      const d = deltaLabel(firstIC, latestIC);
-      if (d) savingsEl.innerHTML += '<span class="pill ' + d.cls + '">' + d.arrow + " " + d.mag + " first → latest IC</span>";
-    }
-    head.appendChild(savingsEl);
     grp.appendChild(head);
 
     const el = document.createElement("div");
@@ -1098,20 +1058,6 @@ function tableSizing(runs) {
     };
     lazyChart(el, () => { const chart = echarts.init(el, "seqera"); chart.setOption(option); charts.push(chart); });
   });
-
-  // Hero signature: average latest-IC-vs-Batch saving across pipelines where both exist.
-  if (savingsSamples.length) {
-    const avg = Math.round(mean(savingsSamples));
-    const sig = document.getElementById("hero-signature");
-    const fig = document.getElementById("hero-figure");
-    const cap = document.getElementById("hero-caption");
-    if (avg > 0) {
-      fig.textContent = avg + "%";
-      cap.textContent = "lower ECS split cost with Seqera Intelligent Compute vs AWS Batch on the latest runs, averaged across " +
-        savingsSamples.length + " pipeline" + (savingsSamples.length > 1 ? "s" : "") + ".";
-      sig.classList.remove("hidden");
-    }
-  }
 
   onResize(() => charts.forEach((c) => c.resize()));
 })();

@@ -123,10 +123,18 @@ def test_ic_report_renders_cost_section_and_sidebar(tmp_path):
     assert 'class="sidebar"' in html
     for label in ("Overview", "Performance", "Cost"):
         assert ">" + label + "<" in html
-    # cost section + client-side mount point + savings/hero machinery
+    # cost section + client-side mount point
     assert 'id="cost"' in html
     assert 'id="cost-facets"' in html
-    assert "hero-signature" in html
+    # No headline saving anywhere: no hero figure, and no per-pipeline "N% vs AWS Batch" /
+    # "first -> latest" badges. Those compare run sets that differ in date, input and instance
+    # mix, so the report shows the series and leaves the conclusion to the reader.
+    assert "hero-signature" not in html and "hero-figure" not in html
+    assert "deltaLabel" not in html and "savingsSamples" not in html
+    assert "vs AWS Batch<" not in html and "first &rarr; latest" not in html
+    assert 'class="savings"' not in html
+    # The Batch reference line on the chart stays — it is a plotted mean, not a verdict.
+    assert "batchBaseline" in html and "Batch baseline" in html
     # three switchable cost views: over time / by run / by instance (per-process removed —
     # a cpu-hour allocation, not a faithful CUR attribution)
     assert 'id="cost-view-toggle"' in html
