@@ -24,3 +24,5 @@ modules/local/benchmark_report_v2/tests/data/
 .lineage/
 .claude/
 .hermes/
+# Playwright MCP scratch output (page snapshots, console logs) when driving the report
+.playwright-mcp/

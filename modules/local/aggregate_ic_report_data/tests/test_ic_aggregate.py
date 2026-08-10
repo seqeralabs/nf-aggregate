@@ -19,8 +19,8 @@ def test_ic_report_shape_and_detection(tmp_path, make_ic_run, make_batch_run, wr
     assert set(data.keys()) == {"ic_overview", "run_summary", "machine_usage"}
     assert data["ic_overview"] == {
         "n_runs": 2, "n_intelligent_compute": 1, "n_batch": 1, "cost_source": None,
-        "cur_supplied": False, "n_runs_with_cost": 0, "n_runs_split_cost": 0,
-        "n_runs_blended_cost": 0, "n_runs_missing_cost": 0,
+        "cur_supplied": False, "n_runs_with_cost": 0, "n_runs_billed_cost": 0,
+        "n_runs_comparable_cost": 0, "n_runs_missing_cost": 0,
     }
     assert {r["compute_type"] for r in data["run_summary"]} == {"intelligent_compute", "batch"}
 
@@ -216,7 +216,7 @@ def test_failed_runs_included_with_flag(tmp_path, make_ic_run, write_run_json):
     cancelled["workflow"]["status"] = "CANCELLED"
     jsonl_dir = _bundle(tmp_path, [ok, failed, cancelled], write_run_json)
     (jsonl_dir / "costs.jsonl").write_text(
-        json.dumps({"run_id": "icFAIL0000001", "process": "FOO", "hash": "abcd1234", "cost": 4.0}) + "\n"
+        json.dumps({"run_id": "icFAIL0000001", "process": "FOO", "hash": "abcd1234", "unblended_cost": 4.0}) + "\n"
     )
 
     data = build_ic_report_data(jsonl_dir, include_failed_runs=True)
@@ -240,10 +240,10 @@ def test_run_cost_summed_from_cur_costs_jsonl(tmp_path, make_ic_run, write_run_j
     # costs.jsonl is written by the normalize step from the CUR parquet; simulate two
     # task-grained rows for one run that must sum to a single per-run cost.
     (jsonl_dir / "costs.jsonl").write_text(
-        json.dumps({"run_id": "icRUN0000000001", "process": "FOO", "hash": "abcd1234", "cost": 1.25}) + "\n"
-        + json.dumps({"run_id": "icRUN0000000001", "process": "BAR", "hash": "ef567890", "cost": 2.5}) + "\n"
+        json.dumps({"run_id": "icRUN0000000001", "process": "FOO", "hash": "abcd1234", "unblended_cost": 1.25}) + "\n"
+        + json.dumps({"run_id": "icRUN0000000001", "process": "BAR", "hash": "ef567890", "unblended_cost": 2.5}) + "\n"
         # a cost row for an unrelated run must not leak onto our run
-        + json.dumps({"run_id": "otherRUN", "process": "BAZ", "hash": "00000000", "cost": 9.0}) + "\n"
+        + json.dumps({"run_id": "otherRUN", "process": "BAZ", "hash": "00000000", "unblended_cost": 9.0}) + "\n"
     )
     data = build_ic_report_data(jsonl_dir)
     assert data["ic_overview"]["cost_source"] == "aws_cur"
@@ -255,41 +255,76 @@ def _write_costs(jsonl_dir, rows):
     jsonl_dir.joinpath("costs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
 
 
-def test_ic_run_cost_prefers_split_allocation(tmp_path, make_ic_run, write_run_json):
-    """When CUR rows carry split cost allocation, the run shows used vs idle cost."""
+def test_ic_run_cost_never_sums_instance_and_split_bases(tmp_path, make_ic_run, write_run_json):
+    """An IC run on ECS has both bases; they must be reported side by side, never added.
+
+    $10.00 billed on the instances, split rows re-expressing $6.00 of it. The cost of record
+    is the $10.00 actually billed; the comparable figure is the $6.00 split basis. The old
+    behaviour summed them to $16.00, overstating affected runs by ~1.5x.
+    """
     jsonl_dir = _bundle(tmp_path, [make_ic_run(run_id="icRUN0000000001")], write_run_json)
     _write_costs(jsonl_dir, [
+        # Parent EC2 instance rows: no per-task labels, so they group under an empty process.
+        {"run_id": "icRUN0000000001", "process": "", "hash": "",
+         "unblended_cost": 10.0, "split_cost": 0.0, "unused_cost": 0.0,
+         "split_cost_present": False},
+        # ECS split rows for tasks that ran on those same instances.
         {"run_id": "icRUN0000000001", "process": "FOO", "hash": "abcd1234",
-         "cost": 3.0, "used_cost": 2.0, "unused_cost": 1.0, "split_cost_present": True},
+         "unblended_cost": 0.0, "split_cost": 3.0, "unused_cost": 1.0,
+         "split_cost_present": True},
         {"run_id": "icRUN0000000001", "process": "BAR", "hash": "ef567890",
-         "cost": 1.0, "used_cost": 1.0, "unused_cost": 0.0, "split_cost_present": False},
+         "unblended_cost": 0.0, "split_cost": 1.5, "unused_cost": 0.5,
+         "split_cost_present": True},
     ])
     data = build_ic_report_data(jsonl_dir)
     row = next(r for r in data["run_summary"] if r["run_id"] == "icRUN0000000001")
-    assert row["cost"] == 4.0            # blended total is always used + unused
-    assert row["used_cost"] == 3.0       # summed across rows
-    assert row["unused_cost"] == 1.0
-    assert row["cost_basis"] == "split"  # any split row flips the whole run to split
+    assert row["cost"] == 10.0             # billed machine charge, not 16.0
+    assert row["comparable_cost"] == 6.0   # split basis kept separate for comparison
+    assert row["used_cost"] == 4.5         # consumed capacity, summed across split rows
+    assert row["unused_cost"] == 1.5
     assert row["cost_status"] == "available"
-    assert data["ic_overview"]["n_runs_split_cost"] == 1
+    assert data["ic_overview"]["n_runs_billed_cost"] == 1
+    assert data["ic_overview"]["n_runs_comparable_cost"] == 1
 
 
-def test_ic_run_cost_falls_back_to_blended(tmp_path, make_ic_run, write_run_json):
-    """No split cost allocation -> blended total only, used/idle hidden (None)."""
+def test_ic_run_cost_vm_architecture_is_instance_basis_only(tmp_path, make_ic_run, write_run_json):
+    """VM-architecture IC: no ECS tasks to split, so there is no comparable figure at all."""
     jsonl_dir = _bundle(tmp_path, [make_ic_run(run_id="icRUN0000000001")], write_run_json)
     _write_costs(jsonl_dir, [
-        {"run_id": "icRUN0000000001", "process": "FOO", "hash": "abcd1234",
-         "cost": 2.5, "used_cost": 2.5, "unused_cost": 0.0, "split_cost_present": False},
+        {"run_id": "icRUN0000000001", "process": "", "hash": "",
+         "unblended_cost": 2.5, "split_cost": 0.0, "unused_cost": 0.0,
+         "split_cost_present": False},
     ])
     data = build_ic_report_data(jsonl_dir)
     row = next(r for r in data["run_summary"] if r["run_id"] == "icRUN0000000001")
     assert row["cost"] == 2.5
+    assert row["comparable_cost"] is None  # excluded from IC-vs-Batch comparison charts
     assert row["used_cost"] is None
     assert row["unused_cost"] is None
-    assert row["cost_basis"] == "blended"
     assert row["cost_status"] == "available"
-    assert data["ic_overview"]["n_runs_blended_cost"] == 1
-    assert data["ic_overview"]["n_runs_split_cost"] == 0
+    assert data["ic_overview"]["n_runs_billed_cost"] == 1
+    assert data["ic_overview"]["n_runs_comparable_cost"] == 0
+
+
+def test_ic_run_billed_cost_stays_empty_without_instance_rows(tmp_path, make_ic_run, write_run_json):
+    """A Batch run labels only its ECS tasks, so no billed machine charge can be attributed.
+
+    ``cost`` must stay None rather than borrowing the split figure: otherwise the two columns
+    show the same number twice and a reader cannot tell a billed charge from an allocation.
+    """
+    jsonl_dir = _bundle(tmp_path, [make_ic_run(run_id="icRUN0000000001")], write_run_json)
+    _write_costs(jsonl_dir, [
+        {"run_id": "icRUN0000000001", "process": "FOO", "hash": "abcd1234",
+         "unblended_cost": 0.0, "split_cost": 2.0, "unused_cost": 0.5,
+         "split_cost_present": True},
+    ])
+    data = build_ic_report_data(jsonl_dir)
+    row = next(r for r in data["run_summary"] if r["run_id"] == "icRUN0000000001")
+    assert row["cost"] is None             # no billed machine charge exists for this run
+    assert row["comparable_cost"] == 2.5   # the split basis is all AWS Batch reports
+    assert row["cost_status"] == "available"
+    assert data["ic_overview"]["n_runs_billed_cost"] == 0
+    assert data["ic_overview"]["n_runs_comparable_cost"] == 1
 
 
 def test_ic_run_cost_status_not_found_when_cur_supplied_but_unmatched(tmp_path, make_ic_run, write_run_json):
@@ -297,12 +332,12 @@ def test_ic_run_cost_status_not_found_when_cur_supplied_but_unmatched(tmp_path, 
     jsonl_dir = _bundle(tmp_path, [make_ic_run(run_id="icRUN0000000001")], write_run_json)
     _write_costs(jsonl_dir, [
         {"run_id": "otherRUN", "process": "FOO", "hash": "abcd1234",
-         "cost": 9.0, "used_cost": 9.0, "unused_cost": 0.0, "split_cost_present": False},
+         "unblended_cost": 9.0, "split_cost": 0.0, "unused_cost": 0.0, "split_cost_present": False},
     ])
     data = build_ic_report_data(jsonl_dir)
     row = next(r for r in data["run_summary"] if r["run_id"] == "icRUN0000000001")
     assert row["cost"] is None
-    assert row["cost_basis"] is None
+    assert row["comparable_cost"] is None
     assert row["cost_status"] == "not_found"
     assert data["ic_overview"]["n_runs_missing_cost"] == 1
 
@@ -315,7 +350,7 @@ def test_ic_run_cost_status_propagating_for_recent_run(tmp_path, make_ic_run, wr
     run["workflow"]["complete"] = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
     jsonl_dir = _bundle(tmp_path, [run], write_run_json)
     _write_costs(jsonl_dir, [
-        {"run_id": "otherRUN", "process": "FOO", "hash": "abcd1234", "cost": 9.0},
+        {"run_id": "otherRUN", "process": "FOO", "hash": "abcd1234", "unblended_cost": 9.0},
     ])
     data = build_ic_report_data(jsonl_dir)
     row = next(r for r in data["run_summary"] if r["run_id"] == "icRUN0000000001")
@@ -329,6 +364,6 @@ def test_ic_run_cost_status_none_without_cur(tmp_path, make_ic_run, write_run_js
     data = build_ic_report_data(jsonl_dir)
     row = data["run_summary"][0]
     assert row["cost_status"] is None
-    assert row["cost_basis"] is None
+    assert row["comparable_cost"] is None
     assert data["ic_overview"]["cur_supplied"] is False
     assert data["ic_overview"]["n_runs_missing_cost"] == 0

@@ -109,6 +109,26 @@ an AWS CUR export when `--benchmark_aws_cur_report` is supplied (same parameter 
 benchmark report — see [Incorporate AWS split cost allocation data](#incorporate-aws-split-cost-allocation-data)); the
 cost column is otherwise blank. The Seqera cost estimate is never used.
 
+Two cost figures are reported per run. Neither ever stands in for the other, so a blank cell
+means that basis does not exist for the run rather than that cost data is missing:
+
+- **Compute cost** — the CPU and memory every task in the run used, added up and priced by AWS ECS
+  split cost allocation, plus any capacity left idle on the machines beside them. AWS Batch only
+  ever reports this figure, so it is the only fair basis for comparing engines, and the cost charts
+  all use it. Blank for Intelligent Compute on the VM architecture, which runs no ECS tasks for AWS
+  to price; those runs are omitted from the comparison charts rather than compared on different
+  terms.
+- **Total cost** — the unblended cost of every line item AWS tagged to the run, whatever the
+  service, matching what Cost Explorer shows for it. Covers the machines end to end, including
+  start-up and idle time. Blank for AWS Batch, which labels only its tasks and never the machines
+  underneath, so no charge can be tied back to a run.
+
+AWS emits split cost allocation rows _in addition to_ the EC2 instance rows they were derived
+from, so the two describe the same compute — keeping them apart is what stops a run's cost being
+counted twice. Note that split costs are amortized (Savings Plan effective cost where one
+applies) while the billed instance charge is not, so the two are not directly comparable in
+absolute terms.
+
 By default, failed workflows are dropped from the IC report entirely and their CUR costs
 are not attributed. Pass `--include_failed_runs` to include failed runs (and their costs).
 Cancelled/aborted runs are always excluded.
