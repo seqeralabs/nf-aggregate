@@ -21,6 +21,8 @@ def test_ic_report_shape_and_detection(tmp_path, make_ic_run, make_batch_run, wr
         "n_runs": 2, "n_intelligent_compute": 1, "n_batch": 1, "cost_source": None,
         "cur_supplied": False, "n_runs_with_cost": 0, "n_runs_billed_cost": 0,
         "n_runs_comparable_cost": 0, "n_runs_missing_cost": 0,
+        "n_runs_purchase_option": 0, "n_runs_mixed_purchase_option": 0,
+        "spot_cost": None, "ondemand_cost": None, "spot_pct": None,
     }
     assert {r["compute_type"] for r in data["run_summary"]} == {"intelligent_compute", "batch"}
 
@@ -285,6 +287,85 @@ def test_ic_run_cost_never_sums_instance_and_split_bases(tmp_path, make_ic_run, 
     assert row["cost_status"] == "available"
     assert data["ic_overview"]["n_runs_billed_cost"] == 1
     assert data["ic_overview"]["n_runs_comparable_cost"] == 1
+
+
+def test_purchase_option_split_is_intelligent_compute_only(tmp_path, make_ic_run, make_batch_run, write_run_json):
+    """Spot vs on-demand is reported for Intelligent Compute and withheld from AWS Batch.
+
+    Batch labels only its ECS tasks, never the machines underneath, so no purchase option can
+    be read for it. Reporting 0% spot there would state "used no spot" when the truth is "not
+    measurable" — so all three fields stay None and the run is left out of the fleet tally.
+    """
+    jsonl_dir = _bundle(
+        tmp_path,
+        [make_ic_run(run_id="icRUN0000000001"), make_batch_run(run_id="bRUN00000000001")],
+        write_run_json,
+    )
+    _write_costs(jsonl_dir, [
+        {"run_id": "icRUN0000000001", "process": "", "hash": "",
+         "unblended_cost": 12.0, "split_cost": 0.0, "unused_cost": 0.0,
+         "spot_cost": 8.0, "ondemand_cost": 2.0, "split_cost_present": False},
+        # A Batch run's rows can never carry a purchase option; even if they somehow did, the
+        # engine gate is what decides, so this row is written with one to prove the gate holds.
+        {"run_id": "bRUN00000000001", "process": "FOO", "hash": "abcd1234",
+         "unblended_cost": 0.0, "split_cost": 4.0, "unused_cost": 1.0,
+         "spot_cost": 3.0, "ondemand_cost": 1.0, "split_cost_present": True},
+    ])
+    data = build_ic_report_data(jsonl_dir)
+    ic = next(r for r in data["run_summary"] if r["run_id"] == "icRUN0000000001")
+    batch = next(r for r in data["run_summary"] if r["run_id"] == "bRUN00000000001")
+
+    assert (ic["spot_cost"], ic["ondemand_cost"], ic["spot_pct"]) == (8.0, 2.0, 80.0)
+    # Machine rental (10.00) is a SUBSET of the run's 12.00 cost, not a restatement of it.
+    assert ic["spot_cost"] + ic["ondemand_cost"] < ic["cost"]
+    assert (batch["spot_cost"], batch["ondemand_cost"], batch["spot_pct"]) == (None, None, None)
+
+    ov = data["ic_overview"]
+    assert ov["n_runs_purchase_option"] == 1          # the Batch run is not counted
+    assert ov["n_runs_mixed_purchase_option"] == 1    # this IC run fell back mid-run
+    assert (ov["spot_cost"], ov["ondemand_cost"], ov["spot_pct"]) == (8.0, 2.0, 80.0)
+
+
+def test_purchase_option_fleet_pct_is_weighted_by_spend(tmp_path, make_ic_run, write_run_json):
+    """The fleet figure weights by money, not by run.
+
+    A cheap all-spot run must not outvote an expensive one that fell back — a mean of per-run
+    percentages here would read 50%, which would understate what the fallback actually cost.
+    """
+    jsonl_dir = _bundle(
+        tmp_path,
+        [make_ic_run(run_id="icRUN0000000001"), make_ic_run(run_id="icRUN0000000002")],
+        write_run_json,
+    )
+    _write_costs(jsonl_dir, [
+        {"run_id": "icRUN0000000001", "process": "", "hash": "",
+         "unblended_cost": 1.0, "split_cost": 0.0, "unused_cost": 0.0,
+         "spot_cost": 1.0, "ondemand_cost": 0.0, "split_cost_present": False},
+        {"run_id": "icRUN0000000002", "process": "", "hash": "",
+         "unblended_cost": 99.0, "split_cost": 0.0, "unused_cost": 0.0,
+         "spot_cost": 0.0, "ondemand_cost": 99.0, "split_cost_present": False},
+    ])
+    ov = build_ic_report_data(jsonl_dir)["ic_overview"]
+    assert ov["spot_pct"] == 1.0                      # not 50.0
+    assert ov["n_runs_purchase_option"] == 2
+    assert ov["n_runs_mixed_purchase_option"] == 0    # each run stayed on one option
+
+
+def test_purchase_option_absent_when_run_has_no_machine_rows(tmp_path, make_ic_run, write_run_json):
+    """An IC run whose CUR rows are all storage/transfer has no rental to classify."""
+    jsonl_dir = _bundle(tmp_path, [make_ic_run(run_id="icRUN0000000001")], write_run_json)
+    _write_costs(jsonl_dir, [
+        {"run_id": "icRUN0000000001", "process": "", "hash": "",
+         "unblended_cost": 1.5, "split_cost": 0.0, "unused_cost": 0.0,
+         "spot_cost": 0.0, "ondemand_cost": 0.0, "split_cost_present": False},
+    ])
+    data = build_ic_report_data(jsonl_dir)
+    row = data["run_summary"][0]
+    # None, not 0.0: the run has cost but nothing to say about purchase option, and a 0%
+    # spot reading would be a claim rather than a blank.
+    assert (row["spot_cost"], row["ondemand_cost"], row["spot_pct"]) == (None, None, None)
+    assert row["cost"] == 1.5
+    assert data["ic_overview"]["spot_pct"] is None
 
 
 def test_ic_run_cost_vm_architecture_is_instance_basis_only(tmp_path, make_ic_run, write_run_json):

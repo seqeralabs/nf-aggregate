@@ -216,3 +216,41 @@ def test_ic_report_renders_both_cost_bases_and_coverage_note(tmp_path):
     assert '"comparable_cost": null' in html   # VM-architecture IC run
     assert '"cost": null' in html              # AWS Batch run has no billed charge
     assert '"used_cost": 4.5' in html and '"unused_cost": 1.5' in html
+
+
+def test_ic_report_surfaces_spot_mix_for_intelligent_compute(tmp_path):
+    """Spot vs on-demand appears in two places and nowhere else: the Overview stat card and a
+    fourth Cost view. The already-crowded run summary table gains no column."""
+    ic_mixed = dict(
+        _RUN, cost=12.0, spot_cost=8.0, ondemand_cost=2.0, spot_pct=80.0,
+        cost_status="available",
+    )
+    batch_run = dict(
+        _RUN, run_id="batchRUN00000001", compute_type="batch", cost=None,
+        comparable_cost=4.0, spot_cost=None, ondemand_cost=None, spot_pct=None,
+        cost_status="available",
+    )
+    html = _render(tmp_path, {
+        "ic_overview": {
+            "n_runs": 2, "n_intelligent_compute": 1, "n_batch": 1, "cost_source": "aws_cur",
+            "cur_supplied": True, "n_runs_with_cost": 2, "n_runs_billed_cost": 1,
+            "n_runs_comparable_cost": 1, "n_runs_missing_cost": 0,
+            "n_runs_purchase_option": 1, "n_runs_mixed_purchase_option": 1,
+            "spot_cost": 8.0, "ondemand_cost": 2.0, "spot_pct": 80.0,
+        },
+        "run_summary": [ic_mixed, batch_run],
+        "machine_usage": [],
+    })
+    # 1. Overview stat card (filled client-side from ic_overview).
+    assert 'id="stat-spot"' in html and 'id="spot-split"' in html
+    assert ">Spot coverage<" in html
+    # 2. Fourth Cost view, alongside the existing three.
+    assert 'data-view="spot"' in html and 'id="cost-spot-facets"' in html
+    assert "function renderSpot" in html
+    # The per-run figures reach the blob both views read.
+    assert '"spot_cost": 8.0' in html and '"ondemand_cost": 2.0' in html
+    assert '"spot_pct": 80.0' in html
+    # Batch carries nulls, so it is excluded rather than shown as 0% spot.
+    assert '"spot_cost": null' in html
+    # Deliberately NOT a run summary column — the table is already crowded.
+    assert 'field: "spot_cost"' not in html and 'field: "spot_pct"' not in html

@@ -129,6 +129,27 @@ counted twice. Note that split costs are amortized (Savings Plan effective cost 
 applies) while the billed instance charge is not, so the two are not directly comparable in
 absolute terms.
 
+### Spot vs on-demand
+
+The report also breaks Intelligent Compute spend into **spot** and **on-demand**, so you can see
+how much of a pipeline rode cheap reclaimable capacity and how much fell back when spot ran out.
+It surfaces in two places: a **Spot coverage** card in the Overview, and a **Spot mix** view in the
+Cost section with one stacked bar per run.
+
+The figure is always taken from the same place — the EC2 **instance-hour** line items on the
+unblended basis (`SpotUsage:` / `BoxUsage:` usage types), classified by `product_marketoption`
+where the export flattens that column and by the usage type itself otherwise (CUR 2.0 nests it).
+Two consequences worth knowing:
+
+- **Machine rental only.** The EBS volumes and data transfer AWS tags to the same run are not
+  rented capacity and belong to neither side, so spot + on-demand adds up to _less_ than the run's
+  Total cost. The EBSOptimized surcharge is excluded for the same reason — AWS labels that row
+  `OnDemand` even on a spot instance, so counting it would make an all-spot run look mixed.
+- **Intelligent Compute only.** AWS Batch labels only its ECS tasks, never the machines underneath,
+  so no purchase option can be read for it. Batch runs show a blank rather than 0% spot, and are
+  left out of the fleet-wide percentage — which is weighted by spend, so a cheap all-spot run
+  cannot outweigh an expensive fallback.
+
 By default, failed workflows are dropped from the IC report entirely and their CUR costs
 are not attributed. Pass `--include_failed_runs` to include failed runs (and their costs).
 Cancelled/aborted runs are always excluded.

@@ -194,6 +194,9 @@ def _run_cost_details(jsonl_dir: Path) -> dict[str, dict[str, Any]]:
       - ``split_cost``         consumed capacity, from ECS split cost allocation
       - ``unused_cost``        provisioned-but-idle capacity, from ECS split cost allocation
       - ``split_cost_present`` whether any row carried genuine split cost allocation
+      - ``spot_cost``/``ondemand_cost``  the machine share of ``unblended_cost`` broken out by
+                               EC2 purchase option (see ``_market_option_expr``). A subset of
+                               the unblended basis, never a third one to add to it.
 
     The two bases must never be added: for an Intelligent Compute run on the ECS
     architecture, the scheduler tags the EC2 instances, so both the instance rows and the
@@ -206,6 +209,8 @@ def _run_cost_details(jsonl_dir: Path) -> dict[str, dict[str, Any]]:
             "unblended_cost": 0.0,
             "split_cost": 0.0,
             "unused_cost": 0.0,
+            "spot_cost": 0.0,
+            "ondemand_cost": 0.0,
             "split_cost_present": False,
         }
     )
@@ -217,9 +222,39 @@ def _run_cost_details(jsonl_dir: Path) -> dict[str, dict[str, Any]]:
         entry["unblended_cost"] += float(row.get("unblended_cost") or 0.0)
         entry["split_cost"] += float(row.get("split_cost") or 0.0)
         entry["unused_cost"] += float(row.get("unused_cost") or 0.0)
+        entry["spot_cost"] += float(row.get("spot_cost") or 0.0)
+        entry["ondemand_cost"] += float(row.get("ondemand_cost") or 0.0)
         if row.get("split_cost_present"):
             entry["split_cost_present"] = True
     return dict(details)
+
+
+def _purchase_option_split(
+    detail: dict[str, Any] | None, compute_type: str
+) -> tuple[float | None, float | None, float | None]:
+    """Spot vs on-demand machine spend for one run — ``(spot, ondemand, spot_pct)``.
+
+    ALWAYS the unblended basis, on both Intelligent Compute architectures, so the figure means
+    the same thing in every row it appears in. The ECS split basis is not an option here: AWS
+    emits those rows with the purchase option blank, so a split-based version would exist only
+    on ECS and would silently change basis between runs.
+
+    Intelligent Compute only. AWS Batch labels its ECS tasks but never the machines underneath,
+    so no purchase option can be attributed to a Batch run — reporting 0% spot for it would
+    state "used no spot" when the truth is "not measurable from this export". All three values
+    are None for Batch, and for an IC run whose export carries no machine rows yet.
+
+    Note ``spot + ondemand`` is the run's MACHINE spend, which is less than its ``cost``: the
+    EBS volumes and data transfer tagged to the same run are not machine rental.
+    """
+    if detail is None or compute_type != "intelligent_compute":
+        return None, None, None
+    spot = round(detail["spot_cost"], 4)
+    ondemand = round(detail["ondemand_cost"], 4)
+    machine = spot + ondemand
+    if machine <= 0:
+        return None, None, None
+    return spot, ondemand, round(spot / machine * 100, 1)
 
 
 def _run_task_timing(jsonl_dir: Path) -> dict[str, dict[str, float]]:
@@ -328,6 +363,8 @@ def build_ic_report_data(
                 run.get("complete") or started_at, now
             )
 
+        spot_cost, ondemand_cost, spot_pct = _purchase_option_split(detail, compute_type)
+
         run_summary.append({
             "run_id": run_id,
             "run_url": run_url,
@@ -364,6 +401,12 @@ def build_ic_report_data(
             # Split cost allocation (used vs idle) when present, else None -> em-dash.
             "used_cost": used_cost,
             "unused_cost": unused_cost,
+            # Machine spend split by EC2 purchase option, unblended basis, Intelligent Compute
+            # only (see _purchase_option_split). None for AWS Batch and for IC runs with no
+            # machine rows. spot_cost + ondemand_cost is machine spend, a SUBSET of "cost".
+            "spot_cost": spot_cost,
+            "ondemand_cost": ondemand_cost,
+            "spot_pct": spot_pct,
             # "available" | "propagating" | "not_found" | None (no CUR at all).
             "cost_status": cost_status,
         })
@@ -393,6 +436,16 @@ def build_ic_report_data(
         row["compute_hours"] = run_totals.get(row["run_id"], 0.0)
 
     runs_with_cost = [r for r in run_summary if r["cost_status"] == "available"]
+
+    # Fleet-wide spot coverage across Intelligent Compute runs, on the same unblended machine
+    # basis as the per-run figures. Weighted by spend, not a mean of per-run percentages, so a
+    # cheap all-spot run cannot outvote an expensive fallback. None when no IC run has machine
+    # rows, which is what hides the stat card rather than showing a misleading 0%.
+    spot_runs = [r for r in run_summary if r["spot_cost"] is not None]
+    spot_total = round(sum(r["spot_cost"] for r in spot_runs), 4)
+    ondemand_total = round(sum(r["ondemand_cost"] for r in spot_runs), 4)
+    machine_total = spot_total + ondemand_total
+
     return {
         "ic_overview": {
             "n_runs": len(run_summary),
@@ -414,6 +467,17 @@ def build_ic_report_data(
             "n_runs_missing_cost": sum(
                 1 for r in run_summary if r["cost_status"] in ("propagating", "not_found")
             ),
+            # Spot vs on-demand machine spend across Intelligent Compute runs. All None/0 when
+            # no IC run reports machine rows; the report hides the card in that case.
+            "n_runs_purchase_option": len(spot_runs),
+            # How many IC runs actually mixed the two — the runs where spot capacity ran out
+            # mid-run and work fell back to on-demand.
+            "n_runs_mixed_purchase_option": sum(
+                1 for r in spot_runs if r["spot_cost"] > 0 and r["ondemand_cost"] > 0
+            ),
+            "spot_cost": spot_total if spot_runs else None,
+            "ondemand_cost": ondemand_total if spot_runs else None,
+            "spot_pct": round(spot_total / machine_total * 100, 1) if machine_total > 0 else None,
         },
         "run_summary": run_summary,
         "machine_usage": machine_usage,

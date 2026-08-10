@@ -22,6 +22,8 @@
     --muted: #6b6b73;
     --ic: {{ brand_accent }};
     --batch: #45a1bf;
+    --spot: {{ brand_accent }};
+    --ondemand: #d98324;
     --sidebar-w: 244px;
   }
   * { box-sizing: border-box; }
@@ -100,9 +102,16 @@
   .stat .split { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
   .stat .split .row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
   .stat .split .row b { color: var(--ink); font-weight: 600; margin-left: auto; font-variant-numeric: tabular-nums; }
-  .dot-ic, .dot-batch { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot-ic, .dot-batch, .dot-spot, .dot-ondemand { width: 8px; height: 8px; border-radius: 50%; flex: none; }
   .dot-ic { background: var(--ic); }
   .dot-batch { background: var(--batch); }
+  /* Purchase option. Spot borrows the brand accent (every run in these views is Intelligent
+  Compute, so the engine colours are not in play), on-demand takes amber: it is the fallback,
+  and the warmer colour is the point — it is what spot capacity running out costs you. */
+  .dot-spot { background: var(--spot); }
+  .dot-ondemand { background: var(--ondemand); }
+  /* Spacer so a row that is about neither option still lines up with the ones that are. */
+  .dot-none { width: 8px; height: 8px; flex: none; }
 
   /* Pipeline name pills — org handle muted, repo bold; long github handles ellipsis + full name on hover */
   .pipelines-band { margin: 2px 0 20px; }
@@ -252,6 +261,11 @@
         <div class="l">Total cost (CUR)<span class="help" data-help="Total spend across every run, from the AWS Cost &amp; Usage Report. Intelligent Compute runs contribute what AWS billed for their machines; AWS Batch runs contribute their ECS split figure, the only basis AWS reports for them. That mixes a billed charge with an amortized allocation, so read it as the best available total rather than an invoice line. The Intelligent Compute split figure below is another view of that same spend, not an addition to it.">?</span></div>
         <div class="split" id="cost-split" hidden></div>
       </div>
+      <div class="stat" id="stat-spot" hidden>
+        <div class="n muted">&mdash;</div>
+        <div class="l">Spot coverage<span class="help" data-help="How much of the machine rental on Seqera Intelligent Compute runs went to spot instances rather than on-demand ones, from the AWS Cost &amp; Usage Report. Spot capacity is far cheaper but AWS can reclaim it, so the scheduler falls back to on-demand when it has to — this is how often that happened, measured in money rather than machines. Machine rental only: the storage and data transfer on the same runs are not rented capacity and belong to neither side, so these two figures add up to less than the total cost. AWS Batch is left out because it labels only its tasks, never the machines underneath, so no purchase option can be read for it.">?</span></div>
+        <div class="split" id="spot-split" hidden></div>
+      </div>
     </div>
 
     <div class="pipelines-band" id="pipelines-band" hidden>
@@ -332,12 +346,14 @@
         <button data-view="time" class="active">Over time</button>
         <button data-view="run">By run</button>
         <button data-view="instance">By instance</button>
+        <button data-view="spot">Spot mix</button>
       </span>
       <span class="hint" id="cost-view-hint">Total cost per run over time · Seqera Intelligent Compute vs the AWS Batch baseline</span>
     </div>
     <div id="cost-facets"></div>
     <div id="cost-run-facets" hidden></div>
     <div id="cost-instance-facets" hidden></div>
+    <div id="cost-spot-facets" hidden></div>
   </section>
 
 </div>
@@ -349,6 +365,8 @@ const DATA = {{ data_json }};
 const COLORS = {{ brand_palette | tojson }};
 const IC_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--ic').trim() || "#087F68";
 const BATCH_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--batch').trim() || "#45a1bf";
+const SPOT_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--spot').trim() || "#087F68";
+const OD_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--ondemand').trim() || "#d98324";
 
 // HTML-escape any (user-influenceable) value before it is interpolated into innerHTML,
 // a Tabulator formatter, or an ECharts tooltip/HTML formatter. Run/pipeline/process
@@ -543,6 +561,46 @@ window.addEventListener("resize", () => {
     split.innerHTML = out.join("");
     split.hidden = false;
   }
+})();
+
+// ---- Overview: spot coverage on Seqera Intelligent Compute ----
+// The share of IC machine rental billed at spot rates rather than on-demand, weighted by
+// spend (a cheap all-spot run must not outvote an expensive fallback). Always the unblended
+// basis - see _purchase_option_split - so this figure means the same thing on both IC
+// architectures. AWS Batch is absent by design: it labels only its ECS tasks, never the
+// machines, so it has no purchase option to report and 0% would be a false statement rather
+// than a missing one. The whole card stays hidden when no IC run has machine rows.
+(function () {
+  const ov = DATA.ic_overview || {};
+  const card = document.getElementById("stat-spot");
+  if (!card || ov.spot_pct == null) return;
+
+  const figure = card.querySelector(".n");
+  figure.classList.remove("muted");
+  figure.innerHTML = Number(ov.spot_pct).toFixed(1) + '<span class="unit">%</span>';
+
+  const counted = ov.n_runs_purchase_option || 0;
+  const mixed = ov.n_runs_mixed_purchase_option || 0;
+  const runs = (n) => n + " run" + (n === 1 ? "" : "s");
+  const row = (dot, label, value, title) =>
+    '<span class="row" title="' + esc(title) + '"><span class="' + dot + '"></span>' + label +
+    " <b>" + value + "</b></span>";
+
+  const out = [
+    row("dot-spot", "Spot", fmtCost(ov.spot_cost),
+      "Machine rental billed at spot rates across " + runs(counted) + "."),
+    row("dot-ondemand", "On-demand", fmtCost(ov.ondemand_cost),
+      "Machine rental billed at on-demand rates - capacity the scheduler could not place on spot."),
+  ];
+  // Only worth a row when it happened: a permanent "0 of N" reads as a broken metric.
+  if (mixed) {
+    out.push(row("dot-none", "Fell back mid-run", mixed + " of " + counted,
+      "Runs that used both spot and on-demand machines - spot capacity ran out partway through and the remaining work moved to on-demand."));
+  }
+  const split = document.getElementById("spot-split");
+  split.innerHTML = out.join("");
+  split.hidden = false;
+  card.hidden = false;
 })();
 
 // ---- Cost section note: coverage + which runs can be compared across engines ----
@@ -1077,22 +1135,36 @@ function tableSizing(runs) {
   const comparableById = {};
   withCost.forEach((r) => { const c = comparableCost(r); if (c != null) comparableById[r.run_id] = c; });
 
+  // "Spot mix" reads a THIRD basis — the unblended machine rental, split by EC2 purchase
+  // option — and only Intelligent Compute reports it, so it keeps its own run index rather
+  // than borrowing either of the two above.
+  const spotRuns = (DATA.run_summary || []).filter((r) => r.spot_cost != null);
+  const spotById = {};
+  spotRuns.forEach((r) => { spotById[r.run_id] = r; });
+
   const cTime = document.getElementById("cost-facets");
   const cRun = document.getElementById("cost-run-facets");
   const cInst = document.getElementById("cost-instance-facets");
+  const cSpot = document.getElementById("cost-spot-facets");
   const hint = document.getElementById("cost-view-hint");
   const toggle = document.getElementById("cost-view-toggle");
   const HINTS = {
     time: "ECS split cost per run over time · Seqera Intelligent Compute vs the AWS Batch baseline · the comparable basis, so runs without one are omitted",
     run: "ECS split cost of every comparable run, one bar each, coloured by engine — the simplest side-by-side comparison. AWS Batch runs first, then Seqera Intelligent Compute oldest to newest.",
     instance: "One panel per run — how that run's cost split across the instance types it actually used (by CPU-hour share), billed cost where there is one and the run's own ECS split figure otherwise. Instance mix differs run to run, so each run stands alone.",
+    spot: "Machine rental per Seqera Intelligent Compute run, split into spot and on-demand — how much of the run rode cheap reclaimable capacity and how much fell back. Billed (unblended) machine rental only, so storage and data transfer are excluded and these bars total less than the run's cost. AWS Batch is absent: it labels only its tasks, so no purchase option can be read for it.",
   };
+  // Nothing to show and no basis to explain -> drop the button rather than offer an empty view.
+  if (!spotRuns.length) {
+    const spotBtn = toggle && toggle.querySelector('button[data-view="spot"]');
+    if (spotBtn) spotBtn.remove();
+  }
 
   // No cost anywhere -> the over-time module already shows the empty state; hide the toggle.
   if (!withCost.length) { if (toggle) toggle.closest(".toolbar").style.display = "none"; return; }
 
-  const charts = { run: [], instance: [] };
-  const rendered = { run: false, instance: false };
+  const charts = { run: [], instance: [], spot: [] };
+  const rendered = { run: false, instance: false, spot: false };
 
   const facetCard = (pipeline, n) => {
     const grp = document.createElement("div");
@@ -1209,13 +1281,63 @@ function tableSizing(runs) {
     });
   }
 
+  // "Spot mix": one horizontal bar per Intelligent Compute run, stacked spot + on-demand, so
+  // the bar length is the run's machine rental and the split inside it is the story. Ordered
+  // oldest -> newest within a pipeline, which makes a fleet drifting off spot read as a trend
+  // rather than a set of unrelated runs. No engine facet: every run here is IC by definition.
+  function renderSpot() {
+    const groups = pipelineGroups(DATA.run_summary, spotById);
+    if (!groups.length) {
+      cSpot.innerHTML = '<div class="empty"><strong>No purchase option to break down.</strong><br/>No Seqera Intelligent Compute run here reports machine rental in the CUR export yet.</div>';
+      return;
+    }
+    groups.forEach((g) => {
+      const runs = g.runs.slice().sort((a, b) => (a.started_at || "").localeCompare(b.started_at || ""));
+      const labels = runs.map((u) => (u.date_short || "") + " · " + u.run_id);
+      const spot = runs.map((u) => Number(spotById[u.run_id].spot_cost));
+      const od = runs.map((u) => Number(spotById[u.run_id].ondemand_cost));
+      const pct = runs.map((u) => spotById[u.run_id].spot_pct);
+      const grp = facetCard(g.pipeline, runs.length);
+      const el = chartEl(Math.max(150, 54 + runs.length * 34));
+      grp.appendChild(el); cSpot.appendChild(grp);
+      const opt = {
+        tooltip: {
+          trigger: "axis", axisPointer: { type: "shadow" },
+          formatter: (ps) => {
+            const i = ps[0].dataIndex;
+            const total = spot[i] + od[i];
+            const lines = ps.map((p) =>
+              '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + p.color + ';margin-right:6px"></span>' +
+              esc(p.seriesName) + ": <b>" + fmtCost(p.value) + "</b> · " + (total ? Math.round(p.value / total * 100) : 0) + "%");
+            return esc(labels[i]) + "<br/>" + lines.join("<br/>") + "<br/>Machine rental: <b>" + fmtCost(total) + "</b>";
+          },
+        },
+        legend: { top: 0, icon: "roundRect", data: ["Spot", "On-demand"] },
+        grid: { left: 8, right: 96, top: 34, bottom: 42, containLabel: true },
+        xAxis: { type: "value", name: "Machine rental (USD)", nameLocation: "middle", nameGap: 30, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, axisLabel: { formatter: costAxisLabel } },
+        yAxis: { type: "category", data: labels, inverse: true, axisLabel: { fontSize: 11, width: 150, overflow: "truncate" } },
+        series: [
+          // Both segments carry the rounded right edge so an all-spot run (on-demand = 0, a
+          // zero-width segment) does not end in a square corner while a mixed run does not.
+          { name: "Spot", type: "bar", stack: "m", barMaxWidth: 22, data: spot, itemStyle: { color: SPOT_COLOR, borderRadius: [0, 3, 3, 0] } },
+          { name: "On-demand", type: "bar", stack: "m", barMaxWidth: 22, data: od, itemStyle: { color: OD_COLOR, borderRadius: [0, 3, 3, 0] },
+            label: { show: true, position: "right", fontSize: 10, color: "#6b6b73",
+              formatter: (p) => (pct[p.dataIndex] == null ? "" : Math.round(pct[p.dataIndex]) + "% spot") } },
+        ],
+      };
+      lazyChart(el, () => { const chart = echarts.init(el, "seqera"); chart.setOption(opt); charts.spot.push(chart); });
+    });
+  }
+
   function show(view) {
     cTime.hidden = view !== "time";
     cRun.hidden = view !== "run";
     cInst.hidden = view !== "instance";
+    cSpot.hidden = view !== "spot";
     hint.textContent = HINTS[view];
     if (view === "run" && !rendered.run) { renderRun(); rendered.run = true; }
     if (view === "instance" && !rendered.instance) { renderInstance(); rendered.instance = true; }
+    if (view === "spot" && !rendered.spot) { renderSpot(); rendered.spot = true; }
     // ECharts needs a visible container to size; resize the ones we just revealed.
     (charts[view] || []).forEach((c) => c.resize());
   }
@@ -1227,7 +1349,7 @@ function tableSizing(runs) {
       show(btn.getAttribute("data-view"));
     });
   });
-  onResize(() => { charts.run.forEach((c) => c.resize()); charts.instance.forEach((c) => c.resize()); });
+  onResize(() => { charts.run.forEach((c) => c.resize()); charts.instance.forEach((c) => c.resize()); charts.spot.forEach((c) => c.resize()); });
 })();
 
 // ---- Sidebar scrollspy: highlight the section the reader is currently in ----

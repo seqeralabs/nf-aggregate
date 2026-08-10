@@ -112,6 +112,8 @@ def test_normalize_cost_rows_reads_parquet_in_batches(tmp_path):
             "unblended_cost": 0.0,
             "split_cost": 4.0,
             "unused_cost": 1.0,
+            "spot_cost": 0.0,
+            "ondemand_cost": 0.0,
             "split_cost_present": True,
             "cost": 5.0,
             "used_cost": 4.0,
@@ -151,6 +153,8 @@ def test_normalize_cost_rows_accepts_custom_flat_aliases(tmp_path):
             "unblended_cost": 0.0,
             "split_cost": 3.0,
             "unused_cost": 0.75,
+            "spot_cost": 0.0,
+            "ondemand_cost": 0.0,
             "split_cost_present": True,
             "cost": 3.75,
             "used_cost": 3.0,
@@ -191,6 +195,8 @@ def test_normalize_cost_rows_accepts_custom_resource_tag_aliases(tmp_path):
             "unblended_cost": 0.0,
             "split_cost": 2.5,
             "unused_cost": 0.5,
+            "spot_cost": 0.0,
+            "ondemand_cost": 0.0,
             "split_cost_present": True,
             "cost": 3.0,
             "used_cost": 2.5,
@@ -230,6 +236,8 @@ def test_normalize_cost_rows_accepts_v2_struct_list_resource_tags(tmp_path):
             "unblended_cost": 4.0,
             "split_cost": 0.0,
             "unused_cost": 0.0,
+            "spot_cost": 0.0,
+            "ondemand_cost": 0.0,
             "split_cost_present": False,
             "cost": 4.0,
             "used_cost": 4.0,
@@ -272,6 +280,8 @@ def test_normalize_cost_rows_accepts_map_resource_tags(tmp_path):
             "unblended_cost": 7.0,
             "split_cost": 0.0,
             "unused_cost": 0.0,
+            "spot_cost": 0.0,
+            "ondemand_cost": 0.0,
             "split_cost_present": False,
             "cost": 7.0,
             "used_cost": 7.0,
@@ -344,6 +354,8 @@ def test_normalize_cost_rows_reads_directory_of_parquets(tmp_path):
             "unblended_cost": 2.0,
             "split_cost": 1.0,
             "unused_cost": 0.0,
+            "spot_cost": 0.0,
+            "ondemand_cost": 0.0,
             "split_cost_present": True,
             "cost": 2.0,
             "used_cost": 2.0,
@@ -376,6 +388,8 @@ def test_normalize_cost_rows_ignores_rows_without_run_label(tmp_path):
             "unblended_cost": 0.0,
             "split_cost": 1.0,
             "unused_cost": 0.0,
+            "spot_cost": 0.0,
+            "ondemand_cost": 0.0,
             "split_cost_present": True,
             "cost": 1.0,
             "used_cost": 1.0,
@@ -450,6 +464,93 @@ def test_normalize_cost_rows_keeps_ic_instance_and_split_rows_apart(tmp_path):
     assert sum(r["split_cost"] + r["unused_cost"] for r in rows) == 6.0
 
 
+def test_normalize_cost_rows_splits_machine_spend_by_purchase_option(tmp_path):
+    """Spot vs on-demand comes off the EC2 instance-hour rows, and ONLY those rows.
+
+    The trap this pins down is real, measured on a production export: AWS labels the
+    EBSOptimized surcharge of a *Spot* instance ``OnDemand``. Classifying on
+    ``product_marketoption`` alone would book that surcharge as on-demand spend and make a
+    100%-spot run look mixed. Gating on the usage type keeps it out, along with the EBS volume
+    and data-transfer rows tagged to the same run — none of which are machine rental.
+    """
+    parquet_path = tmp_path / "purchase-option.parquet"
+
+    table = pa.table(
+        {
+            "resource_tags_user_seqera_io_platform_workflow_id": ["ic-run"] * 5,
+            "line_item_product_code": ["AmazonEC2"] * 4 + ["AmazonECS"],
+            "line_item_usage_type": [
+                "EU-SpotUsage:c5d.2xlarge",     # spot machine rental
+                "EU-BoxUsage:r5a.2xlarge",      # on-demand machine rental (the fallback)
+                "EU-EBSOptimized:c5d.2xlarge",  # surcharge on the SPOT box, mislabelled OnDemand
+                "EU-EBS:VolumeUsage.gp3",       # storage, no purchase option at all
+                "EU-ECS-EC2-vCPU-Hours",        # ECS split row, no purchase option at all
+            ],
+            "product_marketoption": ["Spot", "OnDemand", "OnDemand", None, None],
+            "line_item_unblended_cost": [8.0, 2.0, 0.5, 1.0, 0.0],
+            "split_line_item_split_cost": [0.0, 0.0, 0.0, 0.0, 3.0],
+            "split_line_item_unused_cost": [0.0, 0.0, 0.0, 0.0, 1.0],
+        }
+    )
+    pq.write_table(table, parquet_path)
+
+    rows = _normalize_cost_rows(parquet_path)
+    assert len(rows) == 1
+    row = rows[0]
+
+    assert row["spot_cost"] == 8.0
+    assert row["ondemand_cost"] == 2.0       # 2.00 only — the 0.50 surcharge is NOT rental
+    # The split is a subset of the unblended basis, never an addition to it: machine rental
+    # (10.00) is short of the 11.50 unblended total by the surcharge and the EBS volume.
+    assert row["unblended_cost"] == 11.5
+    assert row["spot_cost"] + row["ondemand_cost"] < row["unblended_cost"]
+    # And it is independent of the split basis, which carries no purchase option of its own.
+    assert row["split_cost"] == 3.0
+    assert row["unused_cost"] == 1.0
+
+
+def test_normalize_cost_rows_purchase_option_falls_back_to_usage_type(tmp_path):
+    """CUR 2.0 nests ``marketoption`` inside the ``product`` map, so the flat column is absent.
+
+    The usage type carries the same distinction in every CUR version and is the gate either
+    way, so dropping the column must not drop the figure.
+    """
+    parquet_path = tmp_path / "cur2-no-marketoption.parquet"
+    table = pa.table(
+        {
+            "resource_tags_user_seqera_io_platform_workflow_id": ["ic-run"] * 3,
+            "line_item_usage_type": [
+                "EU-SpotUsage:c5d.2xlarge",
+                "EU-BoxUsage:r5a.2xlarge",
+                "EU-EBS:VolumeUsage.gp3",
+            ],
+            "line_item_unblended_cost": [8.0, 2.0, 1.0],
+        }
+    )
+    pq.write_table(table, parquet_path)
+
+    row = _normalize_cost_rows(parquet_path)[0]
+    assert row["spot_cost"] == 8.0
+    assert row["ondemand_cost"] == 2.0
+
+
+def test_normalize_cost_rows_purchase_option_zero_without_usage_type(tmp_path):
+    """No usage type column at all -> no classification, and 0.0 rather than a crash."""
+    parquet_path = tmp_path / "no-usage-type.parquet"
+    table = pa.table(
+        {
+            "resource_tags_user_seqera_io_platform_workflow_id": ["ic-run"],
+            "line_item_unblended_cost": [8.0],
+        }
+    )
+    pq.write_table(table, parquet_path)
+
+    row = _normalize_cost_rows(parquet_path)[0]
+    assert row["spot_cost"] == 0.0
+    assert row["ondemand_cost"] == 0.0
+    assert row["unblended_cost"] == 8.0
+
+
 def test_normalize_cost_rows_separates_bases_within_one_group(tmp_path):
     """The real Intelligent Compute shape: split rows carry NO process/task_hash labels, so
     they land in the same (run_id, '', '') group as the instance rows.
@@ -484,6 +585,8 @@ def test_normalize_cost_rows_separates_bases_within_one_group(tmp_path):
         "unblended_cost": 8.0,
         "split_cost": 4.0,
         "unused_cost": 1.0,
+        "spot_cost": 0.0,
+        "ondemand_cost": 0.0,
         "split_cost_present": True,
         # Single-basis convenience prefers the billed charge; it must never be 13.00, and it
         # must not silently drop the larger instance figure in favour of the split one.

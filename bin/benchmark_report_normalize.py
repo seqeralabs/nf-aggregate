@@ -306,6 +306,35 @@ def _numeric_expr(column: str, columns: dict[str, str]) -> str:
     return "0.0"
 
 
+def _market_option_expr(columns: dict[str, str]) -> str:
+    """``'Spot'`` / ``'OnDemand'`` for an EC2 instance-hour row, NULL for anything else.
+
+    Gated on ``line_item_usage_type`` in BOTH branches, and deliberately so — the gate is
+    what makes the classification trustworthy, not a nicety:
+
+      - Only the instance-hour rows (``SpotUsage:<type>`` / ``BoxUsage:<type>``) describe
+        machine rental. The EBS volumes and data transfer AWS also tags to the run carry no
+        purchase option at all, so forcing them into a bucket would invent one.
+      - ``product_marketoption`` is wrong on the EBSOptimized surcharge row: a Spot instance's
+        surcharge is labelled ``OnDemand``. Ungated, that made 56,894 instance ids in a real
+        export look like they had two purchase options at once.
+
+    ``product_marketoption`` is the authoritative field but only legacy CUR flattens it (CUR
+    2.0 nests it inside the ``product`` map), so the usage type — present in every CUR
+    version, and the very string the market option is derived from — is the fallback.
+    """
+    if "line_item_usage_type" not in columns:
+        return "NULL"
+    usage_type = 'CAST("line_item_usage_type" AS VARCHAR)'
+    is_spot = f"{usage_type} LIKE '%SpotUsage%'"
+    instance_hour = f"({is_spot} OR {usage_type} LIKE '%BoxUsage%')"
+    if "product_marketoption" in columns:
+        market = "NULLIF(CAST(\"product_marketoption\" AS VARCHAR), '')"
+    else:
+        market = f"CASE WHEN {is_spot} THEN 'Spot' ELSE 'OnDemand' END"
+    return f"CASE WHEN {instance_hour} THEN {market} END"
+
+
 def _dedupe_aliases(values: list[str]) -> list[str]:
     seen: set[str] = set()
     aliases: list[str] = []
@@ -371,6 +400,9 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
     and ``split_cost``/``unused_cost`` (ECS split cost allocation) — because they can
     describe the *same* compute and must never be added together. See the comment on the
     query below for why. ``cost``/``used_cost`` are single-basis conveniences.
+
+    ``spot_cost``/``ondemand_cost`` decompose the machine share of ``unblended_cost`` by EC2
+    purchase option. They are a subset of that one basis, never a third one.
     """
     label_aliases = _load_cost_label_aliases(cost_label_map)
     sources = _parquet_sources(costs_parquet)
@@ -422,6 +454,22 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
     unblended_cost = _numeric_expr("line_item_unblended_cost", columns)
     is_split_row = f"CASE WHEN {split_cost} <> 0 OR {unused_cost} <> 0 THEN 1 ELSE 0 END"
 
+    # SPOT vs ON-DEMAND: a decomposition of the machine share of ``unblended_cost``, on that
+    # one basis always — never the split basis, which carries no purchase option of its own
+    # (AWS emits the ECS split rows under product code AmazonECS with the market option blank).
+    # Reaching it through the split rows' ``split_line_item_parent_resource_id`` back to the
+    # parent instance row is possible but would make the figure available on one architecture
+    # and not the other; the unblended rows carry the option directly and exist for every
+    # Intelligent Compute run, ECS or VM. Only IC labels its instances, so only IC gets a
+    # non-zero split here — see _run_cost_details, which is where the IC-only rule is applied.
+    #
+    # These are a PART of unblended_cost, never an addition to it, and they do not sum back to
+    # it: the EBS volumes and data transfer AWS tags to the same run are not machine rental and
+    # belong to neither bucket. spot + ondemand <= unblended is the expected relationship.
+    market_option = _market_option_expr(columns)
+    spot_cost = f"CASE WHEN {market_option} = 'Spot' THEN {unblended_cost} ELSE 0.0 END"
+    ondemand_cost = f"CASE WHEN {market_option} = 'OnDemand' THEN {unblended_cost} ELSE 0.0 END"
+
     query = f"""
         WITH classified AS (
             SELECT
@@ -431,6 +479,8 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
                 {unblended_cost}                              AS unblended_cost,
                 {split_cost}                                  AS split_cost,
                 {unused_cost}                                 AS unused_cost,
+                {spot_cost}                                   AS spot_cost,
+                {ondemand_cost}                               AS ondemand_cost,
                 {is_split_row}                                AS is_split_row
             FROM {scan}
             WHERE {run_id_expr} IS NOT NULL AND {run_id_expr} <> ''
@@ -442,6 +492,8 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
             SUM(unblended_cost)  AS unblended_cost,
             SUM(split_cost)      AS split_cost,
             SUM(unused_cost)     AS unused_cost,
+            SUM(spot_cost)       AS spot_cost,
+            SUM(ondemand_cost)   AS ondemand_cost,
             MAX(is_split_row)    AS split_cost_present,
             CASE WHEN SUM(unblended_cost) <> 0
                  THEN SUM(unblended_cost)
