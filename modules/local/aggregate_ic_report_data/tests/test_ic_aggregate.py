@@ -91,6 +91,36 @@ def test_machine_usage_grouped_by_run(tmp_path, make_ic_run, make_batch_run, wri
     assert ic_t3 == batch_t3
 
 
+def test_machine_usage_carries_effective_cpu_hours(tmp_path, make_run, write_run_json):
+    # Charts plot effective CPU-hours, so the machine breakdown must carry a utilisation-
+    # weighted figure alongside the occupancy one used to split cost. Half-used cores on
+    # one type, fully used on the other, so a swapped key cannot pass by coincidence.
+    tasks = [
+        {"name": "t1", "process": "P:t1", "status": "COMPLETED", "hash": "aa/01", "cpus": 4,
+         "pcpu": 200.0, "machineType": "t3.large",
+         "start": "2026-01-01T00:00:00Z", "complete": "2026-01-01T02:00:00Z"},
+        {"name": "t2", "process": "P:t2", "status": "COMPLETED", "hash": "aa/02", "cpus": 2,
+         "pcpu": 200.0, "machineType": "m5.xlarge",
+         "start": "2026-01-01T00:00:00Z", "complete": "2026-01-01T01:00:00Z"},
+    ]
+    usage = build_ic_report_data(
+        _bundle(tmp_path, [make_run(run_id="r1", tasks=tasks)], write_run_json)
+    )["machine_usage"][0]
+    by_type = {m["machine_type"]: m for m in usage["machines"]}
+
+    assert by_type["t3.large"]["cpu_hours"] == 8.0          # 4 cpus × 2h occupancy
+    assert by_type["t3.large"]["cpu_hours_eff"] == 4.0      # 200% = 2 cores × 2h
+    assert by_type["m5.xlarge"]["cpu_hours"] == 2.0         # 2 cpus × 1h
+    assert by_type["m5.xlarge"]["cpu_hours_eff"] == 2.0     # fully used
+    assert usage["total_cpu_hours"] == 10.0
+    assert usage["total_cpu_hours_eff"] == 6.0
+    # reconciles with the run-level effective figure the table shows
+    row = build_ic_report_data(
+        _bundle(tmp_path, [make_run(run_id="r1", tasks=tasks)], write_run_json)
+    )["run_summary"][0]
+    assert row["eff_cpu_vcpu_h"] == usage["total_cpu_hours_eff"]
+
+
 def test_run_timing_metrics(tmp_path, make_ic_run, write_run_json):
     jsonl_dir = _bundle(tmp_path, [make_ic_run()], write_run_json)
     row = build_ic_report_data(jsonl_dir)["run_summary"][0]

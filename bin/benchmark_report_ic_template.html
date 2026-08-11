@@ -315,13 +315,13 @@
     <div id="resource-chart" hidden></div>
 
     <div class="subhead" style="margin-top:28px">Machine-type distribution</div>
-    <p class="section-sub">Machine-type distribution per run, grouped by pipeline and faceted by scheduling engine. Scale is shared within each pipeline so AWS Batch and Seqera Intelligent Compute are directly comparable.</p>
+    <p class="section-sub">Machine-type distribution per run, grouped by pipeline and faceted by scheduling engine. Scale is shared within each pipeline so AWS Batch and Seqera Intelligent Compute are directly comparable. CPU-hours are effective (measured utilisation &times; instance occupancy), not requested &mdash; the run summary table above lists both.</p>
     {% if machine_usage %}
     <div class="toolbar">
       <span class="ctl-label">Measure:</span>
       <span class="btn-group" id="metric-toggle">
         <button data-metric="task_count" class="active">Tasks</button>
-        <button data-metric="cpu_hours">CPU-hours</button>
+        <button data-metric="cpu_hours_eff">CPU-hours (effective)</button>
       </span>
       <span class="ctl-label" style="margin-left:8px">Label:</span>
       <span class="btn-group" id="label-toggle">
@@ -923,7 +923,7 @@ function tableSizing(runs) {
     if (!c.chart) c.chart = echarts.init(c.el, "seqera");
     const chart = c.chart, runs = c.runs, pipeline = c.pipeline;
     const metric = currentMetric;
-    const totalKey = metric === "task_count" ? "total_tasks" : "total_cpu_hours";
+    const totalKey = metric === "task_count" ? "total_tasks" : "total_cpu_hours_eff";
     let pmax = 1;
     mu.forEach((u) => { if ((u.pipeline || "—") === pipeline) pmax = Math.max(pmax, u[totalKey] || 0); });
     {
@@ -938,15 +938,15 @@ function tableSizing(runs) {
         itemStyle: { color: COLORS[colorByType[mt] % COLORS.length] },
         data: runs.map((u) => {
           const m = (u.machines || []).find((x) => x.machine_type === mt);
-          return { value: m ? m[metric] : 0, tasks: m ? m.task_count : 0, pct: m ? m.task_pct : 0, cpu: m ? m.cpu_hours : 0 };
+          return { value: m ? m[metric] : 0, tasks: m ? m.task_count : 0, pct: m ? m.task_pct : 0, cpu: m ? m.cpu_hours_eff : 0 };
         }),
       }));
       const zoom = ids.length > 10 ? [{ type: "slider", yAxisIndex: 0, width: 14, right: 4 }, { type: "inside", yAxisIndex: 0 }] : [];
       chart.setOption({
-        tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(names[p.dataIndex]) + " (" + esc(ids[p.dataIndex]) + ")" + (startedAts[p.dataIndex] ? "<br/>started " + esc(startedAts[p.dataIndex].replace("T", " ").slice(0, 16)) : "") + "<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " cpu-h" },
+        tooltip: { trigger: "item", formatter: (p) => esc(p.seriesName) + "<br/>" + esc(names[p.dataIndex]) + " (" + esc(ids[p.dataIndex]) + ")" + (startedAts[p.dataIndex] ? "<br/>started " + esc(startedAts[p.dataIndex].replace("T", " ").slice(0, 16)) : "") + "<br/>" + p.data.tasks + " tasks (" + p.data.pct + "%)<br/>" + p.data.cpu + " effective cpu-h" },
         legend: { type: "scroll", top: 0 },
         grid: { left: 10, right: 34, top: 40, bottom: 34, containLabel: true },
-        xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "CPU-hours", nameLocation: "middle", nameGap: 26, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, max: pmax },
+        xAxis: { type: "value", name: metric === "task_count" ? "Tasks" : "Effective CPU-hours", nameLocation: "middle", nameGap: 26, nameTextStyle: { color: "#6b6b73", fontSize: 11 }, max: pmax },
         yAxis: { type: "category", data: ids, inverse: true, axisLabel: { formatter: (id) => labelMode === "date" ? (dateById[id] || id) : id } },
         dataZoom: zoom,
         series: series,
@@ -1213,6 +1213,8 @@ function tableSizing(runs) {
         engRank(a) - engRank(b) || (a.started_at || "").localeCompare(b.started_at || ""));
       runs.forEach((u) => {
         const cost = costById[u.run_id];
+        // Weighted by occupancy cpu_hours, not effective: the instance is billed for the
+        // slot-held time regardless of how much of it the task actually used.
         const tot = (u.machines || []).reduce((s, m) => s + (m.cpu_hours || 0), 0);
         if (!tot) return;
         const items = (u.machines || [])

@@ -54,6 +54,20 @@ def _task_occupancy_hours(task: dict[str, Any]) -> float:
     return occupancy_ms / 3.6e6
 
 
+def _task_effective_cpu_hours(task: dict[str, Any]) -> float:
+    """CPU-hours a task actually *used* = (pcpu/100) * (complete - start).
+
+    Same occupancy window as :func:`_task_occupancy_hours`, but weighted by measured
+    utilisation instead of the requested core count (pcpu/100 = cores actually busy).
+    Matches the ``cpu_used`` basis in :func:`_run_resource_usage`, so the per-machine
+    effective hours reconcile with the run's effective vCPU-h figure.
+    """
+    occupancy_ms = (float(task.get("pcpu") or 0) / 100.0) * _duration_ms(
+        task.get("start"), task.get("complete")
+    )
+    return occupancy_ms / 3.6e6
+
+
 def _run_resource_usage(jsonl_dir: Path) -> dict[str, dict[str, float]]:
     """Per run: requested vs effective CPU (vCPU-hours) and memory (GiB).
 
@@ -95,9 +109,15 @@ def _run_resource_usage(jsonl_dir: Path) -> dict[str, dict[str, float]]:
 
 
 def _machine_breakdown(jsonl_dir: Path) -> dict[str, dict[str, dict[str, float]]]:
-    """Per run, per machine type: task_count and occupancy cpu_hours."""
+    """Per run, per machine type: task_count, occupancy cpu_hours and effective cpu_hours.
+
+    Both CPU bases are kept: ``cpu_hours`` (requested × occupancy) is what the instance
+    was held for and so is the right weight for splitting billed cost across machine
+    types, while ``cpu_hours_eff`` (utilisation × occupancy) is what the tasks actually
+    burned and is what the charts plot.
+    """
     per_run: dict[str, dict[str, dict[str, float]]] = defaultdict(
-        lambda: defaultdict(lambda: {"task_count": 0, "cpu_hours": 0.0})
+        lambda: defaultdict(lambda: {"task_count": 0, "cpu_hours": 0.0, "cpu_hours_eff": 0.0})
     )
     for task in _iter_jsonl(Path(jsonl_dir) / "tasks.jsonl"):
         run_id = str(task.get("run_id", ""))
@@ -105,6 +125,7 @@ def _machine_breakdown(jsonl_dir: Path) -> dict[str, dict[str, dict[str, float]]
         acc = per_run[run_id][machine_type]
         acc["task_count"] += 1
         acc["cpu_hours"] += _task_occupancy_hours(task)
+        acc["cpu_hours_eff"] += _task_effective_cpu_hours(task)
     return per_run
 
 
@@ -130,6 +151,7 @@ def _build_machine_usage(
                 "task_count": int(m["task_count"]),
                 "task_pct": round(m["task_count"] / total_tasks * 100, 1) if total_tasks else 0.0,
                 "cpu_hours": round(m["cpu_hours"], 2),
+                "cpu_hours_eff": round(m["cpu_hours_eff"], 2),
                 "color_idx": color_idx[mt],
             }
             for mt, m in sorted(
@@ -139,6 +161,7 @@ def _build_machine_usage(
         # Sum the ALREADY-ROUNDED per-machine values so the report is internally
         # consistent: the displayed run total == the sum of the displayed bars.
         total_cpu_hours = round(sum(m["cpu_hours"] for m in machines), 2)
+        total_cpu_hours_eff = round(sum(m["cpu_hours_eff"] for m in machines), 2)
         usage.append({
             "run_id": run["run_id"],
             "run_name": run["run_name"],
@@ -149,6 +172,7 @@ def _build_machine_usage(
             "date_short": run.get("date_short", ""),
             "total_tasks": total_tasks,
             "total_cpu_hours": total_cpu_hours,
+            "total_cpu_hours_eff": total_cpu_hours_eff,
             "machines": machines,
         })
     return usage
