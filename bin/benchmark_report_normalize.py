@@ -243,7 +243,15 @@ def _parquet_sources(costs_parquet: Path) -> list[str]:
     export folder can be processed in one pass.
     """
     if costs_parquet.is_dir():
-        return sorted(str(path) for path in costs_parquet.rglob("*.parquet"))
+        sources = sorted(str(path) for path in costs_parquet.rglob("*.parquet"))
+        if not sources:
+            raise ValueError(f"benchmark_aws_cur_report directory '{costs_parquet}' contains no *.parquet files")
+        return sources
+    if costs_parquet.suffix != ".parquet":
+        raise ValueError(
+            f"benchmark_aws_cur_report '{costs_parquet}' is not a .parquet file or a directory of them. "
+            "Pass the CUR export location itself (e.g. s3://bucket/prefix/), not an AWS console URL."
+        )
     return [str(costs_parquet)]
 
 

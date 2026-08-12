@@ -363,6 +363,22 @@ def test_normalize_cost_rows_reads_directory_of_parquets(tmp_path):
     ]
 
 
+def test_normalize_cost_rows_rejects_non_parquet_input(tmp_path):
+    """A staged AWS console URL (or any other non-parquet file) is reported as a bad
+    parameter instead of surfacing DuckDB's "No magic bytes found" traceback.
+    """
+    not_parquet = tmp_path / "intelligent-compute-testing-cost"
+    not_parquet.write_text("<html>console page, not a CUR export</html>")
+
+    with pytest.raises(ValueError, match="not a .parquet file"):
+        _normalize_cost_rows(not_parquet)
+
+    empty_dir = tmp_path / "cur-empty"
+    empty_dir.mkdir()
+    with pytest.raises(ValueError, match="no \\*.parquet files"):
+        _normalize_cost_rows(empty_dir)
+
+
 def test_normalize_cost_rows_ignores_rows_without_run_label(tmp_path):
     """Only rows carrying a run-id resource label are costed; null/empty-labelled
     rows never contribute, so the scan operates on the labelled subset only."""
