@@ -51,6 +51,9 @@ def test_run_costs_without_cur_are_zero(tmp_path, make_run, flat_task, write_run
         "missing_task_count": 0,
         "coverage_pct": None,
         "runs_with_missing_costs": [],
+        "resumed_runs": [],
+        "n_resumed_runs": 0,
+        "n_incomplete_lineages": 0,
     }
 
 
@@ -1154,3 +1157,176 @@ def test_run_costs_without_cur_have_no_cost_status(tmp_path, make_run, flat_task
     normalize_jsonl(data_dir, jsonl_dir)
 
     assert build_report_data(jsonl_dir)["run_costs"][0]["cost_status"] is None
+
+
+def _resume_bundle(jsonl_dir, runs, tasks, costs):
+    jsonl_dir.mkdir(parents=True, exist_ok=True)
+    (jsonl_dir / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in runs))
+    (jsonl_dir / "tasks.jsonl").write_text("".join(json.dumps(t) + "\n" for t in tasks))
+    (jsonl_dir / "costs.jsonl").write_text("".join(json.dumps(c) + "\n" for c in costs))
+
+
+def _run_row(run_id, session_id="", resumed=False, cached=0, succeeded=1, complete="2026-01-02T00:00:00Z"):
+    return {
+        "run_id": run_id,
+        "group": "cpu",
+        "pipeline": "pipe",
+        "session_id": session_id,
+        "resumed": resumed,
+        "cached": cached,
+        "succeeded": succeeded,
+        "failed": 0,
+        "complete": complete,
+        "duration_ms": 10,
+        "cpu_time_ms": 1000,
+    }
+
+
+def _task_row(run_id, process_short, hash_short, status="COMPLETED"):
+    return {
+        "run_id": run_id,
+        "group": "cpu",
+        "hash": hash_short,
+        "process": f"foo:{process_short}",
+        "process_short": process_short,
+        "name": process_short,
+        "status": status,
+        "staging_ms": 0,
+        "realtime_ms": 1000,
+        "duration_ms": 1000,
+    }
+
+
+def _cost_row(run_id, session_id, process_short, hash_short, cost):
+    return {
+        "run_id": run_id,
+        "session_id": session_id,
+        "process": f"foo:{process_short}",
+        "hash": hash_short,
+        "cost": cost,
+        "used_cost": cost,
+        "unused_cost": 0.0,
+        "unblended_cost": cost,
+    }
+
+
+def test_resumed_run_cost_pools_every_attempt_of_its_session(tmp_path):
+    """A resumed run is billed across its session: attempt 1's spend belongs to it too."""
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    _resume_bundle(
+        jsonl_dir,
+        runs=[_run_row("attempt2", session_id="sess-1", resumed=True, cached=1, succeeded=1)],
+        tasks=[
+            # PROC_A was cached from attempt 1; PROC_B ran in this attempt.
+            _task_row("attempt2", "PROC_A", "aa/aaaa11", status="CACHED"),
+            _task_row("attempt2", "PROC_B", "bb/bbbb22"),
+        ],
+        costs=[
+            _cost_row("attempt1", "sess-1", "PROC_A", "aaaaaa11", 4.0),
+            _cost_row("attempt2", "sess-1", "PROC_B", "bbbbbb22", 6.0),
+        ],
+    )
+
+    data = build_report_data(jsonl_dir)
+    cost_row = data["run_costs"][0]
+
+    assert cost_row["cost"] == 10.0, "pooled across both attempts"
+    assert cost_row["cost_last_attempt"] == 6.0, "ratio-safe figure stays this attempt only"
+    assert cost_row["attempts"] == 2
+    assert cost_row["session_pooled"] is True
+    assert cost_row["cost_status"] == "available"
+
+    # The cached task now resolves to the attempt that actually paid for it, so coverage is
+    # complete and the earlier attempt's cost lands in the per-process overview.
+    assert data["cost_coverage"]["missing_task_count"] == 0
+    assert data["cost_coverage"]["n_incomplete_lineages"] == 0
+    overview = {row["process_short"]: row["total_cost"] for row in data["cost_overview"]}
+    assert overview == {"PROC_A": 4.0, "PROC_B": 6.0}
+
+    resumed = data["cost_coverage"]["resumed_runs"]
+    assert [(r["run_id"], r["attempts"], r["cached_tasks"]) for r in resumed] == [("attempt2", 2, 1)]
+
+
+def test_non_resumed_run_ignores_other_attempts_sharing_a_session(tmp_path):
+    """No cached tasks -> no pooling, even when the session has other billed attempts."""
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    _resume_bundle(
+        jsonl_dir,
+        runs=[_run_row("attempt1", session_id="sess-1")],
+        tasks=[_task_row("attempt1", "PROC_A", "aa/aaaa11")],
+        costs=[
+            _cost_row("attempt1", "sess-1", "PROC_A", "aaaaaa11", 4.0),
+            _cost_row("attempt2", "sess-1", "PROC_B", "bbbbbb22", 6.0),
+        ],
+    )
+
+    data = build_report_data(jsonl_dir)
+
+    assert data["run_costs"][0]["cost"] == 4.0
+    assert data["run_costs"][0]["attempts"] == 1
+    assert data["run_costs"][0]["session_pooled"] is False
+    assert data["cost_coverage"]["resumed_runs"] == []
+
+
+def test_two_attempts_of_one_session_do_not_double_count(tmp_path):
+    """Only the newest attempt claims the pool, so the same dollars appear once."""
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    _resume_bundle(
+        jsonl_dir,
+        runs=[
+            _run_row(
+                "attempt2", session_id="sess-1", resumed=True, cached=1,
+                complete="2026-01-02T00:00:00Z",
+            ),
+            _run_row(
+                "attempt3", session_id="sess-1", resumed=True, cached=2,
+                complete="2026-01-03T00:00:00Z",
+            ),
+        ],
+        tasks=[
+            _task_row("attempt2", "PROC_C", "cc/cccc33"),
+            _task_row("attempt3", "PROC_B", "bb/bbbb22"),
+            _task_row("attempt3", "PROC_A", "aa/aaaa11", status="CACHED"),
+        ],
+        costs=[
+            _cost_row("attempt1", "sess-1", "PROC_A", "aaaaaa11", 4.0),
+            _cost_row("attempt2", "sess-1", "PROC_C", "cccccc33", 5.0),
+            _cost_row("attempt3", "sess-1", "PROC_B", "bbbbbb22", 6.0),
+        ],
+    )
+
+    data = build_report_data(jsonl_dir)
+    by_run = {row["run_id"]: row for row in data["run_costs"]}
+
+    assert by_run["attempt3"]["cost"] == 15.0, "newest attempt owns the whole session"
+    assert by_run["attempt3"]["session_pooled"] is True
+    assert by_run["attempt2"]["cost"] == 5.0, "older attempt keeps only its own spend"
+    assert by_run["attempt2"]["session_pooled"] is False
+    assert sum(row["cost"] for row in data["run_costs"]) == 20.0, "15 + its own 5, never 15 + 15"
+
+
+def test_incomplete_lineage_is_flagged_not_presented_as_complete(tmp_path, capsys):
+    """Fewer billed task hashes than the run has tasks -> pooled cost is a floor."""
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    _resume_bundle(
+        jsonl_dir,
+        runs=[_run_row("attempt2", session_id="sess-1", resumed=True, cached=2, succeeded=1)],
+        tasks=[
+            _task_row("attempt2", "PROC_A", "aa/aaaa11", status="CACHED"),
+            _task_row("attempt2", "PROC_C", "cc/cccc33", status="CACHED"),
+            _task_row("attempt2", "PROC_B", "bb/bbbb22"),
+        ],
+        # PROC_C's original attempt is missing from this export entirely.
+        costs=[
+            _cost_row("attempt1", "sess-1", "PROC_A", "aaaaaa11", 4.0),
+            _cost_row("attempt2", "sess-1", "PROC_B", "bbbbbb22", 6.0),
+        ],
+    )
+
+    data = build_report_data(jsonl_dir)
+    resumed = data["cost_coverage"]["resumed_runs"][0]
+
+    assert resumed["lineage_incomplete"] is True
+    assert (resumed["pool_task_count"], resumed["total_tasks"]) == (2, 3)
+    assert data["cost_coverage"]["n_incomplete_lineages"] == 1
+    assert "lower bound" in capsys.readouterr().err

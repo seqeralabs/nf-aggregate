@@ -107,6 +107,7 @@ def test_normalize_cost_rows_reads_parquet_in_batches(tmp_path):
     assert rows == [
         {
             "run_id": "run1",
+            "session_id": "",
             "process": "PROC_A",
             "hash": "abcdef12",
             "unblended_cost": 0.0,
@@ -148,6 +149,7 @@ def test_normalize_cost_rows_accepts_custom_flat_aliases(tmp_path):
     assert rows == [
         {
             "run_id": "run9",
+            "session_id": "",
             "process": "PROC_Z",
             "hash": "11223344",
             "unblended_cost": 0.0,
@@ -190,6 +192,7 @@ def test_normalize_cost_rows_accepts_custom_resource_tag_aliases(tmp_path):
     assert rows == [
         {
             "run_id": "run-map",
+            "session_id": "",
             "process": "PROC_MAP",
             "hash": "aa11bb22",
             "unblended_cost": 0.0,
@@ -231,6 +234,7 @@ def test_normalize_cost_rows_accepts_v2_struct_list_resource_tags(tmp_path):
     assert rows == [
         {
             "run_id": "run-v2",
+            "session_id": "",
             "process": "PROC_V2",
             "hash": "deadbeef",
             "unblended_cost": 4.0,
@@ -275,6 +279,7 @@ def test_normalize_cost_rows_accepts_map_resource_tags(tmp_path):
     assert rows == [
         {
             "run_id": "run-map-real",
+            "session_id": "",
             "process": "PROC_MAP_REAL",
             "hash": "cafebabe",
             "unblended_cost": 7.0,
@@ -349,6 +354,7 @@ def test_normalize_cost_rows_reads_directory_of_parquets(tmp_path):
     assert rows == [
         {
             "run_id": "run1",
+            "session_id": "",
             "process": "",
             "hash": "",
             "unblended_cost": 2.0,
@@ -399,6 +405,7 @@ def test_normalize_cost_rows_ignores_rows_without_run_label(tmp_path):
     assert rows == [
         {
             "run_id": "run1",
+            "session_id": "",
             "process": "",
             "hash": "",
             "unblended_cost": 0.0,
@@ -596,6 +603,7 @@ def test_normalize_cost_rows_separates_bases_within_one_group(tmp_path):
     assert len(rows) == 1
     assert rows[0] == {
         "run_id": "ic-run",
+        "session_id": "",
         "process": "",
         "hash": "",
         "unblended_cost": 8.0,
@@ -685,3 +693,104 @@ def test_extract_runs_batch_defaults_when_sched_absent():
     row = extract_runs([_base_run(platform={"id": "aws-batch"})])[0]
     assert row["sched_enabled"] is False
     assert row["platform_id"] == "aws-batch"
+
+
+def test_extract_runs_carries_session_and_resume_flags(make_run, flat_task):
+    """Session id is the run's identity across resumes; cached tasks mark an attempt resumed."""
+    plain, resumed_flag, cached = extract_runs(
+        [
+            make_run(run_id="r1", session_id="sess-aaa"),
+            make_run(run_id="r2", session_id="sess-bbb", resume=True),
+            make_run(run_id="r3", session_id="sess-ccc", tasks=[flat_task()], cached_count=2),
+        ]
+    )
+    assert (plain["session_id"], plain["resumed"]) == ("sess-aaa", False)
+    assert (resumed_flag["session_id"], resumed_flag["resumed"]) == ("sess-bbb", True)
+    # No Platform resume flag, but cached tasks prove earlier work was reused.
+    assert (cached["session_id"], cached["resumed"]) == ("sess-ccc", True)
+
+
+def test_normalize_cost_rows_reads_intelligent_compute_session_label(tmp_path):
+    """`nextflow.io/sessionId` reaches CUR as `user_nextflow_io_session_id`."""
+    parquet_path = tmp_path / "costs-ic-session.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "resource_tags_user_seqera_io_platform_workflow_id": ["icRUN1"],
+                "resource_tags_user_nextflow_io_session_id": ["sess-ic-1"],
+                "line_item_unblended_cost": [3.0],
+            }
+        ),
+        parquet_path,
+    )
+
+    rows = _normalize_cost_rows(parquet_path)
+
+    assert [(r["run_id"], r["session_id"], r["cost"]) for r in rows] == [("icRUN1", "sess-ic-1", 3.0)]
+
+
+def test_normalize_cost_rows_reads_batch_session_label_from_tag_map(tmp_path):
+    """The blog-template Batch label `pipelineSessionId` -> `user_pipeline_session_id`."""
+    parquet_path = tmp_path / "costs-batch-session.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "resource_tags": [
+                    [
+                        ("user_unique_run_id", "batchRUN1"),
+                        ("user_pipeline_session_id", "sess-batch-1"),
+                    ]
+                ],
+                "split_line_item_split_cost": [2.0],
+            }
+        ),
+        parquet_path,
+    )
+
+    rows = _normalize_cost_rows(parquet_path)
+
+    assert [(r["run_id"], r["session_id"]) for r in rows] == [("batchRUN1", "sess-batch-1")]
+
+
+def test_normalize_cost_rows_accepts_custom_session_alias(tmp_path):
+    label_map_path = tmp_path / "cur_label_map.yml"
+    label_map_path.write_text("session_id: my_session_label\n")
+    parquet_path = tmp_path / "costs-custom-session.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "resource_tags_user_unique_run_id": ["run1"],
+                "resource_tags_my_session_label": ["sess-custom"],
+                "line_item_unblended_cost": [1.0],
+            }
+        ),
+        parquet_path,
+    )
+
+    rows = _normalize_cost_rows(parquet_path, cost_label_map=label_map_path)
+
+    assert rows[0]["session_id"] == "sess-custom"
+    # Built-in aliases stay as fallbacks behind the custom one.
+    assert _load_cost_label_aliases(label_map_path)["session_id"] == [
+        "my_session_label",
+        "user_nextflow_io_session_id",
+        "user_pipeline_session_id",
+    ]
+
+
+def test_normalize_cost_rows_without_session_label_keep_working(tmp_path):
+    """No session label in the export -> blank session, run-id join unaffected."""
+    parquet_path = tmp_path / "costs-no-session.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "resource_tags_user_unique_run_id": ["run1"],
+                "line_item_unblended_cost": [4.0],
+            }
+        ),
+        parquet_path,
+    )
+
+    rows = _normalize_cost_rows(parquet_path)
+
+    assert [(r["run_id"], r["session_id"], r["cost"]) for r in rows] == [("run1", "", 4.0)]

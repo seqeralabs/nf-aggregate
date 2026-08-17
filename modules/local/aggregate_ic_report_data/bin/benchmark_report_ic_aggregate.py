@@ -9,7 +9,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from benchmark_report_aggregate import _build_workspace_run_url, _classify_workflow_status, _iter_jsonl
+from benchmark_report_aggregate import (
+    _build_workspace_run_url,
+    _classify_workflow_status,
+    _iter_jsonl,
+    _load_cost_pools,
+    _load_run_lineage,
+)
 from benchmark_report_normalize import _duration_ms
 
 # AWS Cost and Usage Report data can lag pipeline completion by roughly a day.
@@ -206,53 +212,6 @@ def _classify_missing_cost(reference_ts: Any, now: datetime) -> str:
     return "not_found"
 
 
-def _run_cost_details(jsonl_dir: Path) -> dict[str, dict[str, Any]]:
-    """Per-run CUR cost breakdown from ``costs.jsonl``, keyed by run_id.
-
-    ``costs.jsonl`` is only written when a CUR parquet is supplied to the normalize
-    step, so an absent file leaves run costs unset — we never fall back to Seqera's
-    unreliable cost estimate. CUR rows are task-grained (run_id, process, task_hash);
-    they are summed here into one entry per run carrying the two cost bases SEPARATELY:
-      - ``unblended_cost``     instance-basis charge — what AWS actually billed for the
-                               instances, including boot/idle/drain time
-      - ``split_cost``         consumed capacity, from ECS split cost allocation
-      - ``unused_cost``        provisioned-but-idle capacity, from ECS split cost allocation
-      - ``split_cost_present`` whether any row carried genuine split cost allocation
-      - ``spot_cost``/``ondemand_cost``  the machine share of ``unblended_cost`` broken out by
-                               EC2 purchase option (see ``_market_option_expr``). A subset of
-                               the unblended basis, never a third one to add to it.
-
-    The two bases must never be added: for an Intelligent Compute run on the ECS
-    architecture, the scheduler tags the EC2 instances, so both the instance rows and the
-    ECS split rows describing tasks on those instances carry the run-id tag — and the split
-    rows are a re-expression of the very cost the instance rows already state. Summing them
-    overstated affected runs by ~1.5x. See ``_normalize_cost_rows``.
-    """
-    details: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {
-            "unblended_cost": 0.0,
-            "split_cost": 0.0,
-            "unused_cost": 0.0,
-            "spot_cost": 0.0,
-            "ondemand_cost": 0.0,
-            "split_cost_present": False,
-        }
-    )
-    for row in _iter_jsonl(jsonl_dir / "costs.jsonl"):
-        run_id = str(row.get("run_id") or "")
-        if not run_id:
-            continue
-        entry = details[run_id]
-        entry["unblended_cost"] += float(row.get("unblended_cost") or 0.0)
-        entry["split_cost"] += float(row.get("split_cost") or 0.0)
-        entry["unused_cost"] += float(row.get("unused_cost") or 0.0)
-        entry["spot_cost"] += float(row.get("spot_cost") or 0.0)
-        entry["ondemand_cost"] += float(row.get("ondemand_cost") or 0.0)
-        if row.get("split_cost_present"):
-            entry["split_cost_present"] = True
-    return dict(details)
-
-
 def _purchase_option_split(
     detail: dict[str, Any] | None, compute_type: str
 ) -> tuple[float | None, float | None, float | None]:
@@ -314,8 +273,28 @@ def build_ic_report_data(
     # Real per-run costs from an AWS CUR export, if one was supplied. Empty otherwise.
     # ``costs.jsonl`` exists iff a CUR parquet was passed to normalize, so its presence
     # is how we tell "cost analysis is off" (no file) from "on, but this run has no rows".
+    #
+    # ``pools`` (shared with the benchmark report, see ``_load_cost_pools``) carries CUR rows
+    # summed two ways. ``by_run`` is one entry per workflow id, holding the cost bases that
+    # must never be added together:
+    #   - ``unblended_cost``     instance-basis charge — what AWS billed for the instances,
+    #                            including boot/idle/drain time
+    #   - ``split_cost``         consumed capacity, from ECS split cost allocation
+    #   - ``unused_cost``        provisioned-but-idle capacity, same source
+    #   - ``split_cost_present`` whether any row carried genuine split cost allocation
+    #   - ``spot_cost``/``ondemand_cost``  the machine share of ``unblended_cost`` split by EC2
+    #                            purchase option — a subset of that basis, never a third one.
+    # For an IC run on ECS the scheduler tags the instances, so the instance rows AND the ECS
+    # split rows for tasks on them both carry the run tag; the split rows re-express the very
+    # cost the instance rows state, and summing them overstated affected runs by ~1.5x.
+    #
+    # ``by_session`` is the same sums pooled across every attempt of a resumed run's session
+    # (empty when nothing was resumed).
     cur_supplied = (jsonl_dir / "costs.jsonl").exists()
-    cost_details = _run_cost_details(jsonl_dir)
+    lineage = _load_run_lineage(jsonl_dir)
+    pools = _load_cost_pools(jsonl_dir, lineage)
+    cost_details = pools["by_run"]
+    session_owners = pools["owners"]
     now = datetime.now(timezone.utc)
 
     # Machine/instance breakdown defines the shared occupancy cpu-hours basis; the
@@ -358,8 +337,25 @@ def build_ic_report_data(
         req_mem_gib = round(res.get("mem_req", 0.0), 1)
         eff_mem_gib = round(res.get("mem_used", 0.0), 1)
 
+        # RESUMED RUNS: every figure in this row except the session_* pair is this ATTEMPT only,
+        # and stays that way on purpose. Each one is either divided by, or read next to, a
+        # denominator that describes the last attempt alone — compute_hours and req/eff vCPU-h
+        # come from this run's task records, wall_time_ms from this run's duration, and the
+        # machines CSV (when supplied) lists this run's instances. Pooling cost across attempts
+        # into those ratios would put lineage money over last-attempt capacity and quietly break
+        # $/vCPU-h, spot coverage and every utilisation figure.
+        #
+        # The lineage total therefore lives in its own fields, reported as "total across N
+        # attempts" rather than mixed into the run's own numbers. Only the newest attempt of a
+        # session gets them, so listing several attempts of one session cannot count the same
+        # dollars twice.
+        session_id = lineage.get(run_id, {}).get("session_id", "")
+        session_pool = (
+            pools["by_session"].get(session_id) if session_owners.get(session_id) == run_id else None
+        )
+
         # Two cost figures on FIXED bases, never summed and never substituted for one another
-        # (see _run_cost_details). Each is None when its own basis is absent, so a blank cell
+        # (see the pools comment above). Each is None when its own basis is absent, so a blank cell
         # always means "this basis does not exist for this run" rather than "no cost data":
         #   cost            the billed EC2 instance charge (line_item_unblended_cost). Blank for
         #                   AWS Batch, which tags only its ECS tasks — its instance rows carry
@@ -383,11 +379,36 @@ def build_ic_report_data(
             cost_status = "available"
         else:
             cost = used_cost = unused_cost = comparable_cost = None
-            cost_status = None if not cur_supplied else _classify_missing_cost(
-                run.get("complete") or started_at, now
-            )
+            # A resumed run whose own attempt is not in the export yet still HAS a cost — its
+            # earlier attempts'. Calling that "pending"/"no data" would be wrong: we looked and
+            # we found money for this run, just not under this attempt's workflow id.
+            if session_pool is not None:
+                cost_status = "available"
+            else:
+                cost_status = None if not cur_supplied else _classify_missing_cost(
+                    run.get("complete") or started_at, now
+                )
 
         spot_cost, ondemand_cost, spot_pct = _purchase_option_split(detail, compute_type)
+
+        if session_pool is not None:
+            billed_attempts = pools["session_attempts"].get(session_id, set())
+            attempts = max(len(billed_attempts), 1)
+            # Attempts OTHER than this one. Reported instead of a bare count because a resume
+            # whose own costs have not landed yet has no rows of its own, and then the whole
+            # session figure comes from earlier attempts — a count of "1" would hide that.
+            earlier_attempts = len(billed_attempts - {run_id})
+            session_billed = round(session_pool["unblended_cost"], 4)
+            session_cost = session_billed if session_billed else None
+            session_comparable_cost = (
+                round(session_pool["split_cost"] + session_pool["unused_cost"], 4)
+                if session_pool["split_cost_present"]
+                else None
+            )
+        else:
+            attempts = 1
+            earlier_attempts = 0
+            session_cost = session_comparable_cost = None
 
         run_summary.append({
             "run_id": run_id,
@@ -433,6 +454,18 @@ def build_ic_report_data(
             "spot_pct": spot_pct,
             # "available" | "propagating" | "not_found" | None (no CUR at all).
             "cost_status": cost_status,
+            # Resume provenance. `resumed` comes from the run itself (cached tasks or the
+            # Platform resume flag); `attempts` counts the distinct workflow ids that spent
+            # money under this session, so it reports attempts that were BILLED, not attempts
+            # that existed. session_cost/session_comparable_cost are the whole lineage on the
+            # same two bases as cost/comparable_cost; None when nothing was pooled.
+            "resumed": bool(lineage.get(run_id, {}).get("resumed")),
+            "attempts": attempts,
+            "earlier_attempts": earlier_attempts,
+            "session_cost": session_cost,
+            "session_comparable_cost": session_comparable_cost,
+            "cached_tasks": lineage.get(run_id, {}).get("cached", 0),
+            "executed_tasks": lineage.get(run_id, {}).get("succeeded", 0),
         })
 
     # Default order: group by pipeline, then facet (IC before Batch), then newest run
@@ -470,6 +503,33 @@ def build_ic_report_data(
     ondemand_total = round(sum(r["ondemand_cost"] for r in spot_runs), 4)
     machine_total = spot_total + ondemand_total
 
+    # Resume tallies. `earlier_attempt_cost` is what the attempts BEFORE the reported ones
+    # spent: lineage total minus the attempt already counted in every other cost figure. It is
+    # additional spend, not a re-statement, so it is the one honest way to show resume cost
+    # without touching the per-attempt ratios (see the run loop).
+    # Both bases get their own earlier-attempt total, never one standing in for the other: an
+    # Intelligent Compute lineage reports on the billed instance basis, an AWS Batch lineage
+    # only on the ECS split basis (Batch labels no machines), and a mixed fleet has both.
+    pooled_runs = [r for r in run_summary if r["earlier_attempts"] > 0]
+    billed_pool = [r for r in pooled_runs if r["session_cost"] is not None]
+    comparable_pool = [r for r in pooled_runs if r["session_comparable_cost"] is not None]
+    earlier_attempt_cost = (
+        round(sum(r["session_cost"] - (r["cost"] or 0.0) for r in billed_pool), 4)
+        if billed_pool
+        else None
+    )
+    earlier_attempt_comparable_cost = (
+        round(
+            sum(
+                r["session_comparable_cost"] - (r["comparable_cost"] or 0.0)
+                for r in comparable_pool
+            ),
+            4,
+        )
+        if comparable_pool
+        else None
+    )
+
     return {
         "ic_overview": {
             "n_runs": len(run_summary),
@@ -502,6 +562,12 @@ def build_ic_report_data(
             "spot_cost": spot_total if spot_runs else None,
             "ondemand_cost": ondemand_total if spot_runs else None,
             "spot_pct": round(spot_total / machine_total * 100, 1) if machine_total > 0 else None,
+            # Resume: how many reported runs reused earlier work, and what the earlier
+            # attempts cost on top of the per-run figures shown everywhere else.
+            "n_resumed_runs": sum(1 for r in run_summary if r["resumed"]),
+            "n_pooled_runs": len(pooled_runs),
+            "earlier_attempt_cost": earlier_attempt_cost,
+            "earlier_attempt_comparable_cost": earlier_attempt_comparable_cost,
         },
         "run_summary": run_summary,
         "machine_usage": machine_usage,

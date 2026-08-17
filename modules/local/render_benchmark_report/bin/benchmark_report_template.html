@@ -209,6 +209,7 @@
                 font-weight: 600; line-height: 1.6; white-space: nowrap; cursor: help; }
   .cost-note.propagating { background: rgba(255, 193, 7, 0.18); color: #997404; }
   .cost-note.not-found { background: rgba(108, 117, 125, 0.14); color: #495057; }
+  .cost-note.pooled { background: #fdf0d5; color: #8a5a00; }
 </style>
 </head>
 <body>
@@ -636,7 +637,8 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
 // 1.1 CUR coverage warning
 (function() {
   const coverage = DATA.cost_coverage || {};
-  if (!coverage.cur_supplied || (coverage.missing_task_count || 0) <= 0) return;
+  if (!coverage.cur_supplied) return;
+  if ((coverage.missing_task_count || 0) <= 0 && (coverage.n_incomplete_lineages || 0) <= 0) return;
   const mount = document.getElementById('cost-coverage-warning');
   if (!mount) return;
 
@@ -653,14 +655,41 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
       '</li>';
   }).join('');
 
-  mount.innerHTML =
-    '<div class="warning-card">' +
-      '<h3>Warning: CUR coverage is incomplete</h3>' +
+  // Two distinct gaps, reported separately: tasks with no cost row at all, and resumed runs
+  // whose earlier attempts are only partly present in the export. The second one matters even
+  // when every task matched, because a pooled total that silently drops an attempt reads as
+  // the full bill.
+  const body = [];
+  if ((coverage.missing_task_count || 0) > 0) {
+    body.push(
       '<p>' +
         'A CUR file was supplied, but only ' + coveragePct + ' of included tasks matched CUR cost rows. ' +
         'Unmatched tasks stay out of the cost totals, so treat the dollar values as incomplete.' +
       '</p>' +
-      '<ul>' + rows + '</ul>' +
+      '<ul>' + rows + '</ul>'
+    );
+  }
+  if ((coverage.n_incomplete_lineages || 0) > 0) {
+    const lineageRows = (coverage.resumed_runs || []).filter(row => row.lineage_incomplete).slice(0, 6).map(row =>
+      '<li><strong>' + escapeHtml(row.group || row.run_id || 'run') + '</strong>: ' +
+      Number(row.pool_task_count || 0) + ' of ' + Number(row.total_tasks || 0) +
+      ' tasks priced across ' + Number(row.attempts || 1) + ' billed attempt' +
+      (Number(row.attempts || 1) === 1 ? '' : 's') + '</li>'
+    ).join('');
+    body.push(
+      '<p>' +
+        'Resumed runs are billed across every attempt of their session, but part of that history is ' +
+        'missing from this export - an attempt outside the CUR window, in another account, or with ' +
+        'no session label. Their costs are a lower bound.' +
+      '</p>' +
+      '<ul>' + lineageRows + '</ul>'
+    );
+  }
+
+  mount.innerHTML =
+    '<div class="warning-card">' +
+      '<h3>Warning: CUR coverage is incomplete</h3>' +
+      body.join('') +
     '</div>';
 })();
 
@@ -674,7 +703,7 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
     ['User name','username'], ['Pipeline version','Version'],
     ['Nextflow version','Nextflow_version'], ['Platform version','platform_version'],
     ['Tasks succeeded','succeedCount'], ['Tasks failed','failedCount'],
-    ['Tasks cached','cachedCount'], ['Executor','executor'], ['Region','region'],
+    ['Tasks cached','cachedCount'], ['Resumed','attempts'], ['Executor','executor'], ['Region','region'],
     ['Fusion enabled','fusion_enabled'], ['Wave enabled','wave_enabled'],
   ];
   const table = document.getElementById('run-summary-table');
@@ -694,6 +723,12 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
         let cell = '<span class="status-badge ' + badgeClass(r) + '">' + (value || '\u2014') + '</span>';
         if (r.report_included === false) cell += '<span class="status-note">excluded from metrics</span>';
         html += '<td>' + cell + '</td>';
+      } else if (c[1] === 'attempts') {
+        // Resume provenance. `earlier_attempts` counts the OTHER workflow ids that were billed
+        // under this run's session - the attempts whose spend the cost column pools in. Zero
+        // with a resumed run means no earlier attempt was found in the CUR export.
+        const earlier = Number(r.earlier_attempts || 0);
+        html += '<td>' + (!r.resumed ? 'No' : (earlier ? 'Yes (+' + earlier + ' earlier)' : 'Yes')) + '</td>';
       } else if (c[1] === 'run_id' && r.runUrl) {
         html += '<td><a href="' + r.runUrl + '" target="_blank" rel="noopener noreferrer">' + (value != null ? value : '\u2014') + '</a></td>';
       } else {
@@ -734,7 +769,16 @@ overviewGroups.forEach((g,i) => { groupColor[g] = COLORS[i % COLORS.length]; });
     html += '<td>' + fmtDuration(r.duration) + '</td>';
     html += '<td>' + fmtHours(r.cpuTime) + '</td>';
     html += '<td>' + fmtHours(r.vmCpuH) + '</td>';
-    html += '<td>' + fmtCostStatus(c.cost, c.cost_status) + '</td>';
+    // For a resumed run this cost pools every billed attempt of the session (cached tasks were
+    // paid for by an earlier attempt), so it is marked - unlike the CPU/duration columns beside
+    // it, which describe this attempt only.
+    const earlierAttempts = Number(c.earlier_attempts || 0);
+    const pooledNote = earlierAttempts
+      ? ' <span class="cost-note pooled" title="Includes ' + earlierAttempts + ' earlier attempt' +
+        (earlierAttempts === 1 ? '' : 's') + ' of this resumed run\'s session, which paid for its cached tasks. This attempt alone: ' +
+        fmtCost(c.cost_last_attempt) + '">+' + earlierAttempts + ' earlier</span>'
+      : '';
+    html += '<td>' + fmtCostStatus(c.cost, c.cost_status) + pooledNote + '</td>';
     html += '<td>' + fmtGB(r.readBytes) + '</td>';
     html += '<td>' + fmtGB(r.writeBytes) + '</td>';
     html += '<td>' + fmtPct(r.cpuEfficiency) + '</td>';

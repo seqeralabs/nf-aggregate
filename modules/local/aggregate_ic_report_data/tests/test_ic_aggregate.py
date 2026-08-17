@@ -23,6 +23,8 @@ def test_ic_report_shape_and_detection(tmp_path, make_ic_run, make_batch_run, wr
         "n_runs_comparable_cost": 0, "n_runs_missing_cost": 0,
         "n_runs_purchase_option": 0, "n_runs_mixed_purchase_option": 0,
         "spot_cost": None, "ondemand_cost": None, "spot_pct": None,
+        "n_resumed_runs": 0, "n_pooled_runs": 0, "earlier_attempt_cost": None,
+        "earlier_attempt_comparable_cost": None,
     }
     assert {r["compute_type"] for r in data["run_summary"]} == {"intelligent_compute", "batch"}
 
@@ -478,3 +480,126 @@ def test_ic_run_cost_status_none_without_cur(tmp_path, make_ic_run, write_run_js
     assert row["comparable_cost"] is None
     assert data["ic_overview"]["cur_supplied"] is False
     assert data["ic_overview"]["n_runs_missing_cost"] == 0
+
+
+def test_resumed_ic_run_reports_lineage_total_without_touching_attempt_figures(
+    tmp_path, make_ic_run, write_run_json
+):
+    """Session total is additive reporting; the per-attempt cost that feeds ratios is untouched.
+
+    Attempt 1 billed $4.00, attempt 2 (the reported run, with cached tasks) billed $10.00.
+    `cost` must stay $10.00 because compute_hours, wall time and the machine breakdown all
+    describe attempt 2 alone — pooling into it would divide lineage money by last-attempt
+    capacity. The $14.00 lineage total lives in `session_cost`.
+    """
+    jsonl_dir = _bundle(
+        tmp_path,
+        [make_ic_run(run_id="icATTEMPT2", session_id="sess-ic", cached_count=2)],
+        write_run_json,
+    )
+    _write_costs(jsonl_dir, [
+        {"run_id": "icATTEMPT1", "session_id": "sess-ic", "process": "", "hash": "",
+         "unblended_cost": 4.0, "split_cost": 2.0, "unused_cost": 0.5,
+         "spot_cost": 4.0, "ondemand_cost": 0.0, "split_cost_present": True},
+        {"run_id": "icATTEMPT2", "session_id": "sess-ic", "process": "", "hash": "",
+         "unblended_cost": 10.0, "split_cost": 6.0, "unused_cost": 1.0,
+         "spot_cost": 10.0, "ondemand_cost": 0.0, "split_cost_present": True},
+    ])
+
+    data = build_ic_report_data(jsonl_dir)
+    row = next(r for r in data["run_summary"] if r["run_id"] == "icATTEMPT2")
+
+    assert row["cost"] == 10.0, "attempt basis — the denominators next to it are attempt-scoped"
+    assert row["comparable_cost"] == 7.0
+    assert row["spot_cost"] == 10.0, "purchase-option split stays on the attempt basis too"
+    assert row["session_cost"] == 14.0
+    assert row["session_comparable_cost"] == 9.5
+    assert row["attempts"] == 2
+    assert row["resumed"] is True
+    assert row["cached_tasks"] == 2
+
+    overview = data["ic_overview"]
+    assert overview["n_resumed_runs"] == 1
+    assert overview["n_pooled_runs"] == 1
+    assert overview["earlier_attempt_cost"] == 4.0, "what the earlier attempts added on top"
+    assert overview["spot_pct"] == 100.0, "fleet spot coverage still weighted on attempt spend"
+
+
+def test_ic_run_without_resume_reports_no_session_total(tmp_path, make_ic_run, write_run_json):
+    jsonl_dir = _bundle(
+        tmp_path, [make_ic_run(run_id="icRUN0000000001", session_id="sess-ic")], write_run_json
+    )
+    _write_costs(jsonl_dir, [
+        {"run_id": "icRUN0000000001", "session_id": "sess-ic", "process": "", "hash": "",
+         "unblended_cost": 3.0, "split_cost": 0.0, "unused_cost": 0.0, "split_cost_present": False},
+        # An unrelated attempt of the same session: ignored, this run reused nothing.
+        {"run_id": "icOTHER", "session_id": "sess-ic", "process": "", "hash": "",
+         "unblended_cost": 9.0, "split_cost": 0.0, "unused_cost": 0.0, "split_cost_present": False},
+    ])
+
+    data = build_ic_report_data(jsonl_dir)
+    row = data["run_summary"][0]
+
+    assert (row["cost"], row["session_cost"], row["attempts"]) == (3.0, None, 1)
+    assert row["resumed"] is False
+    assert data["ic_overview"]["earlier_attempt_cost"] is None
+
+
+def test_resumed_run_whose_own_attempt_is_not_billed_yet(tmp_path, make_ic_run, write_run_json):
+    """The common shape: a fresh resume has no CUR rows of its own, only its ancestors'.
+
+    Reporting "pending"/"no data" here would be wrong — money for this run WAS found, just
+    under the earlier attempt's workflow id. `earlier_attempts` is what says so; a bare
+    attempt count would read "1" and hide that none of it is this attempt's.
+    """
+    jsonl_dir = _bundle(
+        tmp_path,
+        [make_ic_run(run_id="icATTEMPT2", session_id="sess-ic", cached_count=3)],
+        write_run_json,
+    )
+    _write_costs(jsonl_dir, [
+        {"run_id": "icATTEMPT1", "session_id": "sess-ic", "process": "", "hash": "",
+         "unblended_cost": 7.0, "split_cost": 0.0, "unused_cost": 0.0, "split_cost_present": False},
+    ])
+
+    data = build_ic_report_data(jsonl_dir)
+    row = data["run_summary"][0]
+
+    assert row["cost"] is None, "this attempt has no billed rows of its own"
+    assert row["session_cost"] == 7.0
+    assert row["earlier_attempts"] == 1
+    assert row["attempts"] == 1
+    assert row["cost_status"] == "available", "we found cost for this run, just not this attempt"
+    assert data["ic_overview"]["earlier_attempt_cost"] == 7.0
+    assert data["ic_overview"]["earlier_attempt_comparable_cost"] is None, "no split rows here"
+
+
+def test_batch_resume_reports_its_lineage_on_the_split_basis(tmp_path, make_batch_run, write_run_json):
+    """AWS Batch labels no machines, so its lineage figure exists only on the ECS split basis.
+
+    The two bases stay separate here too: an unblended earlier-attempt total would be None for
+    a Batch-only fleet, and substituting the split figure into it would change basis silently.
+    """
+    run = make_batch_run(run_id="batchATTEMPT2")
+    run["workflow"]["sessionId"] = "sess-batch"
+    run["workflow"]["stats"]["cachedCount"] = 2
+    jsonl_dir = _bundle(tmp_path, [run], write_run_json)
+    _write_costs(jsonl_dir, [
+        {"run_id": "batchATTEMPT1", "session_id": "sess-batch", "process": "P:b1", "hash": "aaaa1111",
+         "unblended_cost": 0.0, "split_cost": 3.0, "unused_cost": 1.0, "split_cost_present": True},
+        {"run_id": "batchATTEMPT2", "session_id": "sess-batch", "process": "P:b2", "hash": "bbbb2222",
+         "unblended_cost": 0.0, "split_cost": 5.0, "unused_cost": 1.0, "split_cost_present": True},
+    ])
+
+    data = build_ic_report_data(jsonl_dir)
+    row = data["run_summary"][0]
+
+    assert row["cost"] is None, "Batch never has a billed machine charge"
+    assert row["comparable_cost"] == 6.0, "this attempt's split basis"
+    assert row["session_comparable_cost"] == 10.0, "both attempts on the split basis"
+    assert row["session_cost"] is None
+    assert row["earlier_attempts"] == 1
+
+    overview = data["ic_overview"]
+    assert overview["earlier_attempt_comparable_cost"] == 4.0
+    assert overview["earlier_attempt_cost"] is None, "no unblended basis to report for Batch"

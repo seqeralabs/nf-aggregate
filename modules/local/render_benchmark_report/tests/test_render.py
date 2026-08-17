@@ -62,7 +62,10 @@ def test_render_html(tmp_path, minimal_report_data):
     assert 'target="_blank" rel="noopener noreferrer"' in text
     assert "r.runUrl ? '<a href=\"' + r.runUrl" in text
     assert 'id="cost-coverage-warning"' in text
-    assert "if (!coverage.cur_supplied || (coverage.missing_task_count || 0) <= 0) return;" in text
+    # The warning fires on either gap: unmatched tasks, or a resumed run whose earlier
+    # attempts are only partly in the export.
+    assert "if (!coverage.cur_supplied) return;" in text
+    assert "(coverage.n_incomplete_lineages || 0) <= 0) return;" in text
 
 
 def test_render_performance_gains_with_vm_data(tmp_path, minimal_report_data):
@@ -339,3 +342,28 @@ def test_render_emits_cost_status_formatter(tmp_path, minimal_report_data):
     assert ">no data<" in text
     assert ".cost-note.propagating" in text
     assert ".cost-note.not-found" in text
+
+
+def test_render_reports_resume_provenance(tmp_path, minimal_report_data):
+    """The run summary shows resume state and the cost cell marks a pooled figure."""
+    data = dict(minimal_report_data)
+    data["run_summary"] = [{**data["run_summary"][0], "resumed": True, "attempts": 2,
+                            "earlier_attempts": 1, "succeedCount": 3, "failedCount": 0}]
+    data["run_costs"] = [{"group": "cpu", "run_id": "run1", "cost": 10.0, "used_cost": 8.0,
+                          "unused_cost": 2.0, "cost_status": "available", "attempts": 2,
+                          "earlier_attempts": 1, "cost_last_attempt": 6.0}]
+    data["cost_coverage"] = {
+        "cur_supplied": True, "missing_task_count": 0, "n_incomplete_lineages": 1,
+        "resumed_runs": [{"run_id": "run1", "group": "cpu", "attempts": 2,
+                          "pool_task_count": 2, "total_tasks": 3, "lineage_incomplete": True}],
+    }
+    out = tmp_path / "report.html"
+    render_html(data, out)
+    text = out.read_text()
+
+    assert "['Resumed','attempts']" in text
+    assert "earlier_attempts" in text
+    assert "cost-note pooled" in text
+    # Incomplete lineage is called a lower bound rather than shown as a clean total.
+    assert "lower bound" in text
+    assert '"lineage_incomplete": true' in text

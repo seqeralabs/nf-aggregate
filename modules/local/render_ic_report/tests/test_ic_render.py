@@ -281,3 +281,28 @@ def test_ic_report_is_written_as_utf8(tmp_path):
     assert b"\xc2\xb7" in raw                 # the run-label separator, as utf-8
     # A lone 0xB7 is what a legacy-codec write would leave behind, and what renders as U+FFFD.
     assert bytes([0xB7]) not in raw.replace(b"\xc2\xb7", b"")
+
+
+def test_ic_report_renders_resume_provenance(tmp_path):
+    """Resume facts reach the page: the badge, the task split and the earlier-attempt pill."""
+    html = _render(tmp_path, {
+        "ic_overview": {
+            "n_runs": 1, "n_intelligent_compute": 1, "n_batch": 0, "cost_source": "aws_cur",
+            "cur_supplied": True, "n_runs_with_cost": 1, "n_resumed_runs": 1,
+            "n_pooled_runs": 1, "earlier_attempt_cost": 4.0,
+        },
+        "run_summary": [{**_RUN, "cost": 10.0, "cost_status": "available", "resumed": True,
+                         "attempts": 2, "earlier_attempts": 1, "session_cost": 14.0,
+                         "cached_tasks": 2, "executed_tasks": 3}],
+        "machine_usage": [],
+    })
+
+    assert "function resumeBadge" in html
+    assert '"earlier_attempts": 1' in html
+    assert '"session_cost": 14.0' in html
+    # Task split (executed + cached) and the pooled-cost pill both have a home in the table.
+    assert 'field: "executed_tasks"' in html
+    assert "cached_tasks" in html
+    assert "cost-note earlier" in html
+    # The cost note explains where the earlier money is, in the coverage line.
+    assert "earlier_attempt_cost" in html

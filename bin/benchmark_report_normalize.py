@@ -19,6 +19,15 @@ DEFAULT_COST_LABEL_ALIASES: dict[str, list[str]] = {
     # carry the workflow-id tag, Batch runs the unique-run-id tag), so either resolves the
     # id that joins to run_summary.run_id. Shared by the Fusion and Intelligent Compute reports.
     "run_id": ["user_seqera_io_platform_workflow_id", "user_unique_run_id"],
+    # Nextflow session id — STABLE ACROSS RESUMES, unlike every run-id label above.
+    # `-resume` mints a new workflow id, so an attempt's spend is tagged with an id the
+    # samplesheet never mentions; the session id is what stitches the attempts back into
+    # one lineage. Same CUR key normalisation as above: Intelligent Compute's
+    # `nextflow.io/sessionId` becomes `user_nextflow_io_session_id`, and the Batch label
+    # from the cost-tracking blog template (`pipelineSessionId`) becomes
+    # `user_pipeline_session_id`. Override either with the `session_id` field of
+    # benchmark_aws_cur_label_map, exactly as for the other three fields.
+    "session_id": ["user_nextflow_io_session_id", "user_pipeline_session_id"],
     "process": ["user_pipeline_process"],
     "task_hash": ["user_task_hash"],
 }
@@ -109,6 +118,14 @@ def extract_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         rows.append(
             {
                 "run_id": wf["id"],
+                # Session id is the run's identity ACROSS resumes; run_id identifies one
+                # attempt. `resumed` is true when this attempt reused earlier work, so its
+                # own workflow id cannot account for all the money the pipeline spent —
+                # aggregation then pools cost by session. Cached tasks are the detector
+                # (Platform reports `resume` only for API-launched resumes, and a resume
+                # that cache-hits nothing has nothing to pool anyway).
+                "session_id": wf.get("sessionId") or "",
+                "resumed": bool(wf.get("resume")) or int(stats.get("cachedCount", 0) or 0) > 0,
                 "group": _run_group(run),
                 "pipeline": wf.get("projectName") or wf.get("repository", "").split("/")[-1] or "unknown",
                 "run_name": wf.get("runName", ""),
@@ -411,6 +428,10 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
 
     ``spot_cost``/``ondemand_cost`` decompose the machine share of ``unblended_cost`` by EC2
     purchase option. They are a subset of that one basis, never a third one.
+
+    Rows are grained by ``(run_id, session_id, process, hash)``. ``session_id`` is what makes
+    a resumed run's earlier attempts findable: each attempt carries its own workflow id but
+    they all share one session id.
     """
     label_aliases = _load_cost_label_aliases(cost_label_map)
     sources = _parquet_sources(costs_parquet)
@@ -426,6 +447,7 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
     }
 
     run_id_expr = _label_expr(label_aliases["run_id"], columns)
+    session_id_expr = _label_expr(label_aliases["session_id"], columns)
     process_expr = _label_expr(label_aliases["process"], columns)
     task_hash_expr = _label_expr(label_aliases["task_hash"], columns)
 
@@ -478,10 +500,16 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
     spot_cost = f"CASE WHEN {market_option} = 'Spot' THEN {unblended_cost} ELSE 0.0 END"
     ondemand_cost = f"CASE WHEN {market_option} = 'OnDemand' THEN {unblended_cost} ELSE 0.0 END"
 
+    # SESSION ID is carried alongside the run id, never instead of it. Grouping by both keeps
+    # every row attributable to the attempt that incurred it while still letting aggregation
+    # pool a resumed run's attempts by session (see ``_session_cost_pool``). It is NOT a
+    # replacement join key: the label is absent from plenty of exports, and swapping to it
+    # would turn "this export has no session label" into a silent $0.
     query = f"""
         WITH classified AS (
             SELECT
                 {run_id_expr}                                 AS run_id,
+                COALESCE({session_id_expr}, '')               AS session_id,
                 COALESCE({process_expr}, '')                  AS process,
                 substr(COALESCE({task_hash_expr}, ''), 1, 8)  AS hash,
                 {unblended_cost}                              AS unblended_cost,
@@ -495,6 +523,7 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
         )
         SELECT
             run_id,
+            session_id,
             process,
             hash,
             SUM(unblended_cost)  AS unblended_cost,
@@ -510,8 +539,8 @@ def _normalize_cost_rows(costs_parquet: Path, cost_label_map: Path | None = None
                  THEN SUM(unblended_cost)
                  ELSE SUM(split_cost) END AS used_cost
         FROM classified
-        GROUP BY 1, 2, 3
-        ORDER BY 1, 2, 3
+        GROUP BY 1, 2, 3, 4
+        ORDER BY 1, 2, 3, 4
     """
     rows = connection.execute(query).fetchall()
     names = [description[0] for description in connection.description]

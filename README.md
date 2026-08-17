@@ -193,7 +193,8 @@ The benchmark report can be generated without cost data - simply omit the `--ben
 
 When CUR data is provided, nf-aggregate only joins cost rows that carry the resource labels needed to match a Nextflow task back to a benchmark run. By default the logical fields map to:
 
-- run ID: `user_unique_run_id` or `user_nf_unique_run_id`
+- run ID: `user_seqera_io_platform_workflow_id` or `user_unique_run_id`
+- session ID: `user_nextflow_io_session_id` or `user_pipeline_session_id`
 - process name: `user_pipeline_process`
 - task hash: `user_task_hash`
 
@@ -203,6 +204,9 @@ To accept manual/custom label names, create a YAML file listing aliases for the 
 run_id:
   - my_team_run_id
   - user_unique_run_id
+session_id:
+  - my_session_label
+  - user_nextflow_io_session_id
 process:
   - my_process_label
   - user_pipeline_process
@@ -224,9 +228,38 @@ For AWS Batch or other cloud executors that propagate resource labels into CUR t
 
 ```
 user_unique_run_id=${workflow.runId}
+user_pipeline_session_id=${workflow.sessionId}
 user_pipeline_process=${task.process}
 user_task_hash=${task.hash}
 ```
+
+### Resumed runs
+
+`-resume` gives a run a new workflow ID, so an earlier attempt's spend is tagged with an ID your
+samplesheet never mentions. The session ID is stable across resumes, so it is what stitches the
+attempts back together. List the run you care about — normally the last attempt — and nf-aggregate
+finds the rest:
+
+- A run with cached tasks is treated as resumed, and its cost is **pooled across every attempt of
+  its session**. A run with no cached tasks behaves exactly as before.
+- Cached tasks are priced from the attempt that actually ran them, matched on the task hash
+  (Nextflow hashes are content-addressed, so they survive a resume). No task loses its cost just
+  because it was cached.
+- Metrics need no pooling: Seqera Platform reports cached tasks with the full trace record from
+  their original execution, so CPU-hours, memory, I/O and per-process distributions already span
+  the whole lineage.
+- Rates and utilisation figures stay on the **reported attempt**. The run duration and the machine
+  breakdown describe that attempt alone, so dividing lineage cost by them would be wrong. The
+  reports show the earlier attempts' spend beside the attempt figure instead of folded into it.
+- If two attempts of the same session are both listed, only the newest claims the pooled cost, so
+  the same dollars are never counted twice.
+- If part of the lineage is missing from the export — an attempt outside the CUR window, in
+  another account, or with no session label — the report says the pooled cost is a lower bound and
+  the aggregation step logs a warning naming the run.
+
+Both reports show how often a run was resumed and how many of its tasks were cached versus
+executed. Without the session label in the export nothing breaks: costs simply cover the reported
+attempt, as they did before.
 
 If you want workflow-level failed runs to appear in downstream benchmark sections (run metrics, charts, task tables), pass `--include_failed_runs`. By default, failed workflows are listed in the run summary but excluded from downstream metrics. Cancelled workflows remain excluded. The same `--include_failed_runs` flag applies to the Intelligent Compute report, where failed runs are dropped from the report and their CUR costs are not attributed unless the flag is set.
 

@@ -131,12 +131,14 @@
   .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; }
   .badge.ic { background: var(--accent-surface); color: var(--accent); }
   .badge.batch { background: #eaf2f6; color: #2a6c85; }
+  .badge.resumed { background: #fdf0d5; color: #8a5a00; margin-left: 6px; font-size: 11px; padding: 1px 7px; cursor: help; }
   .muted { opacity: 0.45; }
 
   /* Cost-availability chips (run table + cost-coverage note) */
   .cost-note { display: inline-block; padding: 1px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; cursor: help; }
   .cost-note.propagating { background: rgba(255, 193, 7, 0.18); color: #997404; }
   .cost-note.not-found { background: rgba(108, 117, 125, 0.14); color: #495057; }
+  .cost-note.earlier { background: #fdf0d5; color: #8a5a00; }
   .cost-coverage { font-size: 12.5px; color: var(--muted); margin: 4px 0 14px; }
   .cost-coverage b { color: var(--ink); font-weight: 600; }
 
@@ -405,6 +407,45 @@ function fmtCostStatus(v, status) {
   return '<span class="muted">&mdash;</span>';
 }
 
+// Resume marker for a run that reused earlier work. `attempts` counts the workflow ids that
+// actually SPENT money under this run's session, so it says how many attempts the pooled cost
+// came from — not how many times someone pressed resume.
+function resumeBadge(r) {
+  if (!r || !r.resumed) return "";
+  const earlier = Number(r.earlier_attempts || 0);
+  const label = earlier ? "resumed +" + earlier : "resumed";
+  const tip = earlier
+    ? "Reused cached work from " + earlier + " earlier attempt" + (earlier === 1 ? "" : "s")
+      + " of the same session. The cost shown includes what those attempts spent, because the tasks they paid for are counted in this run; every other figure in the row describes this attempt only."
+    : "Reused cached work from an earlier attempt, but no earlier attempt was found in the cost export — the cost shown covers this attempt only.";
+  return '<span class="badge resumed" title="' + esc(tip) + '">' + esc(label) + '</span>';
+}
+
+// Cost cell for a run that may have resumed: the attempt's own figure on this column's basis,
+// plus what the earlier attempts of the same session spent on that SAME basis. Never mixes the
+// billed and split bases, and never folds the earlier money into the attempt figure — the rest
+// of the row (wall time, compute hours, machine mix) describes this attempt alone, so anything
+// derived from these numbers has to stay attempt-scoped.
+function fmtCostWithEarlier(own, sessionTotal, r) {
+  const priorCount = Number(r.earlier_attempts || 0);
+  if (!priorCount || sessionTotal == null) return fmtCostStatus(own, r.cost_status);
+  const priorLabel = priorCount + " earlier attempt" + (priorCount === 1 ? "" : "s");
+  // A fresh resume has no charge of its own yet. The session figure is still real money, so
+  // show it rather than an em-dash, marked as coming from the earlier attempts alone.
+  if (own == null) {
+    const tip = "This attempt has no billed rows on this basis yet; " + fmtCost(sessionTotal)
+      + " was spent by " + priorLabel + " of the same session.";
+    return fmtCost(sessionTotal)
+      + ' <span class="cost-note earlier" title="' + esc(tip) + '">' + esc(priorLabel) + '</span>';
+  }
+  const earlier = Number(sessionTotal) - Number(own);
+  if (!(earlier > 0)) return fmtCost(own);
+  const tip = priorLabel + " of this session cost " + fmtCost(earlier)
+    + ", for " + fmtCost(sessionTotal) + " across the session.";
+  return fmtCost(own) + ' <span class="cost-note earlier" title="' + esc(tip) + '">+'
+    + fmtCost(earlier) + '</span>';
+}
+
 // Human-readable duration from milliseconds: "1h 23m", "23m 4s", "4s".
 function fmtDuration(ms) {
   if (ms == null) return null;
@@ -628,6 +669,23 @@ window.addEventListener("resize", () => {
     parts.push("Runs without a split figure are omitted from the comparison charts rather than compared on a different basis.");
   }
   if (missing) parts.push("<b>" + missing + "</b> run" + s(missing) + " have no matching cost yet (pending or absent).");
+  // Resumed runs: say plainly that the per-run figures are attempt-scoped and where the rest of
+  // the money is, so nobody reads a resumed run's cost as the whole pipeline's bill.
+  const pooled = ov.n_pooled_runs || 0;
+  if (ov.n_resumed_runs) {
+    parts.push("<b>" + ov.n_resumed_runs + "</b> run" + s(ov.n_resumed_runs) + " reused cached work from an earlier attempt.");
+    const earlierBilled = ov.earlier_attempt_cost;
+    const earlierComparable = ov.earlier_attempt_comparable_cost;
+    if (pooled && (earlierBilled != null || earlierComparable != null)) {
+      // Each basis is named with its own figure; AWS Batch lineages only ever have the split one.
+      const bits = [];
+      if (earlierBilled != null) bits.push("<b>" + fmtCost(earlierBilled) + "</b> billed");
+      if (earlierComparable != null) bits.push("<b>" + fmtCost(earlierComparable) + "</b> on the compute-cost basis");
+      parts.push("Costs per run cover that run's own attempt, since the compute hours and machines beside them do too; their earlier attempts add " + bits.join(" and ") + ", shown beside the cost they belong to.");
+    } else {
+      parts.push("No earlier attempt was found in this export, so their costs cover the reported attempt only.");
+    }
+  }
   el.innerHTML = parts.join(" ");
   el.hidden = false;
 })();
@@ -661,12 +719,23 @@ function tableSizing(runs) {
     columns: [
       { title: "Pipeline", field: "pipeline", headerFilter: "input" },
       { title: "Run ID", field: "run_id", headerFilter: "input",
-        formatter: (cell) => { const r = cell.getRow().getData(); return r.run_url ? '<a href="' + esc(r.run_url) + '" target="_blank" rel="noopener">' + esc(r.run_id) + '</a>' : esc(r.run_id); } },
+        formatter: (cell) => { const r = cell.getRow().getData(); const id = r.run_url ? '<a href="' + esc(r.run_url) + '" target="_blank" rel="noopener">' + esc(r.run_id) + '</a>' : esc(r.run_id); return id + resumeBadge(r); } },
       {% if show_group %}{ title: "Group", field: "group", headerFilter: "input" },{% endif %}
       { title: "Compute type", field: "compute_type", headerFilter: "input",
         formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
       { title: "Started", field: "started_at", headerFilter: "input", sorter: "string",
         formatter: (cell) => { const v = cell.getValue(); return v ? String(v).replace("T", " ").slice(0, 16) : '<span class="muted">&mdash;</span>'; } },
+      // Executed vs cached tasks. Cached tasks are why a resumed run's cost has to be pooled
+      // across attempts: they carry full metrics (restored from the attempt that ran them) but
+      // their money was billed to that earlier attempt's workflow id.
+      { title: helpTitle("Tasks", "How many tasks this run executed, and how many it skipped by reusing cached results from an earlier attempt. Cached tasks still count towards the run's CPU-hours, memory and timing figures — those come from the attempt that originally ran them — but the money for them was billed to that attempt, which is why resumed runs also show a cost across attempts."),
+        field: "executed_tasks", titleFormatter: "html", hozAlign: "right", minWidth: helpMinWidth("Tasks"),
+        formatter: (cell) => {
+          const r = cell.getRow().getData();
+          const executed = Number(r.executed_tasks || 0);
+          const cached = Number(r.cached_tasks || 0);
+          return cached ? esc(executed + " + " + cached + " cached") : esc(String(executed));
+        } },
       durCol("Wall time", "wall_time_ms", "Total time from submitting the run to it finishing — including any time spent waiting for machines to start. This is the clock time you actually wait."),
       durCol("Run time", "total_run_time_ms", "Time the machines spent actually working on your tasks, added up across all tasks. Excludes waiting for machines to start, but includes moving data in and out."),
       durCol("Staging time", "total_staging_time_ms", "The slice of run time spent moving data in and out (staging) rather than running the tool itself."),
@@ -675,13 +744,13 @@ function tableSizing(runs) {
       // data is missing.
       { title: helpTitle("Compute cost", "The CPU and memory every task in the run used, added up and priced by AWS ECS split cost allocation — plus any capacity left idle on the machines beside them. AWS Batch reports only this figure, so the cost charts compare engines on it. Blank when a run has no ECS tasks to price (Intelligent Compute on the VM architecture), and those runs sit out the comparison charts. Amortized, so it will not tally exactly with the Total cost beside it."),
         field: "comparable_cost", titleFormatter: "html", hozAlign: "right", minWidth: helpMinWidth("Compute cost"),
-        formatter: (cell) => fmtCost(cell.getValue()) },
+        formatter: (cell) => fmtCostWithEarlier(cell.getValue(), cell.getRow().getData().session_comparable_cost, cell.getRow().getData()) },
       // Rightmost column stays resizable so you can drag its right edge back to the container
       // border to re-fill the width after shrinking another column. Any transient gap shows the
       // card colour, not gray (see .tabulator background above).
-      { title: helpTitle("Total cost", "The unblended cost of every line item AWS tagged to this run, whatever the service — the same figure you would see for it in Cost Explorer. Covers the machines end to end, including start-up, idle and shut-down time. Blank for AWS Batch: it labels only its tasks, never the machines underneath, so no charge can be tied back to the run — read Compute cost there."),
+      { title: helpTitle("Total cost", "The unblended cost of every line item AWS tagged to this run, whatever the service — the same figure you would see for it in Cost Explorer. Covers the machines end to end, including start-up, idle and shut-down time. Blank for AWS Batch: it labels only its tasks, never the machines underneath, so no charge can be tied back to the run — read Compute cost there. For a resumed run this is THIS attempt's charge; the earlier attempts are shown beside it, because every other figure in the row (wall time, compute hours, machine mix) describes this attempt too."),
         field: "cost", titleFormatter: "html", hozAlign: "right", minWidth: helpMinWidth("Total cost"),
-        formatter: (cell) => fmtCostStatus(cell.getValue(), cell.getRow().getData().cost_status) },
+        formatter: (cell) => fmtCostWithEarlier(cell.getValue(), cell.getRow().getData().session_cost, cell.getRow().getData()) },
     ],
   });
   const searchEl = document.getElementById("run-search");

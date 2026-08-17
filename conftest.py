@@ -29,11 +29,17 @@ def make_run():
         tasks: list | None = None,
         cached_count: int = 0,
         status: str = "SUCCEEDED",
+        session_id: str = "",
+        resume: bool = False,
+        complete: str | None = None,
     ):
         task_list = tasks or []
         return {
             "workflow": {
                 "id": run_id,
+                "sessionId": session_id,
+                "resume": resume,
+                "complete": complete,
                 "status": status,
                 "userName": "test",
                 "repository": "https://github.com/test/pipeline",
@@ -132,13 +138,19 @@ def minimal_report_data():
 
 @pytest.fixture
 def make_ic_run():
-    def _make_ic_run(run_id: str = "icRUN0000000001", group: str = "ic"):
+    def _make_ic_run(
+        run_id: str = "icRUN0000000001",
+        group: str = "ic",
+        session_id: str = "",
+        cached_count: int = 0,
+    ):
         return {
             "workflow": {
                 "id": run_id, "status": "SUCCEEDED", "userName": "tester",
                 "runName": "demo-ic-run", "projectName": "example/demo-pipeline",
                 "revision": "1.0.0", "nextflow": {"version": "25.04.0"},
-                "stats": {"succeedCount": 3, "failedCount": 0, "cachedCount": 0},
+                "sessionId": session_id,
+                "stats": {"succeedCount": 3, "failedCount": 0, "cachedCount": cached_count},
                 "duration": 1717531,
             },
             "schedEnabled": True,
