@@ -1,6 +1,6 @@
 import json
 
-from benchmark_report_render import REPORT_TEMPLATE, load_brand, render_html, render_report_from_json
+from benchmark_report_render import REPORT_TEMPLATE, load_brand, render_html, render_report_from_json  # noqa: F401
 
 
 def test_template_loaded():
@@ -367,3 +367,17 @@ def test_render_reports_resume_provenance(tmp_path, minimal_report_data):
     # Incomplete lineage is called a lower bound rather than shown as a clean total.
     assert "lower bound" in text
     assert '"lineage_incomplete": true' in text
+
+
+def test_unreadable_brand_file_is_not_silently_ignored(denied_path):
+    """brand.yml is staged from projectDir, so it carries the same EACCES exposure."""
+    import pytest
+
+    with pytest.raises(RuntimeError) as excinfo:
+        load_brand(denied_path)
+    assert "brand file" in str(excinfo.value)
+
+
+def test_absent_brand_file_falls_back_to_defaults(tmp_path):
+    brand = load_brand(tmp_path / "no-such-brand.yml")
+    assert brand["accent"] == "#087F68"

@@ -1,5 +1,4 @@
 import json
-import os
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -804,23 +803,6 @@ def test_normalize_cost_rows_without_session_label_keep_working(tmp_path):
 # into the NFS mount where a lookup can fail with EACCES instead of ENOENT. `Path.exists()`
 # re-raises that on Python 3.12, which used to kill the whole report over an optional input.
 # ---------------------------------------------------------------------------------------
-
-def _denied_dir(tmp_path):
-    """A path that exists but whose parent denies traversal -> stat raises EACCES."""
-    locked = tmp_path / "locked"
-    (locked / "data").mkdir(parents=True)
-    locked.chmod(0o000)
-    return locked / "data"
-
-
-@pytest.fixture
-def denied_path(tmp_path):
-    if os.geteuid() == 0:
-        pytest.skip("root ignores directory permissions")
-    path = _denied_dir(tmp_path)
-    yield path
-    (tmp_path / "locked").chmod(0o755)
-
 
 def test_path_status_separates_absent_from_unreadable(tmp_path, denied_path):
     present = tmp_path / "real.parquet"

@@ -16,7 +16,7 @@ from benchmark_report_aggregate import (
     _load_cost_pools,
     _load_run_lineage,
 )
-from benchmark_report_normalize import _duration_ms
+from benchmark_report_normalize import _duration_ms, _require_readable
 
 # AWS Cost and Usage Report data can lag pipeline completion by roughly a day.
 # A run that finished inside this window and still lacks cost rows is treated as
@@ -290,7 +290,8 @@ def build_ic_report_data(
     #
     # ``by_session`` is the same sums pooled across every attempt of a resumed run's session
     # (empty when nothing was resumed).
-    cur_supplied = (jsonl_dir / "costs.jsonl").exists()
+    # Unreadable is not absent — see the same test in the benchmark aggregate.
+    cur_supplied = _require_readable("costs.jsonl", jsonl_dir / "costs.jsonl")
     lineage = _load_run_lineage(jsonl_dir)
     pools = _load_cost_pools(jsonl_dir, lineage)
     cost_details = pools["by_run"]

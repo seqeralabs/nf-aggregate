@@ -603,3 +603,12 @@ def test_batch_resume_reports_its_lineage_on_the_split_basis(tmp_path, make_batc
     overview = data["ic_overview"]
     assert overview["earlier_attempt_comparable_cost"] == 4.0
     assert overview["earlier_attempt_cost"] is None, "no unblended basis to report for Batch"
+
+
+def test_unreadable_costs_jsonl_fails_loudly(denied_path):
+    """Same guard as the benchmark aggregate: unreadable is not "no CUR supplied"."""
+    import pytest
+
+    with pytest.raises(RuntimeError) as excinfo:
+        build_ic_report_data(denied_path.parent)
+    assert "s3:ListBucket" in str(excinfo.value)

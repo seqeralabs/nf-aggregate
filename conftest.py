@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -19,6 +20,24 @@ BIN_DIRS = [
 for bin_dir in BIN_DIRS:
     if str(bin_dir) not in sys.path:
         sys.path.insert(0, str(bin_dir))
+
+
+@pytest.fixture
+def denied_path(tmp_path):
+    """A path that exists but cannot be stat'ed — EACCES, not ENOENT.
+
+    Stands in for a Nextflow-staged input on a Fusion mount, where a lookup is denied
+    rather than missing. `Path.exists()` re-raises that on Python 3.12 and swallows it on
+    3.13+, so every stage that probes a staged path needs a guard; this fixture is how each
+    of those guards is exercised.
+    """
+    if os.geteuid() == 0:
+        pytest.skip("root ignores directory permissions")
+    locked = tmp_path / "locked"
+    (locked / "data").mkdir(parents=True)
+    locked.chmod(0o000)
+    yield locked / "data"
+    locked.chmod(0o755)
 
 
 @pytest.fixture

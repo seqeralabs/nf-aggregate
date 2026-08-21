@@ -1,4 +1,6 @@
 import json
+
+import pytest
 from datetime import datetime, timedelta, timezone
 
 from benchmark_report_aggregate import (
@@ -1330,3 +1332,28 @@ def test_incomplete_lineage_is_flagged_not_presented_as_complete(tmp_path, capsy
     assert (resumed["pool_task_count"], resumed["total_tasks"]) == (2, 3)
     assert data["cost_coverage"]["n_incomplete_lineages"] == 1
     assert "lower bound" in capsys.readouterr().err
+
+
+def test_unreadable_costs_jsonl_is_never_read_as_no_cur(tmp_path, denied_path):
+    """`cur_supplied` decides whether the report says "cost analysis was off".
+
+    An unreadable costs.jsonl must not answer that question with "off" — that would relabel
+    every run's cost_status as null and present a cost-free report as intentional.
+    """
+    jsonl_dir = denied_path.parent  # the unreadable directory itself
+    with pytest.raises(RuntimeError) as excinfo:
+        build_report_data(jsonl_dir)
+    assert "JSONL bundle file" in str(excinfo.value) or "costs.jsonl" in str(excinfo.value)
+    assert "s3:ListBucket" in str(excinfo.value)
+
+
+def test_absent_costs_jsonl_still_means_cost_analysis_off(tmp_path):
+    """The other half of the pair: genuinely absent stays absent, not an error."""
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    _resume_bundle(jsonl_dir, runs=[_run_row("run1")], tasks=[_task_row("run1", "PROC_A", "aa/aaaa11")], costs=[])
+    (jsonl_dir / "costs.jsonl").unlink()
+
+    data = build_report_data(jsonl_dir)
+
+    assert data["cost_coverage"]["cur_supplied"] is False
+    assert data["run_costs"][0]["cost_status"] is None

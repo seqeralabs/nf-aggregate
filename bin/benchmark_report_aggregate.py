@@ -11,6 +11,8 @@ from math import sqrt
 from pathlib import Path
 from typing import Any, Iterator
 
+from benchmark_report_normalize import _require_readable
+
 _HIGHLIGHT_KEYWORDS = ("qc", "qualimap", "multiqc", "rseqc", "dupradar")
 
 # AWS Cost and Usage Report data can lag pipeline completion by roughly a day.
@@ -20,7 +22,11 @@ _COST_PROPAGATION_WINDOW_HOURS = 24
 
 
 def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
-    if not path.exists():
+    # The JSONL bundle is a STAGED input, so its files carry the same exposure as any other:
+    # under Fusion a stat can fail with EACCES rather than ENOENT. Absent means "this dataset
+    # was not produced" and is skipped; unreadable raises, because silently skipping it would
+    # turn a permission problem into a report that looks complete.
+    if not _require_readable("JSONL bundle file", path):
         return
 
     with path.open() as f:
@@ -443,7 +449,10 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
         }
 
     costs_jsonl_path = jsonl_dir / "costs.jsonl"
-    cur_supplied = costs_jsonl_path.exists()
+    # Presence of costs.jsonl is what distinguishes "cost analysis was off" from "on, but this
+    # run matched nothing", so an unreadable file must NOT be read as absent — that would
+    # relabel every run's cost_status as null and hide the failure.
+    cur_supplied = _require_readable("costs.jsonl", costs_jsonl_path)
     pools = _load_cost_pools(jsonl_dir, lineage)
     costs_index = pools["by_task"]
     session_index = pools["by_session_task"]

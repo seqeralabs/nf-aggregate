@@ -233,6 +233,13 @@ user_pipeline_process=${task.process}
 user_task_hash=${task.hash}
 ```
 
+The location may be a single `.parquet` file or the export directory that holds them (for AWS
+Data Exports, the `data/` folder partitioned by `BILLING_PERIOD=`). A directory is checked at
+launch: the pipeline lists `<location>/**/*.parquet` and stops immediately if that is empty or
+cannot be listed, naming the path. Listing a directory needs `s3:ListBucket` **and**
+`s3:GetObject` on that bucket and prefix; a single file needs only `s3:GetObject`. Grant those
+to the compute environment's role, or point the parameter at one `.parquet` file.
+
 ### Resumed runs
 
 `-resume` gives a run a new workflow ID, so an earlier attempt's spend is tagged with an ID your

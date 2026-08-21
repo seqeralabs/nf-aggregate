@@ -126,9 +126,45 @@ workflow NF_AGGREGATE {
         // One CUR parquet param serves both report types (Fusion benchmark + Intelligent
         // Compute) — the data exports are the same shape. Seqera's own cost estimate is
         // never used because it is unreliable.
-        ch_cur = params.benchmark_aws_cur_report
-            ? Channel.fromPath(params.benchmark_aws_cur_report, type: 'any')
-            : Channel.value([])
+        //
+        // A DIRECTORY location is probed here, on the head node, before anything is staged.
+        // The task cannot diagnose this itself: from inside the container an export prefix it
+        // is not allowed to LIST is indistinguishable from an empty one, and by then a task
+        // has already been provisioned and run for minutes. The probe uses the pipeline's own
+        // credentials, so a location that is missing, empty or inaccessible stops the run
+        // immediately, naming the path and what to grant.
+        ch_cur = Channel.value([])
+        if (params.benchmark_aws_cur_report) {
+            def cur_location = params.benchmark_aws_cur_report.toString().trim()
+            if (!cur_location.toLowerCase().endsWith('.parquet')) {
+                def cur_glob = "${cur_location.replaceAll('/+$', '')}/**/*.parquet"
+                def cur_matches = null
+                try {
+                    cur_matches = file(cur_glob)
+                }
+                catch (Exception probe_error) {
+                    throw new RuntimeException(
+                        "Could not list the AWS CUR export at '${cur_location}'. " +
+                        "The pipeline needs s3:ListBucket and s3:GetObject on that bucket and prefix — " +
+                        "a directory location needs LIST, not just object read. Grant those to the " +
+                        "compute environment's role, or point --benchmark_aws_cur_report at a single " +
+                        "*.parquet file, which needs only object read. Original error: ${probe_error.message}",
+                        probe_error
+                    )
+                }
+                if (!cur_matches) {
+                    throw new RuntimeException(
+                        "No *.parquet files found in the AWS CUR export at '${cur_location}' " +
+                        "(searched '${cur_glob}'). Point --benchmark_aws_cur_report at the export " +
+                        "directory that holds the parquet files (for AWS Data Exports this is the " +
+                        "'data/' folder, partitioned by BILLING_PERIOD), or at a single *.parquet file. " +
+                        "An empty result can also mean the role may read objects but not LIST the prefix."
+                    )
+                }
+                log.info("Found ${cur_matches.size()} parquet file(s) in the AWS CUR export at ${cur_location}")
+            }
+            ch_cur = Channel.fromPath(cur_location, type: 'any')
+        }
 
         // Cost-label overrides for the CUR search: accept EITHER a YAML/JSON file
         // (path, local or S3) OR inline YAML/JSON pasted straight into the launch form.

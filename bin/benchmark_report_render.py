@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+from benchmark_report_normalize import _require_readable
 from jinja2 import BaseLoader, Environment
 
 
@@ -35,7 +37,10 @@ def load_brand(brand_path: Path | None = None) -> dict[str, Any]:
         ],
     }
 
-    if brand_path and brand_path.exists():
+    # brand.yml is staged from projectDir, so on Fusion its stat can fail with EACCES.
+    # Absent -> fall back to the built-in palette; unreadable -> say so rather than silently
+    # rendering an unbranded report.
+    if brand_path and _require_readable("brand file", brand_path):
         with brand_path.open(encoding="utf-8") as f:
             raw = yaml.safe_load(f) or {}
         colors = raw.get("colors", {})
@@ -90,8 +95,16 @@ def load_echarts_theme(theme_path: Path | None = None) -> str:
         Path("assets/seqera-echarts-theme.json"),
     ]
     for p in candidates:
-        if p and p.exists():
-            return p.read_text(encoding="utf-8")
+        if not p:
+            continue
+        # A fallback chain, so an unreadable candidate moves on to the next one rather than
+        # failing the render — unlike brand/logo, a missing theme has a working default. One
+        # of these candidates is relative to the task directory, which lives on the mount.
+        try:
+            if p.exists():
+                return p.read_text(encoding="utf-8")
+        except OSError:
+            continue
     return "{}"
 
 
@@ -143,7 +156,11 @@ def render_report_from_json(
 ) -> None:
     data = json.loads(report_data_path.read_text(encoding="utf-8"))
     brand = load_brand(brand_path)
-    logo_svg = logo_path.read_text(encoding="utf-8") if logo_path and logo_path.exists() else None
+    logo_svg = (
+        logo_path.read_text(encoding="utf-8")
+        if logo_path and _require_readable("logo file", logo_path)
+        else None
+    )
     render_html(data, output_path=output, brand=brand, logo_svg=logo_svg, template_path=template_path)
 
 

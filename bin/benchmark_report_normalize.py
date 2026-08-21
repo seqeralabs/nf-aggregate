@@ -133,6 +133,24 @@ def _path_status(path: Path) -> str:
     return "present"
 
 
+def _require_readable(label: str, path: Path) -> bool:
+    """``True`` if present, ``False`` if absent; raises when present-but-unreadable.
+
+    The shape most callers want, built on :func:`_path_status`: an optional input that is
+    genuinely missing is skipped, but one that exists and cannot be read is never quietly
+    treated as missing — that is how a permission problem turns into a report that looks
+    complete. Shared with the aggregate and render stages, which stage their inputs the same
+    way and so carry the same exposure.
+    """
+    try:
+        path.stat()
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    except OSError as exc:
+        raise RuntimeError(_unreadable_input_message(label, path, exc)) from exc
+    return True
+
+
 def load_run_data(data_dir: Path) -> list[dict[str, Any]]:
     runs = []
     try:
@@ -641,7 +659,13 @@ def _summarise_machines(machines_dir: Path) -> list[dict[str, Any]]:
     import csv
 
     all_rows: list[dict[str, str]] = []
-    for csv_path in sorted(machines_dir.glob("*.csv")):
+    try:
+        csv_paths = sorted(machines_dir.glob("*.csv"))
+    except OSError as exc:
+        # Matches the caller's policy: machine telemetry degrades, it never fails the report.
+        typer.echo(_unreadable_input_message("machines directory", machines_dir, exc), err=True)
+        return []
+    for csv_path in csv_paths:
         with csv_path.open(newline="") as f:
             reader = csv.DictReader(f)
             for row in reader:
