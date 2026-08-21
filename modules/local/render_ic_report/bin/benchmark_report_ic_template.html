@@ -62,7 +62,9 @@
 
   /* ---- Content ---- */
   .content { margin-left: var(--sidebar-w); display: flex; flex-direction: column; align-items: stretch; }
-  section { scroll-margin-top: 18px; padding: 0 40px; max-width: 1320px; }
+  section { scroll-margin-top: 18px; padding: 0 40px; }
+  /* Prose keeps a readable measure while tables and charts take the full window width. */
+  .section-sub, .cost-coverage, p.lead { max-width: 92ch; }
   /* Section order. Default: Overview, Performance, Cost. When a cost report exists
   (.cost-first), Cost is promoted above Performance. Nav order is flipped to match. */
   .hero { order: 0; }
@@ -83,7 +85,7 @@
   }
   .hero::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
     background: linear-gradient(90deg, var(--accent) 0%, var(--accent-light) 100%); }
-  .hero-grid { display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; flex-wrap: wrap; max-width: 1320px; }
+  .hero-grid { display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
   .hero h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; margin: 10px 0 8px; line-height: 1.08; }
   .hero p.lead { font-size: 15px; color: var(--muted); margin: 0; max-width: 560px; line-height: 1.5; }
 
@@ -138,7 +140,6 @@
   .cost-note { display: inline-block; padding: 1px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; cursor: help; }
   .cost-note.propagating { background: rgba(255, 193, 7, 0.18); color: #997404; }
   .cost-note.not-found { background: rgba(108, 117, 125, 0.14); color: #495057; }
-  .cost-note.earlier { background: #fdf0d5; color: #8a5a00; }
   .cost-coverage { font-size: 12.5px; color: var(--muted); margin: 4px 0 14px; }
   .cost-coverage b { color: var(--ink); font-weight: 600; }
 
@@ -386,7 +387,24 @@ function esc(s) {
 // rather than fall back to the billed instance cost — mixing the two bases in one chart
 // would compare an amortized per-task allocation against a raw instance charge.
 function comparableCost(r) {
-  return r && r.comparable_cost != null ? Number(r.comparable_cost) : null;
+  if (!r) return null;
+  return sessionOr(r.session_comparable_cost, r.comparable_cost);
+}
+
+// The billed cost of a run, on the same whole-session basis as comparableCost.
+function totalCost(r) {
+  if (!r) return null;
+  return sessionOr(r.session_cost, r.cost);
+}
+
+// Every cost in this report is the FINAL end cost of the run: for a resumed run that is the
+// whole session — what all of its attempts spent together, since the cached tasks this attempt
+// reused were paid for by an earlier one. Nothing here is ever attempt-scoped, so a run's cost
+// can be read against AWS Batch as-is. Only the resume count is surfaced per run; the earlier
+// attempts' share of the money deliberately is not.
+function sessionOr(session, own) {
+  if (session != null) return Number(session);
+  return own != null ? Number(own) : null;
 }
 
 // Shared cost formatter: sub-cent CUR costs need up to 4 dp, larger costs read better with fewer.
@@ -407,43 +425,19 @@ function fmtCostStatus(v, status) {
   return '<span class="muted">&mdash;</span>';
 }
 
-// Resume marker for a run that reused earlier work. `attempts` counts the workflow ids that
-// actually SPENT money under this run's session, so it says how many attempts the pooled cost
-// came from — not how many times someone pressed resume.
+// Resume marker for a run that reused earlier work. Says how many earlier attempts it resumed
+// from and nothing about money: the costs beside it are already the whole session's final cost,
+// so splitting out the earlier attempts' share would only invite reading one of the parts as
+// the run's cost.
 function resumeBadge(r) {
   if (!r || !r.resumed) return "";
   const earlier = Number(r.earlier_attempts || 0);
-  const label = earlier ? "resumed +" + earlier : "resumed";
+  const label = earlier ? earlier + " resume" + (earlier === 1 ? "" : "s") : "resumed";
   const tip = earlier
-    ? "Reused cached work from " + earlier + " earlier attempt" + (earlier === 1 ? "" : "s")
-      + " of the same session. The cost shown includes what those attempts spent, because the tasks they paid for are counted in this run; every other figure in the row describes this attempt only."
-    : "Reused cached work from an earlier attempt, but no earlier attempt was found in the cost export — the cost shown covers this attempt only.";
+    ? "This run resumed " + earlier + " earlier attempt" + (earlier === 1 ? "" : "s")
+      + " of the same session, reusing their cached results. The costs shown are the final cost of the whole session, every attempt included."
+    : "This run reused cached work from an earlier attempt, but no earlier attempt was found in the cost export, so the cost shown covers this attempt only.";
   return '<span class="badge resumed" title="' + esc(tip) + '">' + esc(label) + '</span>';
-}
-
-// Cost cell for a run that may have resumed: the attempt's own figure on this column's basis,
-// plus what the earlier attempts of the same session spent on that SAME basis. Never mixes the
-// billed and split bases, and never folds the earlier money into the attempt figure — the rest
-// of the row (wall time, compute hours, machine mix) describes this attempt alone, so anything
-// derived from these numbers has to stay attempt-scoped.
-function fmtCostWithEarlier(own, sessionTotal, r) {
-  const priorCount = Number(r.earlier_attempts || 0);
-  if (!priorCount || sessionTotal == null) return fmtCostStatus(own, r.cost_status);
-  const priorLabel = priorCount + " earlier attempt" + (priorCount === 1 ? "" : "s");
-  // A fresh resume has no charge of its own yet. The session figure is still real money, so
-  // show it rather than an em-dash, marked as coming from the earlier attempts alone.
-  if (own == null) {
-    const tip = "This attempt has no billed rows on this basis yet; " + fmtCost(sessionTotal)
-      + " was spent by " + priorLabel + " of the same session.";
-    return fmtCost(sessionTotal)
-      + ' <span class="cost-note earlier" title="' + esc(tip) + '">' + esc(priorLabel) + '</span>';
-  }
-  const earlier = Number(sessionTotal) - Number(own);
-  if (!(earlier > 0)) return fmtCost(own);
-  const tip = priorLabel + " of this session cost " + fmtCost(earlier)
-    + ", for " + fmtCost(sessionTotal) + " across the session.";
-  return fmtCost(own) + ' <span class="cost-note earlier" title="' + esc(tip) + '">+'
-    + fmtCost(earlier) + '</span>';
 }
 
 // Human-readable duration from milliseconds: "1h 23m", "23m 4s", "4s".
@@ -555,8 +549,11 @@ window.addEventListener("resize", () => {
   // split figure, while AWS Batch only ever has the split figure. Pairing "IC billed" against
   // "Batch billed" would set a real charge against a permanent em-dash; pairing the two split
   // rows is the like-for-like read, with IC's billed total above it as the real spend.
-  const billed = runs.filter((r) => r.cost != null);
-  const comparable = runs.filter((r) => comparableCost(r) != null);
+  // Sums skip superseded attempts: an older attempt of a resumed session whose spend is
+  // already inside the newer attempt's session figure. Adding both would count it twice.
+  const counted = runs.filter((r) => !r.superseded_cost);
+  const billed = counted.filter((r) => totalCost(r) != null);
+  const comparable = counted.filter((r) => comparableCost(r) != null);
   if (billed.length || comparable.length) {
     const sum = (rows, pick) => rows.reduce((s, r) => s + Number(pick(r)), 0);
     const has = (type) => runs.some((r) => r.compute_type === type);
@@ -568,12 +565,12 @@ window.addEventListener("resize", () => {
     // engine with a billed charge and Batch the only one without. A billed-only total would
     // silently omit every AWS Batch run and read as the whole spend, which is worse than mixing
     // bases — but it IS a mix, so the card label says so.
-    const totalFor = (r) => (r.cost != null ? Number(r.cost) : comparableCost(r));
-    const counted = runs.filter((r) => totalFor(r) != null);
-    if (counted.length) {
+    const totalFor = (r) => (totalCost(r) != null ? totalCost(r) : comparableCost(r));
+    const inTotal = counted.filter((r) => totalFor(r) != null);
+    if (inTotal.length) {
       const el = document.querySelector("#stat-cost .n");
       el.classList.remove("muted");
-      el.textContent = fmtCost(sum(counted, totalFor));
+      el.textContent = fmtCost(sum(inTotal, totalFor));
     }
 
     const row = (dot, label, value, title) =>
@@ -585,7 +582,7 @@ window.addEventListener("resize", () => {
     const out = [];
     if (has("intelligent_compute")) {
       out.push(row("dot-ic", "Intelligent Compute &middot; billed",
-        figure(of(billed, "intelligent_compute"), (r) => r.cost),
+        figure(of(billed, "intelligent_compute"), totalCost),
         "What AWS billed for the machines these runs used, including start-up and idle time."));
       const icSplit = figure(of(comparable, "intelligent_compute"), comparableCost);
       out.push(row("dot-ic", "Intelligent Compute &middot; split", icSplit,
@@ -669,39 +666,27 @@ window.addEventListener("resize", () => {
     parts.push("Runs without a split figure are omitted from the comparison charts rather than compared on a different basis.");
   }
   if (missing) parts.push("<b>" + missing + "</b> run" + s(missing) + " have no matching cost yet (pending or absent).");
-  // Resumed runs: say plainly that the per-run figures are attempt-scoped and where the rest of
-  // the money is, so nobody reads a resumed run's cost as the whole pipeline's bill.
+  // Resumed runs: say that their costs already cover every attempt, so nobody reads a resumed
+  // run's figure as one attempt's slice of the bill.
   const pooled = ov.n_pooled_runs || 0;
   if (ov.n_resumed_runs) {
     parts.push("<b>" + ov.n_resumed_runs + "</b> run" + s(ov.n_resumed_runs) + " reused cached work from an earlier attempt.");
-    const earlierBilled = ov.earlier_attempt_cost;
-    const earlierComparable = ov.earlier_attempt_comparable_cost;
-    if (pooled && (earlierBilled != null || earlierComparable != null)) {
-      // Each basis is named with its own figure; AWS Batch lineages only ever have the split one.
-      const bits = [];
-      if (earlierBilled != null) bits.push("<b>" + fmtCost(earlierBilled) + "</b> billed");
-      if (earlierComparable != null) bits.push("<b>" + fmtCost(earlierComparable) + "</b> on the compute-cost basis");
-      parts.push("Costs per run cover that run's own attempt, since the compute hours and machines beside them do too; their earlier attempts add " + bits.join(" and ") + ", shown beside the cost they belong to.");
-    } else {
-      parts.push("No earlier attempt was found in this export, so their costs cover the reported attempt only.");
-    }
+    parts.push(pooled
+      ? "Their costs are the final cost of the whole session, every attempt included, which is what the run table and the charts compare."
+      : "No earlier attempt was found in this export, so their costs cover the reported attempt only.");
   }
   el.innerHTML = parts.join(" ");
   el.hidden = false;
 })();
 
-// Table sizing. Short tables get NO fixed height, so Tabulator shrinks the tableholder to
-// exactly the rows it holds (no empty gray strip beneath the last row). Only once the content
-// would exceed 75vh do we pin a fixed height, which caps the table AND turns on row
-// virtualisation — sized once here, so we never touch Tabulator's `maxHeight` (whose
-// ResizeObserver recompute caused a multi-second forced-layout storm at 30+ runs).
+// Table sizing. No fixed height while every row fits on the page: the table grows to its
+// content and the PAGE scrolls, so there is never a scrollbar inside the table. Past
+// VIRTUALISE_ROWS we pin a height, which is what turns on Tabulator's row virtualisation —
+// without it a few hundred rows make every sort and filter janky. Sized once here, so we never
+// touch Tabulator's `maxHeight` (whose ResizeObserver recompute caused a forced-layout storm).
+const VIRTUALISE_ROWS = 60;
 function tableSizing(runs) {
-  const groups = new Set(runs.map((r) => r.pipeline || "—")).size;
-  // ~53px header + ~28px per data/group row (measured); a small over-estimate is fine — it
-  // only decides *whether* to cap, and a capped table is full of rows so it never shows gray.
-  const content = 56 + (runs.length + groups) * 28;
-  const cap = Math.round(window.innerHeight * 0.75);
-  return content > cap ? { height: cap } : {};
+  return runs.length > VIRTUALISE_ROWS ? { height: Math.round(window.innerHeight * 0.85) } : {};
 }
 
 // ---- Run summary table (Tabulator: searchable + per-column filterable + sortable) ----
@@ -728,7 +713,7 @@ function tableSizing(runs) {
       // Executed vs cached tasks. Cached tasks are why a resumed run's cost has to be pooled
       // across attempts: they carry full metrics (restored from the attempt that ran them) but
       // their money was billed to that earlier attempt's workflow id.
-      { title: helpTitle("Tasks", "How many tasks this run executed, and how many it skipped by reusing cached results from an earlier attempt. Cached tasks still count towards the run's CPU-hours, memory and timing figures — those come from the attempt that originally ran them — but the money for them was billed to that attempt, which is why resumed runs also show a cost across attempts."),
+      { title: helpTitle("Tasks", "How many tasks this run executed, and how many it skipped by reusing cached results from an earlier attempt. Cached tasks still count towards the run's CPU-hours, memory and timing figures — those come from the attempt that originally ran them — and their cost is included too, since the costs here cover every attempt of a resumed run."),
         field: "executed_tasks", titleFormatter: "html", hozAlign: "right", minWidth: helpMinWidth("Tasks"),
         formatter: (cell) => {
           const r = cell.getRow().getData();
@@ -744,13 +729,15 @@ function tableSizing(runs) {
       // data is missing.
       { title: helpTitle("Compute cost", "The CPU and memory every task in the run used, added up and priced by AWS ECS split cost allocation — plus any capacity left idle on the machines beside them. AWS Batch reports only this figure, so the cost charts compare engines on it. Blank when a run has no ECS tasks to price (Intelligent Compute on the VM architecture), and those runs sit out the comparison charts. Amortized, so it will not tally exactly with the Total cost beside it."),
         field: "comparable_cost", titleFormatter: "html", hozAlign: "right", minWidth: helpMinWidth("Compute cost"),
-        formatter: (cell) => fmtCostWithEarlier(cell.getValue(), cell.getRow().getData().session_comparable_cost, cell.getRow().getData()) },
+        sorter: (a, b, aRow, bRow) => (comparableCost(aRow.getData()) || 0) - (comparableCost(bRow.getData()) || 0),
+        formatter: (cell) => { const r = cell.getRow().getData(); return fmtCostStatus(comparableCost(r), r.cost_status); } },
       // Rightmost column stays resizable so you can drag its right edge back to the container
       // border to re-fill the width after shrinking another column. Any transient gap shows the
       // card colour, not gray (see .tabulator background above).
-      { title: helpTitle("Total cost", "The unblended cost of every line item AWS tagged to this run, whatever the service — the same figure you would see for it in Cost Explorer. Covers the machines end to end, including start-up, idle and shut-down time. Blank for AWS Batch: it labels only its tasks, never the machines underneath, so no charge can be tied back to the run — read Compute cost there. For a resumed run this is THIS attempt's charge; the earlier attempts are shown beside it, because every other figure in the row (wall time, compute hours, machine mix) describes this attempt too."),
+      { title: helpTitle("Total cost", "The unblended cost of every line item AWS tagged to this run, whatever the service — the same figure you would see for it in Cost Explorer. Covers the machines end to end, including start-up, idle and shut-down time. Blank for AWS Batch: it labels only its tasks, never the machines underneath, so no charge can be tied back to the run — read Compute cost there. For a resumed run this is the final cost of the whole session — every attempt included — so it can be read against AWS Batch as-is."),
         field: "cost", titleFormatter: "html", hozAlign: "right", minWidth: helpMinWidth("Total cost"),
-        formatter: (cell) => fmtCostWithEarlier(cell.getValue(), cell.getRow().getData().session_cost, cell.getRow().getData()) },
+        sorter: (a, b, aRow, bRow) => (totalCost(aRow.getData()) || 0) - (totalCost(bRow.getData()) || 0),
+        formatter: (cell) => { const r = cell.getRow().getData(); return fmtCostStatus(totalCost(r), r.cost_status); } },
     ],
   });
   const searchEl = document.getElementById("run-search");
@@ -1052,7 +1039,7 @@ function tableSizing(runs) {
   // instance cost. Runs without one (VM-architecture IC) are excluded rather than mixed in.
   const runs = (DATA.run_summary || []).filter((r) => comparableCost(r) != null && r.started_at);
   if (!runs.length) {
-    const anyCost = (DATA.run_summary || []).some((r) => r.cost != null);
+    const anyCost = (DATA.run_summary || []).some((r) => totalCost(r) != null);
     container.innerHTML = anyCost
       ? '<div class="empty"><strong>No comparable cost data.</strong><br/>These runs report a billed instance cost but no ECS split cost allocation, so there is no basis on which to compare them against AWS Batch. Per-run billed costs are in the run summary table.</div>'
       : '<div class="empty"><strong>No cost data yet.</strong><br/>Cost charts appear once an AWS Cost &amp; Usage Report (CUR) export is joined onto these runs.</div>';
@@ -1198,9 +1185,9 @@ function tableSizing(runs) {
   //                  so no panel ever mixes bases. Without the fallback AWS Batch runs (which
   //                  have no billed charge) would vanish from this view entirely.
   //   comparableById ECS split figure — the only cross-engine basis, used for the run comparison
-  const withCost = (DATA.run_summary || []).filter((r) => r.cost != null || comparableCost(r) != null);
+  const withCost = (DATA.run_summary || []).filter((r) => totalCost(r) != null || comparableCost(r) != null);
   const costById = {};
-  withCost.forEach((r) => { costById[r.run_id] = r.cost != null ? Number(r.cost) : comparableCost(r); });
+  withCost.forEach((r) => { costById[r.run_id] = totalCost(r) != null ? totalCost(r) : comparableCost(r); });
   const comparableById = {};
   withCost.forEach((r) => { const c = comparableCost(r); if (c != null) comparableById[r.run_id] = c; });
 

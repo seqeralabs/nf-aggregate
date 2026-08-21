@@ -215,7 +215,10 @@ def _classify_missing_cost(reference_ts: Any, now: datetime) -> str:
 def _purchase_option_split(
     detail: dict[str, Any] | None, compute_type: str
 ) -> tuple[float | None, float | None, float | None]:
-    """Spot vs on-demand machine spend for one run — ``(spot, ondemand, spot_pct)``.
+    """Spot vs on-demand machine spend — ``(spot, ondemand, spot_pct)``.
+
+    ``detail`` is a cost pool: a run's own rows, or (for a resumed run) its whole session's,
+    so the split always describes the same money as the cost shown beside it.
 
     ALWAYS the unblended basis, on both Intelligent Compute architectures, so the figure means
     the same thing in every row it appears in. The ECS split basis is not an option here: AWS
@@ -338,18 +341,19 @@ def build_ic_report_data(
         req_mem_gib = round(res.get("mem_req", 0.0), 1)
         eff_mem_gib = round(res.get("mem_used", 0.0), 1)
 
-        # RESUMED RUNS: every figure in this row except the session_* pair is this ATTEMPT only,
-        # and stays that way on purpose. Each one is either divided by, or read next to, a
-        # denominator that describes the last attempt alone — compute_hours and req/eff vCPU-h
-        # come from this run's task records, wall_time_ms from this run's duration, and the
-        # machines CSV (when supplied) lists this run's instances. Pooling cost across attempts
-        # into those ratios would put lineage money over last-attempt capacity and quietly break
-        # $/vCPU-h, spot coverage and every utilisation figure.
+        # RESUMED RUNS: every MONEY figure is the whole session — what all of its attempts spent
+        # together, since the cached tasks this attempt reused were paid for by an earlier one.
+        # That is what the report shows and compares against AWS Batch, so the purchase-option
+        # split has to come from the same pool: a session figure beside an attempt's spot cost
+        # reads as "$256 of which $0.01 was spot".
         #
-        # The lineage total therefore lives in its own fields, reported as "total across N
-        # attempts" rather than mixed into the run's own numbers. Only the newest attempt of a
-        # session gets them, so listing several attempts of one session cannot count the same
-        # dollars twice.
+        # Capacity figures stay attempt-scoped and MUST NOT be mixed with these: compute_hours
+        # and req/eff vCPU-h come from this run's task records, wall_time_ms from its duration,
+        # the machines CSV from its instances. Any ratio of the two (e.g. $/vCPU-h) would put
+        # lineage money over last-attempt capacity.
+        #
+        # Session pools go only to the NEWEST attempt of a session, so listing several attempts
+        # of one session cannot count the same dollars twice.
         session_id = lineage.get(run_id, {}).get("session_id", "")
         session_pool = (
             pools["by_session"].get(session_id) if session_owners.get(session_id) == run_id else None
@@ -390,8 +394,6 @@ def build_ic_report_data(
                     run.get("complete") or started_at, now
                 )
 
-        spot_cost, ondemand_cost, spot_pct = _purchase_option_split(detail, compute_type)
-
         if session_pool is not None:
             billed_attempts = pools["session_attempts"].get(session_id, set())
             attempts = max(len(billed_attempts), 1)
@@ -410,6 +412,15 @@ def build_ic_report_data(
             attempts = 1
             earlier_attempts = 0
             session_cost = session_comparable_cost = None
+
+        # Purchase option on the SAME whole-session basis as the costs above. For a resumed run
+        # the machines that ran its cached tasks were rented by an earlier attempt, so splitting
+        # only this attempt's rows priced a few cents of spot against a session that spent
+        # dollars — and the report's headline cost, which is the session's, then had no matching
+        # spot figure. `by_session` sums the same spot/ondemand fields across every attempt.
+        spot_cost, ondemand_cost, spot_pct = _purchase_option_split(
+            session_pool if session_pool is not None else detail, compute_type
+        )
 
         run_summary.append({
             "run_id": run_id,
@@ -449,7 +460,8 @@ def build_ic_report_data(
             "unused_cost": unused_cost,
             # Machine spend split by EC2 purchase option, unblended basis, Intelligent Compute
             # only (see _purchase_option_split). None for AWS Batch and for IC runs with no
-            # machine rows. spot_cost + ondemand_cost is machine spend, a SUBSET of "cost".
+            # machine rows. spot_cost + ondemand_cost is machine spend, a SUBSET of the billed
+            # cost on the same scope — the whole session for a resumed run, matching session_cost.
             "spot_cost": spot_cost,
             "ondemand_cost": ondemand_cost,
             "spot_pct": spot_pct,
@@ -465,6 +477,12 @@ def build_ic_report_data(
             "earlier_attempts": earlier_attempts,
             "session_cost": session_cost,
             "session_comparable_cost": session_comparable_cost,
+            # True when this attempt is NOT the one carrying its session's pooled figures, i.e.
+            # a newer attempt of the same session is also in this report and its session_cost
+            # already contains this attempt's spend. Every total must skip these rows or the
+            # same dollars land in it twice; the row itself still shows its own attempt's cost,
+            # which is what that attempt really spent.
+            "superseded_cost": bool(session_id) and session_owners.get(session_id) not in (None, run_id),
             "cached_tasks": lineage.get(run_id, {}).get("cached", 0),
             "executed_tasks": lineage.get(run_id, {}).get("succeeded", 0),
         })
@@ -499,7 +517,9 @@ def build_ic_report_data(
     # basis as the per-run figures. Weighted by spend, not a mean of per-run percentages, so a
     # cheap all-spot run cannot outvote an expensive fallback. None when no IC run has machine
     # rows, which is what hides the stat card rather than showing a misleading 0%.
-    spot_runs = [r for r in run_summary if r["spot_cost"] is not None]
+    spot_runs = [
+        r for r in run_summary if r["spot_cost"] is not None and not r["superseded_cost"]
+    ]
     spot_total = round(sum(r["spot_cost"] for r in spot_runs), 4)
     ondemand_total = round(sum(r["ondemand_cost"] for r in spot_runs), 4)
     machine_total = spot_total + ondemand_total
