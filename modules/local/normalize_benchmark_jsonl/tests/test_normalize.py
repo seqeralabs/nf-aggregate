@@ -777,6 +777,7 @@ def test_normalize_cost_rows_accepts_custom_session_alias(tmp_path):
         "my_session_label",
         "user_nextflow_io_session_id",
         "user_pipeline_session_id",
+        "user_session_id",
     ]
 
 
@@ -884,3 +885,30 @@ def test_unreadable_run_data_dir_names_the_real_problem(tmp_path, denied_path):
     with pytest.raises(RuntimeError) as excinfo:
         normalize_jsonl(denied_path, tmp_path / "out")
     assert "run data directory" in str(excinfo.value)
+
+
+def test_short_workflow_and_session_label_variant_is_attributed(tmp_path):
+    """`user_workflow_id`/`user_session_id`: a real variant that used to be dropped entirely.
+
+    Measured in the SciDev Intelligent Compute export: 76 rows carrying $1.07 of ECS split
+    cost that matched none of the other run-id aliases.
+    """
+    parquet_path = tmp_path / "costs-short-labels.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "resource_tags": [
+                    [("user_workflow_id", "406PkyuDM3sf5r"),
+                     ("user_session_id", "6f0d8a0d-0a15-4735-a448-32485bfafaa1")]
+                ],
+                "split_line_item_split_cost": [0.2143],
+            }
+        ),
+        parquet_path,
+    )
+
+    rows = _normalize_cost_rows(parquet_path)
+
+    assert [(r["run_id"], r["session_id"], r["cost"]) for r in rows] == [
+        ("406PkyuDM3sf5r", "6f0d8a0d-0a15-4735-a448-32485bfafaa1", 0.2143)
+    ]

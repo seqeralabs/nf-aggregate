@@ -18,7 +18,10 @@ DEFAULT_COST_LABEL_ALIASES: dict[str, list[str]] = {
     # -> `_`). Both hold the Seqera workflow id and are mutually exclusive per run (IC runs
     # carry the workflow-id tag, Batch runs the unique-run-id tag), so either resolves the
     # id that joins to run_summary.run_id. Shared by the Fusion and Intelligent Compute reports.
-    "run_id": ["user_seqera_io_platform_workflow_id", "user_unique_run_id"],
+    # `user_workflow_id`/`user_session_id` are a shorter variant seen in real exports
+    # alongside the two above; they carried real, otherwise-unattributed spend in the SciDev
+    # Intelligent Compute export (76 rows, $1.07 split cost), so they are tried last.
+    "run_id": ["user_seqera_io_platform_workflow_id", "user_unique_run_id", "user_workflow_id"],
     # Nextflow session id — STABLE ACROSS RESUMES, unlike every run-id label above.
     # `-resume` mints a new workflow id, so an attempt's spend is tagged with an id the
     # samplesheet never mentions; the session id is what stitches the attempts back into
@@ -27,7 +30,7 @@ DEFAULT_COST_LABEL_ALIASES: dict[str, list[str]] = {
     # from the cost-tracking blog template (`pipelineSessionId`) becomes
     # `user_pipeline_session_id`. Override either with the `session_id` field of
     # benchmark_aws_cur_label_map, exactly as for the other three fields.
-    "session_id": ["user_nextflow_io_session_id", "user_pipeline_session_id"],
+    "session_id": ["user_nextflow_io_session_id", "user_pipeline_session_id", "user_session_id"],
     "process": ["user_pipeline_process"],
     "task_hash": ["user_task_hash"],
 }
