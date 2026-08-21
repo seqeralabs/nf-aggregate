@@ -39,17 +39,28 @@ DEFAULT_COST_LABEL_ALIASES: dict[str, list[str]] = {
 def _unreadable_input_message(label: str, path: Path, exc: Exception) -> str:
     """Actionable text for an input that is present but cannot be read from the task.
 
-    Written for the two ways this actually happens on Fusion, because the bare OS error
-    ("Permission denied: 'data'") names a staged symlink and tells the operator nothing.
+    The bare OS error ("Permission denied: 'data'") names a staged symlink and tells the
+    operator nothing, so this spells out the one cause that actually produces it.
+
+    The guidance is deliberately specific about what does NOT help, because the obvious
+    workaround is wrong: Fusion resolves any path by listing its parent prefix first
+    (``Lookup`` -> ``PopulateDirectory`` -> ``ListObjectsV2``), so naming a single file does
+    not avoid needing s3:ListBucket. Confirmed from a task's own .fusion.server.log, where a
+    single-parquet path failed with "Fusion authenticated successfully but lacks permission
+    to access this resource" after a 403 on ListBucket for the bucket root.
     """
     # DuckDB errors carry the whole failing statement; only its first line is useful here.
     reason = str(exc).strip().splitlines()[0] if str(exc).strip() else exc.__class__.__name__
     return (
         f"{label} '{path}' exists but could not be read from inside the task ({reason}). "
-        "On AWS this is almost always the compute environment's role missing "
-        "s3:ListBucket and s3:GetObject on that bucket/prefix — a directory input needs "
-        "LIST, not just object read. Grant those, or point the parameter at a single "
-        "*.parquet file instead of the export directory."
+        "This is bucket access, not a bad path: the run's credentials cannot read that "
+        "bucket. Fusion resolves every path by listing its parent prefix, so BOTH "
+        "s3:ListBucket on the bucket and s3:GetObject on its objects are needed — naming a "
+        "single *.parquet file does not avoid the LIST. On Seqera Intelligent Compute the "
+        "task instance role is minted per cluster from the compute environment's 'Allow "
+        "buckets' list, so a bucket absent from that list is denied however the path is "
+        "written; add it to the compute environment. The task's .fusion.server.log in the "
+        "work directory names the exact role and the denied action."
     )
 
 

@@ -236,9 +236,15 @@ user_task_hash=${task.hash}
 The location may be a single `.parquet` file or the export directory that holds them (for AWS
 Data Exports, the `data/` folder partitioned by `BILLING_PERIOD=`). A directory is checked at
 launch: the pipeline lists `<location>/**/*.parquet` and stops immediately if that is empty or
-cannot be listed, naming the path. Listing a directory needs `s3:ListBucket` **and**
-`s3:GetObject` on that bucket and prefix; a single file needs only `s3:GetObject`. Grant those
-to the compute environment's role, or point the parameter at one `.parquet` file.
+cannot be listed, naming the path.
+
+Reading the export needs `s3:ListBucket` **and** `s3:GetObject` on that bucket and prefix.
+Naming a single `.parquet` file does not reduce that: Fusion resolves every path by listing its
+parent prefix first, so a bucket the run cannot list is denied however the path is written. On
+Seqera Intelligent Compute the task instance role is minted per cluster from the compute
+environment's **Allow buckets** list, so the CUR bucket has to be in that list. When a task
+fails this way, its `.fusion.server.log` in the work directory names the role and the denied
+action.
 
 ### Resumed runs
 

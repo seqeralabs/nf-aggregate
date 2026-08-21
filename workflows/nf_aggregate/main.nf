@@ -145,10 +145,12 @@ workflow NF_AGGREGATE {
                 catch (Exception probe_error) {
                     throw new RuntimeException(
                         "Could not list the AWS CUR export at '${cur_location}'. " +
-                        "The pipeline needs s3:ListBucket and s3:GetObject on that bucket and prefix — " +
-                        "a directory location needs LIST, not just object read. Grant those to the " +
-                        "compute environment's role, or point --benchmark_aws_cur_report at a single " +
-                        "*.parquet file, which needs only object read. Original error: ${probe_error.message}",
+                        "The run needs s3:ListBucket and s3:GetObject on that bucket and prefix. " +
+                        "Naming a single *.parquet file does NOT avoid this: Fusion resolves every " +
+                        "path by listing its parent prefix first. On Seqera Intelligent Compute the " +
+                        "task instance role is minted per cluster from the compute environment's " +
+                        "'Allow buckets' list, so add the bucket there. " +
+                        "Original error: ${probe_error.message}",
                         probe_error
                     )
                 }
@@ -158,7 +160,10 @@ workflow NF_AGGREGATE {
                         "(searched '${cur_glob}'). Point --benchmark_aws_cur_report at the export " +
                         "directory that holds the parquet files (for AWS Data Exports this is the " +
                         "'data/' folder, partitioned by BILLING_PERIOD), or at a single *.parquet file. " +
-                        "An empty result can also mean the role may read objects but not LIST the prefix."
+                        "An empty result can also mean the credentials may read objects but not LIST " +
+                        "the prefix. NOTE: this probe runs on the head node, which can hold different " +
+                        "credentials than the task instances — it passing does not guarantee the task " +
+                        "can read the export."
                     )
                 }
                 log.info("Found ${cur_matches.size()} parquet file(s) in the AWS CUR export at ${cur_location}")
