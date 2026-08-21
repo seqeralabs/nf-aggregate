@@ -1,4 +1,5 @@
 import json
+import os
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -7,6 +8,8 @@ import pytest
 from benchmark_report_normalize import (
     _load_cost_label_aliases,
     _normalize_cost_rows,
+    _parquet_sources,
+    _path_status,
     _summarise_machines,
     extract_runs,
     extract_tasks,
@@ -794,3 +797,108 @@ def test_normalize_cost_rows_without_session_label_keep_working(tmp_path):
     rows = _normalize_cost_rows(parquet_path)
 
     assert [(r["run_id"], r["session_id"], r["cost"]) for r in rows] == [("run1", "", 4.0)]
+
+
+# ---------------------------------------------------------------------------------------
+# Staged-path readability. Nextflow stages inputs as symlinks and, on Fusion, they resolve
+# into the NFS mount where a lookup can fail with EACCES instead of ENOENT. `Path.exists()`
+# re-raises that on Python 3.12, which used to kill the whole report over an optional input.
+# ---------------------------------------------------------------------------------------
+
+def _denied_dir(tmp_path):
+    """A path that exists but whose parent denies traversal -> stat raises EACCES."""
+    locked = tmp_path / "locked"
+    (locked / "data").mkdir(parents=True)
+    locked.chmod(0o000)
+    return locked / "data"
+
+
+@pytest.fixture
+def denied_path(tmp_path):
+    if os.geteuid() == 0:
+        pytest.skip("root ignores directory permissions")
+    path = _denied_dir(tmp_path)
+    yield path
+    (tmp_path / "locked").chmod(0o755)
+
+
+def test_path_status_separates_absent_from_unreadable(tmp_path, denied_path):
+    present = tmp_path / "real.parquet"
+    present.write_text("")
+
+    assert _path_status(present) == "present"
+    assert _path_status(tmp_path / "missing.parquet") == "absent"
+    # The distinction this whole guard exists for: a path we cannot stat is NOT absent.
+    assert _path_status(denied_path) == "unreadable"
+    # Path.exists() is the trap being avoided — it raises here on 3.12 and lies on 3.13+.
+    with pytest.raises(PermissionError):
+        denied_path.exists()
+
+
+def test_unreadable_cur_path_fails_with_an_actionable_message(tmp_path, denied_path, make_run, flat_task, write_run_json):
+    """The reported bug: `PermissionError: [Errno 13] Permission denied: 'data'` and no report."""
+    data_dir = tmp_path / "data_in"
+    out_dir = tmp_path / "jsonl_bundle"
+    write_run_json(data_dir, [make_run(tasks=[flat_task()])])
+
+    with pytest.raises(RuntimeError) as excinfo:
+        normalize_jsonl(data_dir, out_dir, costs_parquet=denied_path)
+
+    message = str(excinfo.value)
+    assert "benchmark_aws_cur_report" in message
+    assert str(denied_path) in message
+    assert "s3:ListBucket" in message
+    assert isinstance(excinfo.value.__cause__, Exception)
+    # Everything that did not depend on the CUR file was still produced.
+    assert (out_dir / "runs.jsonl").is_file()
+    assert (out_dir / "tasks.jsonl").is_file()
+    assert not (out_dir / "costs.jsonl").exists()
+
+
+def test_unreadable_cur_path_defers_to_duckdb_instead_of_giving_up(denied_path):
+    """A path we cannot walk still gets a read attempt: DuckDB globs and opens it itself."""
+    assert _parquet_sources(denied_path) == [str(denied_path / "**" / "*.parquet")]
+    # A file-shaped path is passed through verbatim rather than globbed.
+    assert _parquet_sources(denied_path.parent / "x.parquet") == [str(denied_path.parent / "x.parquet")]
+
+
+def test_missing_cur_path_is_skipped_not_an_error(tmp_path, make_run, flat_task, write_run_json):
+    data_dir = tmp_path / "data_in"
+    out_dir = tmp_path / "jsonl_bundle"
+    write_run_json(data_dir, [make_run(tasks=[flat_task()])])
+
+    normalize_jsonl(data_dir, out_dir, costs_parquet=tmp_path / "nope.parquet")
+
+    assert (out_dir / "runs.jsonl").is_file()
+    assert not (out_dir / "costs.jsonl").exists()
+
+
+def test_no_file_placeholder_is_rejected_on_name_alone(tmp_path, denied_path, make_run, flat_task, write_run_json):
+    """The placeholder short-circuits before the fallible stat, even inside an unreadable dir."""
+    data_dir = tmp_path / "data_in"
+    out_dir = tmp_path / "jsonl_bundle"
+    write_run_json(data_dir, [make_run(tasks=[flat_task()])])
+
+    normalize_jsonl(data_dir, out_dir, costs_parquet=denied_path.parent / "NO_FILE")
+
+    assert (out_dir / "runs.jsonl").is_file()
+    assert not (out_dir / "costs.jsonl").exists()
+
+
+def test_unreadable_machines_dir_warns_and_keeps_the_report(tmp_path, denied_path, make_run, flat_task, write_run_json, capsys):
+    """Machine telemetry is supplementary, so it degrades instead of failing the run."""
+    data_dir = tmp_path / "data_in"
+    out_dir = tmp_path / "jsonl_bundle"
+    write_run_json(data_dir, [make_run(tasks=[flat_task()])])
+
+    normalize_jsonl(data_dir, out_dir, machines_dir=denied_path)
+
+    assert (out_dir / "runs.jsonl").is_file()
+    assert not (out_dir / "machines.jsonl").exists()
+    assert "machines directory" in capsys.readouterr().err
+
+
+def test_unreadable_run_data_dir_names_the_real_problem(tmp_path, denied_path):
+    with pytest.raises(RuntimeError) as excinfo:
+        normalize_jsonl(denied_path, tmp_path / "out")
+    assert "run data directory" in str(excinfo.value)

@@ -33,6 +33,23 @@ DEFAULT_COST_LABEL_ALIASES: dict[str, list[str]] = {
 }
 
 
+def _unreadable_input_message(label: str, path: Path, exc: Exception) -> str:
+    """Actionable text for an input that is present but cannot be read from the task.
+
+    Written for the two ways this actually happens on Fusion, because the bare OS error
+    ("Permission denied: 'data'") names a staged symlink and tells the operator nothing.
+    """
+    # DuckDB errors carry the whole failing statement; only its first line is useful here.
+    reason = str(exc).strip().splitlines()[0] if str(exc).strip() else exc.__class__.__name__
+    return (
+        f"{label} '{path}' exists but could not be read from inside the task ({reason}). "
+        "On AWS this is almost always the compute environment's role missing "
+        "s3:ListBucket and s3:GetObject on that bucket/prefix — a directory input needs "
+        "LIST, not just object read. Grant those, or point the parameter at a single "
+        "*.parquet file instead of the export directory."
+    )
+
+
 def _run_group(run: dict[str, Any]) -> str:
     return run["meta"]["group"]
 
@@ -94,9 +111,35 @@ def _compute_progress_from_tasks(run: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _path_status(path: Path) -> str:
+    """``"present"`` | ``"absent"`` | ``"unreadable"`` — for a staged input path. Never raises.
+
+    ``Path.exists()`` is NOT safe on the paths this stage is handed. Nextflow stages inputs as
+    symlinks in the task directory, and with Fusion those resolve into the NFS mount, where a
+    lookup can fail with EACCES — an S3 403, or a prefix the client will not stat — instead of
+    ENOENT. Python 3.12's ``Path.exists()`` only swallows ENOENT/ENOTDIR/EBADF/ELOOP
+    (``pathlib._IGNORED_ERRNOS``), so EACCES propagated and killed the whole report over an
+    OPTIONAL input, after runs/tasks/metrics had already been written. Python 3.13+ swallows it
+    and would instead produce a silently cost-free report. Neither is acceptable, so presence
+    and readability are answered separately and the caller decides.
+    """
+    try:
+        path.stat()
+    except (FileNotFoundError, NotADirectoryError):
+        return "absent"
+    except OSError:
+        # EACCES/EIO/ESTALE... — something is there, we just cannot inspect it from here.
+        return "unreadable"
+    return "present"
+
+
 def load_run_data(data_dir: Path) -> list[dict[str, Any]]:
     runs = []
-    for run_file in sorted(data_dir.glob("*.json")):
+    try:
+        run_files = sorted(data_dir.glob("*.json"))
+    except OSError as exc:
+        raise RuntimeError(_unreadable_input_message("run data directory", data_dir, exc)) from exc
+    for run_file in run_files:
         with run_file.open() as f:
             runs.append(json.load(f))
     return runs
@@ -253,14 +296,39 @@ def _duckdb_connect():
     return duckdb.connect()
 
 
+def _duckdb_glob(costs_parquet: Path) -> list[str]:
+    """The scan pattern to hand DuckDB when Python cannot inspect the path itself.
+
+    Used when ``stat``/``rglob`` fail on a staged path (see :func:`_path_status`): DuckDB does
+    its own globbing and opening, so it may succeed where our directory walk could not, and
+    when it cannot it reports the failure with the real path in the message.
+    """
+    if costs_parquet.suffix == ".parquet":
+        return [str(costs_parquet)]
+    return [str(costs_parquet / "**" / "*.parquet")]
+
+
 def _parquet_sources(costs_parquet: Path) -> list[str]:
     """Resolve a file or directory into the parquet files DuckDB should scan.
 
     A directory is expanded to every ``*.parquet`` beneath it so a whole CUR
     export folder can be processed in one pass.
+
+    Every filesystem probe here is fallible on a Nextflow-staged path — on Fusion the symlink
+    resolves into the NFS mount, where ``is_dir()``/``rglob()`` can raise EACCES rather than
+    answering. A probe that cannot answer defers to DuckDB instead of aborting, so a path we
+    merely cannot *walk* is still given a chance to be *read*.
     """
-    if costs_parquet.is_dir():
-        sources = sorted(str(path) for path in costs_parquet.rglob("*.parquet"))
+    try:
+        is_dir = costs_parquet.is_dir()
+    except OSError:
+        return _duckdb_glob(costs_parquet)
+
+    if is_dir:
+        try:
+            sources = sorted(str(path) for path in costs_parquet.rglob("*.parquet"))
+        except OSError:
+            return _duckdb_glob(costs_parquet)
         if not sources:
             raise ValueError(f"benchmark_aws_cur_report directory '{costs_parquet}' contains no *.parquet files")
         return sources
@@ -717,13 +785,36 @@ def normalize_jsonl(
     _write_jsonl(output_dir / "tasks.jsonl", task_rows)
     _write_jsonl(output_dir / "metrics.jsonl", metric_rows)
 
-    if costs_parquet and costs_parquet.exists() and costs_parquet.name != "NO_FILE":
-        cost_rows = _normalize_cost_rows(costs_parquet, cost_label_map=cost_label_map)
-        _write_jsonl(output_dir / "costs.jsonl", cost_rows)
+    # COST DATA. `NO_FILE` is checked before touching the filesystem: it is a placeholder, and
+    # stat'ing a staged path is the fallible step (see _path_status), so the cheap certain test
+    # goes first. An unreadable path is still handed to DuckDB — the stat can fail on a Fusion
+    # prefix while the parquet files underneath open fine — and only a DuckDB failure is fatal.
+    # Fatal, not skipped: cost analysis was explicitly requested, and quietly emitting a report
+    # with no costs.jsonl is indistinguishable from "no CUR was supplied".
+    if costs_parquet and costs_parquet.name != "NO_FILE":
+        cost_status = _path_status(costs_parquet)
+        if cost_status != "absent":
+            try:
+                cost_rows = _normalize_cost_rows(costs_parquet, cost_label_map=cost_label_map)
+            except Exception as exc:
+                if cost_status == "unreadable":
+                    raise RuntimeError(
+                        _unreadable_input_message("benchmark_aws_cur_report", costs_parquet, exc)
+                    ) from exc
+                raise
+            _write_jsonl(output_dir / "costs.jsonl", cost_rows)
 
-    if machines_dir and machines_dir.exists() and any(machines_dir.glob("*.csv")):
-        machine_rows = _summarise_machines(machines_dir)
-        if machine_rows:
-            _write_jsonl(output_dir / "machines.jsonl", machine_rows)
+    # MACHINE TELEMETRY is supplementary per-run detail, not money, so an unreadable directory
+    # warns and moves on rather than failing the report.
+    if machines_dir and _path_status(machines_dir) != "absent":
+        try:
+            machine_csvs = any(machines_dir.glob("*.csv"))
+        except OSError as exc:
+            typer.echo(_unreadable_input_message("machines directory", machines_dir, exc), err=True)
+            machine_csvs = False
+        if machine_csvs:
+            machine_rows = _summarise_machines(machines_dir)
+            if machine_rows:
+                _write_jsonl(output_dir / "machines.jsonl", machine_rows)
 
     typer.echo(f"JSONL bundle written to {output_dir}")
