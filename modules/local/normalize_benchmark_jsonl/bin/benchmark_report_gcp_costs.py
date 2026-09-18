@@ -262,3 +262,40 @@ def gcp_rows_to_cost_rows(
         "unattributed_batch_cost": round(unattributed_cost, 4),
         "unattributed_batch_rows": unattributed_rows,
     }
+
+
+def _bigquery_client(project: str | None = None) -> Any:
+    try:
+        from google.cloud import bigquery
+    except ImportError as exc:  # pragma: no cover - only hit without the client installed
+        raise RuntimeError(
+            "google-cloud-bigquery is required to read a GCP billing export. "
+            "Install it, or run this stage with "
+            "`uv run --with google-cloud-bigquery ...`."
+        ) from exc
+    return bigquery.Client(project=project) if project else bigquery.Client()
+
+
+def normalize_gcp_cost_rows(
+    billing_table: str,
+    known_run_ids: list[str],
+    cost_label_map: Path | None = None,
+    client: Any = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Aggregate a billing export into ``costs.jsonl`` rows.
+
+    The table reference is validated BEFORE a client is built, so a typo fails instantly
+    and offline rather than after an authentication round-trip.
+
+    The billing project is taken from the table reference, so the query is billed to
+    whoever owns the export rather than to an unrelated default project.
+    """
+    table = parse_gcp_table_ref(billing_table)
+    aliases = load_gcp_cost_label_aliases(cost_label_map)
+    sql = build_gcp_cost_query(table, aliases)
+
+    if client is None:
+        client = _bigquery_client(project=table.split(".")[0])
+
+    raw_rows = [dict(row) for row in client.query(sql).result()]
+    return gcp_rows_to_cost_rows(raw_rows, known_run_ids)

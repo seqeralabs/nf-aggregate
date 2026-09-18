@@ -209,3 +209,58 @@ def test_purchase_option_split_stays_below_total():
     rows, _ = gcp_rows_to_cost_rows([_raw()], ["nnjl9fvczoruf"])
     row = rows[0]
     assert row["spot_cost"] + row["ondemand_cost"] <= row["unblended_cost"]
+
+
+from benchmark_report_gcp_costs import normalize_gcp_cost_rows
+
+
+class _FakeJob:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def result(self):
+        return iter(self._rows)
+
+
+class _FakeClient:
+    """Stands in for google.cloud.bigquery.Client — records the SQL it was handed."""
+
+    def __init__(self, rows):
+        self._rows = rows
+        self.queries = []
+
+    def query(self, sql):
+        self.queries.append(sql)
+        return _FakeJob(self._rows)
+
+
+def test_query_is_issued_and_rows_shaped():
+    client = _FakeClient([_raw()])
+    rows, diagnostics = normalize_gcp_cost_rows(
+        "p.d.t", known_run_ids=["nnjl9fvczoruf"], client=client
+    )
+    assert len(client.queries) == 1
+    assert "`p.d.t`" in client.queries[0]
+    assert rows[0]["run_id"] == "nnjl9fvczoruf"
+    assert diagnostics["unattributed_batch_cost"] == 0.0
+
+
+def test_bq_prefix_stripped_before_querying():
+    client = _FakeClient([])
+    normalize_gcp_cost_rows("bq://p.d.t", known_run_ids=[], client=client)
+    assert "`p.d.t`" in client.queries[0]
+    assert "bq://" not in client.queries[0]
+
+
+def test_malformed_table_fails_before_any_query():
+    client = _FakeClient([])
+    with pytest.raises(ValueError, match="BigQuery table"):
+        normalize_gcp_cost_rows("nonsense", known_run_ids=[], client=client)
+    assert client.queries == []
+
+
+def test_empty_result_is_not_an_error():
+    client = _FakeClient([])
+    rows, diagnostics = normalize_gcp_cost_rows("p.d.t", known_run_ids=[], client=client)
+    assert rows == []
+    assert diagnostics["unattributed_batch_cost"] == 0.0
