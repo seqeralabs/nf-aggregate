@@ -59,3 +59,61 @@ def test_unknown_alias_field_rejected(tmp_path):
 
 def test_no_label_map_returns_defaults():
     assert load_gcp_cost_label_aliases(None) == DEFAULT_GCP_COST_LABEL_ALIASES
+
+
+from benchmark_report_gcp_costs import build_gcp_cost_query, parse_gcp_table_ref
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("proj.dataset.table", "proj.dataset.table"),
+        ("bq://proj.dataset.table", "proj.dataset.table"),
+        ("  proj.dataset.table  ", "proj.dataset.table"),
+        ("proj:dataset.table", "proj.dataset.table"),
+    ],
+)
+def test_table_ref_accepted_forms(value, expected):
+    assert parse_gcp_table_ref(value) == expected
+
+
+@pytest.mark.parametrize("value", ["", "notatable", "proj.dataset", "a.b.c.d", "proj.data set.table"])
+def test_table_ref_rejects_malformed(value):
+    with pytest.raises(ValueError, match="BigQuery table"):
+        parse_gcp_table_ref(value)
+
+
+def test_table_ref_rejects_sql_injection():
+    with pytest.raises(ValueError, match="BigQuery table"):
+        parse_gcp_table_ref("proj.dataset.table` UNION SELECT 1 --")
+
+
+def test_query_groups_by_run_session_and_hash():
+    sql = build_gcp_cost_query("p.d.t", DEFAULT_GCP_COST_LABEL_ALIASES)
+    assert "GROUP BY 1, 2, 3" in sql
+    assert "`p.d.t`" in sql
+
+
+def test_query_reads_every_run_id_alias_in_order():
+    sql = build_gcp_cost_query("p.d.t", DEFAULT_GCP_COST_LABEL_ALIASES)
+    positions = [sql.index(alias) for alias in DEFAULT_GCP_COST_LABEL_ALIASES["run_id"]]
+    assert positions == sorted(positions), "aliases must be tried in declared order"
+
+
+def test_query_never_subtracts_credits():
+    # Spec D2: gross cost. A credits join would silently change every figure.
+    sql = build_gcp_cost_query("p.d.t", DEFAULT_GCP_COST_LABEL_ALIASES)
+    assert "credits" not in sql.lower()
+
+
+def test_query_gates_purchase_option_to_machine_skus():
+    # Disks and networking are labelled to the same run but are not machine rental.
+    sql = build_gcp_cost_query("p.d.t", DEFAULT_GCP_COST_LABEL_ALIASES)
+    assert "instance (core|ram)" in sql
+    assert "spot|preemptible" in sql
+
+
+def test_query_keeps_rows_with_a_hash_but_no_run_id():
+    # They are dropped later, but only after being counted for the diagnostic (spec D4).
+    sql = build_gcp_cost_query("p.d.t", DEFAULT_GCP_COST_LABEL_ALIASES)
+    assert "run_id_raw IS NOT NULL OR hash_raw IS NOT NULL" in sql
