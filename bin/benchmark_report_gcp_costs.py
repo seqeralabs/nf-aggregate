@@ -154,6 +154,13 @@ def build_gcp_cost_query(table: str, aliases: dict[str, list[str]]) -> str:
 
     NO SERVICE FILTER. Any row carrying a run label is counted, exactly as on AWS, so
     storage or networking tagged to a run is not silently discarded.
+
+    ``hash`` IS BACKTICKED BECAUSE IT IS A RESERVED KEYWORD in BigQuery: a bare
+    ``AS hash`` fails the whole query with "Syntax error: Unexpected keyword HASH".
+    Nothing in the unit tests can catch that — they only ever inspect the SQL as a
+    string — so it surfaced only when the query was first run against a real export.
+    The column must keep the name ``hash``, reserved or not, because that is the key
+    ``_load_cost_pools`` reads.
     """
     run_id_expr = _label_expr(aliases["run_id"])
     session_expr = _label_expr(aliases["session_id"])
@@ -180,7 +187,7 @@ def build_gcp_cost_query(table: str, aliases: dict[str, list[str]]) -> str:
         SELECT
             IFNULL(run_id_raw, '')            AS run_id,
             IFNULL(session_id_raw, '')        AS session_id,
-            IFNULL(SUBSTR(hash_raw, 1, 8), '') AS hash,
+            IFNULL(SUBSTR(hash_raw, 1, 8), '') AS `hash`,
             SUM(cost)                          AS unblended_cost,
             SUM(IF(is_machine AND is_spot, cost, 0.0))     AS spot_cost,
             SUM(IF(is_machine AND NOT is_spot, cost, 0.0)) AS ondemand_cost,

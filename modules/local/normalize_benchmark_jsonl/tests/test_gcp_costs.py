@@ -264,3 +264,14 @@ def test_empty_result_is_not_an_error():
     rows, diagnostics = normalize_gcp_cost_rows("p.d.t", known_run_ids=[], client=client)
     assert rows == []
     assert diagnostics["unattributed_batch_cost"] == 0.0
+
+
+def test_reserved_keyword_alias_is_quoted():
+    """`hash` is reserved in BigQuery; a bare `AS hash` fails the entire query.
+
+    Caught only by running the query against a real export, never by the string
+    assertions above — which is exactly why this guard exists.
+    """
+    sql = build_gcp_cost_query("p.d.t", DEFAULT_GCP_COST_LABEL_ALIASES)
+    assert "AS `hash`" in sql
+    assert "AS hash," not in sql

@@ -52,6 +52,23 @@ also stamps that label on every VM, disk and GPU it creates, so disks are attrib
 `unique-run-id` / `pipeline-session-id` (the AWS Batch blog template, translated) exist on
 177 rows totalling **$0.007** — configured once, essentially unused.
 
+### The Google Batch head job carries a run id, the task jobs do not
+
+Found while validating the built query against the real export. Head-job rows have a
+`batch-job-id` of the form `nf-launcher-<workflowId>-<suffix>` — e.g.
+`nf-launcher-3v7jt5m24puabz-1d630` — where the embedded string is a Platform workflow id in
+the same 13-14 character lowercase base62 shape the scheduler labels carry. Task jobs are
+`nf-<taskHash>-<millis>` and carry no run id at all.
+
+Measured: head jobs are $3.47 across 3,934 rows; task jobs are $46.30 across 299,293 rows.
+
+**Deliberately not used.** Attributing the launcher alone would give a Google Batch run a
+small, confident-looking figure that is roughly 7% of what it actually cost — worse than a
+blank plus a warning, because it reads as complete. It is recorded here because it is the
+natural anchor for a future improvement: the launcher gives a run id and a time window,
+which is what would make hash-based attribution of the task rows safe against the
+content-addressed collisions described in D4.
+
 ### Label values are lowercased
 
 Workflow ids arrive as `nnjl9fvczoruf`, `5an9reqdq1wnnr` — 13–14 characters, all lowercase,
