@@ -190,3 +190,75 @@ def build_gcp_cost_query(table: str, aliases: dict[str, list[str]]) -> str:
         GROUP BY 1, 2, 3
         ORDER BY 1, 2, 3
     """
+
+
+def _float(value: Any) -> float:
+    if value is None:
+        return 0.0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def gcp_rows_to_cost_rows(
+    raw_rows: list[dict[str, Any]],
+    known_run_ids: list[str],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Shape query results into the ``costs.jsonl`` contract, and count what was dropped.
+
+    CANONICAL CASE. Google lowercases label VALUES as well as keys, so a run billed under
+    `4bi5xbk6e2nbhj` has to find its way back to the Platform's `4Bi5xBK6E2Nbhj` before
+    ``_load_cost_pools`` can join it — that join is an exact string match. Remapping here
+    rather than making the shared join case-insensitive keeps a GCP-only problem out of the
+    AWS code path. An id we do not recognise passes through untouched, so it stays visible
+    as unattributed spend instead of being silently renamed to something plausible.
+
+    THE DIAGNOSTIC. Rows carrying a task hash but no run id are Google Batch spend that
+    nothing can attribute — Nextflow hashes are content-addressed, so attributing by hash
+    alone would cross-attribute two runs of the same pipeline over the same inputs. They
+    are dropped, as on AWS, but their total is returned so the caller can say "$49.78 of
+    Google Batch spend carries no run label" rather than presenting a confident zero.
+    """
+    canonical = {str(run_id).lower(): str(run_id) for run_id in known_run_ids if run_id}
+
+    cost_rows: list[dict[str, Any]] = []
+    unattributed_cost = 0.0
+    unattributed_rows = 0
+
+    for row in raw_rows:
+        run_id = str(row.get("run_id") or "")
+        hash_short = str(row.get("hash") or "")
+        total = _float(row.get("unblended_cost"))
+
+        if not run_id:
+            # Only rows that look like Nextflow-submitted Batch work are worth reporting;
+            # an unlabelled dev VM is not a gap in attribution, it is someone else's VM.
+            if hash_short:
+                unattributed_cost += total
+                unattributed_rows += int(row.get("n_rows") or 0)
+            continue
+
+        cost_rows.append({
+            "run_id": canonical.get(run_id.lower(), run_id),
+            "session_id": str(row.get("session_id") or ""),
+            # No process label exists on GCP. The field is kept so the row schema is
+            # identical to the AWS one and _load_cost_pools needs no branch.
+            "process": "",
+            "hash": hash_short,
+            "unblended_cost": round(total, 10),
+            # GCP has no ECS split-cost-allocation analogue, so there is no second basis
+            # and nothing that could be double-counted by summing the two.
+            "split_cost": 0.0,
+            "unused_cost": 0.0,
+            "spot_cost": round(_float(row.get("spot_cost")), 10),
+            "ondemand_cost": round(_float(row.get("ondemand_cost")), 10),
+            "split_cost_present": 0,
+            "cost": round(total, 10),
+            "used_cost": round(total, 10),
+        })
+
+    return cost_rows, {
+        "unattributed_batch_cost": round(unattributed_cost, 4),
+        "unattributed_batch_rows": unattributed_rows,
+    }

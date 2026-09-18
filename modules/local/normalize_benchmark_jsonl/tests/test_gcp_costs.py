@@ -117,3 +117,95 @@ def test_query_keeps_rows_with_a_hash_but_no_run_id():
     # They are dropped later, but only after being counted for the diagnostic (spec D4).
     sql = build_gcp_cost_query("p.d.t", DEFAULT_GCP_COST_LABEL_ALIASES)
     assert "run_id_raw IS NOT NULL OR hash_raw IS NOT NULL" in sql
+
+
+from benchmark_report_gcp_costs import gcp_rows_to_cost_rows
+
+
+def _raw(**overrides):
+    row = {
+        "run_id": "nnjl9fvczoruf",
+        "session_id": "92096d14-b89e-40f2-bbc8-71168f972329",
+        "hash": "",
+        "unblended_cost": 10.0,
+        "spot_cost": 6.0,
+        "ondemand_cost": 2.0,
+        "n_rows": 5,
+    }
+    row.update(overrides)
+    return row
+
+
+def test_emits_the_aws_cost_row_schema():
+    rows, _ = gcp_rows_to_cost_rows([_raw()], ["nnjl9fvczoruf"])
+    assert set(rows[0]) == {
+        "run_id", "session_id", "process", "hash",
+        "unblended_cost", "split_cost", "unused_cost",
+        "spot_cost", "ondemand_cost", "split_cost_present",
+        "cost", "used_cost",
+    }
+
+
+def test_single_basis_has_no_split_cost():
+    # GCP has no ECS split-cost-allocation analogue, so the second basis is always absent.
+    rows, _ = gcp_rows_to_cost_rows([_raw()], ["nnjl9fvczoruf"])
+    row = rows[0]
+    assert row["split_cost"] == 0.0
+    assert row["unused_cost"] == 0.0
+    assert row["split_cost_present"] == 0
+    assert row["cost"] == row["used_cost"] == row["unblended_cost"] == 10.0
+
+
+def test_run_id_remapped_to_canonical_case():
+    # Billing lowercases label values; Platform run ids are mixed case, and _load_cost_pools
+    # joins on an exact string.
+    rows, _ = gcp_rows_to_cost_rows([_raw(run_id="4bi5xbk6e2nbhj")], ["4Bi5xBK6E2Nbhj"])
+    assert rows[0]["run_id"] == "4Bi5xBK6E2Nbhj"
+
+
+def test_unknown_run_id_passes_through_unchanged():
+    rows, _ = gcp_rows_to_cost_rows([_raw(run_id="somebodyelse")], ["4Bi5xBK6E2Nbhj"])
+    assert rows[0]["run_id"] == "somebodyelse"
+
+
+def test_process_is_always_blank():
+    # There is no process-name label on GCP; the field exists only for schema parity.
+    rows, _ = gcp_rows_to_cost_rows([_raw()], ["nnjl9fvczoruf"])
+    assert rows[0]["process"] == ""
+
+
+def test_rows_without_a_run_id_are_dropped():
+    rows, _ = gcp_rows_to_cost_rows([_raw(run_id="", hash="5dbefa9a")], ["nnjl9fvczoruf"])
+    assert rows == []
+
+
+def test_dropped_google_batch_spend_is_reported():
+    # Spec D4: today this is ALL Google Batch spend, so silence would read as $0.
+    raw = [
+        _raw(run_id="", hash="5dbefa9a", unblended_cost=30.0, n_rows=100),
+        _raw(run_id="", hash="f7d4a430", unblended_cost=19.78, n_rows=200),
+        _raw(),
+    ]
+    rows, diagnostics = gcp_rows_to_cost_rows(raw, ["nnjl9fvczoruf"])
+    assert len(rows) == 1
+    assert diagnostics["unattributed_batch_cost"] == 49.78
+    assert diagnostics["unattributed_batch_rows"] == 300
+
+
+def test_rows_with_neither_run_id_nor_hash_are_not_counted_as_batch():
+    _, diagnostics = gcp_rows_to_cost_rows([_raw(run_id="", hash="", unblended_cost=5.0)], [])
+    assert diagnostics["unattributed_batch_cost"] == 0.0
+
+
+def test_attributed_google_batch_row_keeps_its_hash():
+    rows, diagnostics = gcp_rows_to_cost_rows(
+        [_raw(run_id="nnjl9fvczoruf", hash="5dbefa9a")], ["nnjl9fvczoruf"]
+    )
+    assert rows[0]["hash"] == "5dbefa9a"
+    assert diagnostics["unattributed_batch_cost"] == 0.0
+
+
+def test_purchase_option_split_stays_below_total():
+    rows, _ = gcp_rows_to_cost_rows([_raw()], ["nnjl9fvczoruf"])
+    row = rows[0]
+    assert row["spot_cost"] + row["ondemand_cost"] <= row["unblended_cost"]
