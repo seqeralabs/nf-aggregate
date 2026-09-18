@@ -1065,3 +1065,79 @@ def test_pr132_style_scheduler_vm_semantics(tmp_path):
     assert sched["schedulerOverbookCpuH"] == 1.0
     assert sched["vmPackingSlackCpuH"] == 3.0
     assert sched["realVmCpuEfficiency"] == 33.33
+
+
+def _run(run_id, group, **over):
+    base = {
+        "run_id": run_id, "group": group, "pipeline": "pipe", "username": "u",
+        "pipeline_version": "main", "nextflow_version": "24.10.0",
+        "platform_version": "x", "succeeded": 1, "failed": 0, "cached": 0,
+        "executor": "awsbatch", "region": "us-east-1", "fusion_enabled": False,
+        "wave_enabled": False, "container_engine": "docker", "duration_ms": 10,
+        "cpu_time_ms": 1000, "cpu_efficiency": 50.0, "memory_efficiency": 50.0,
+        "read_bytes": 0, "write_bytes": 0,
+    }
+    base.update(over)
+    return base
+
+
+def _task(run_id, group, **over):
+    base = {
+        "run_id": run_id, "group": group, "hash": "ab/cdef12",
+        "process": "foo:PROC_A", "process_short": "PROC_A", "name": "PROC_A",
+        "status": "COMPLETED", "staging_ms": 0, "realtime_ms": 1000,
+        "duration_ms": 1000, "cost": 9.0,
+    }
+    base.update(over)
+    return base
+
+
+def _write(jsonl_dir, runs, tasks, costs=None):
+    jsonl_dir.mkdir(parents=True, exist_ok=True)
+    (jsonl_dir / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in runs))
+    (jsonl_dir / "tasks.jsonl").write_text("".join(json.dumps(t) + "\n" for t in tasks))
+    if costs is not None:
+        (jsonl_dir / "costs.jsonl").write_text("".join(json.dumps(c) + "\n" for c in costs))
+
+
+def test_run_level_cost_is_used_when_no_task_matches(tmp_path):
+    """A VM run bills per instance, so its CUR rows carry no task hash."""
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    _write(
+        jsonl_dir,
+        [_run("run1", "vm")],
+        [_task("run1", "vm")],
+        [{"run_id": "run1", "process": "", "hash": "", "cost": 15.05,
+          "used_cost": 15.05, "unused_cost": 0.0}],
+    )
+    data = build_report_data(jsonl_dir)
+    assert data["run_costs"][0]["cost"] == 15.05
+
+
+def test_run_with_no_cost_data_is_null_not_zero(tmp_path):
+    """Absent cost must not read as free, or every other run is Infinity x dearer."""
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    _write(
+        jsonl_dir,
+        [_run("run1", "vm"), _run("run2", "batch")],
+        [_task("run1", "vm"), _task("run2", "batch", hash="zz/999999")],
+        [{"run_id": "run1", "process": "", "hash": "", "cost": 15.05,
+          "used_cost": 15.05, "unused_cost": 0.0}],
+    )
+    data = build_report_data(jsonl_dir)
+    costs = {c["group"]: c["cost"] for c in data["run_costs"]}
+    assert costs["vm"] == 15.05
+    assert costs["batch"] is None
+
+
+def test_zero_duration_runs_are_excluded_from_metrics_but_kept_in_summary(tmp_path):
+    """A run that died before recording a duration would render as a 0h bar."""
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    _write(
+        jsonl_dir,
+        [_run("ok", "a"), _run("dead", "b", duration_ms=None)],
+        [_task("ok", "a"), _task("dead", "b", hash="cd/ef3456")],
+    )
+    data = build_report_data(jsonl_dir)
+    assert {r["run_id"] for r in data["run_summary"]} == {"ok", "dead"}
+    assert {r["run_id"] for r in data["run_metrics"]} == {"ok"}
