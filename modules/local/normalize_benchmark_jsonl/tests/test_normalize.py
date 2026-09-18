@@ -912,3 +912,71 @@ def test_short_workflow_and_session_label_variant_is_attributed(tmp_path):
     assert [(r["run_id"], r["session_id"], r["cost"]) for r in rows] == [
         ("406PkyuDM3sf5r", "6f0d8a0d-0a15-4735-a448-32485bfafaa1", 0.2143)
     ]
+
+
+def _write_run(data_dir, run_id="4Bi5xBK6E2Nbhj"):
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / f"{run_id}.json").write_text(json.dumps({
+        "workflow": {
+            "id": run_id, "status": "SUCCEEDED", "runName": "r", "projectName": "p/q",
+            "sessionId": "92096d14-b89e-40f2-bbc8-71168f972329",
+            "duration": 1000, "stats": {"succeedCount": 1, "failedCount": 0, "cachedCount": 0},
+        },
+        "platform": {"id": "google-cloud"},
+        "tasks": [], "metrics": [],
+        "meta": {"id": run_id, "workspace": "org/ws", "group": "g"},
+    }))
+
+
+def test_gcp_billing_table_writes_costs_jsonl(tmp_path, monkeypatch):
+    import benchmark_report_normalize as mod
+
+    data_dir = tmp_path / "data"
+    _write_run(data_dir)
+    captured = {}
+
+    def fake_extract(billing_table, known_run_ids, cost_label_map=None, client=None):
+        captured["table"] = billing_table
+        captured["known"] = known_run_ids
+        return ([{"run_id": "4Bi5xBK6E2Nbhj", "session_id": "", "process": "", "hash": "",
+                  "unblended_cost": 7.0, "split_cost": 0.0, "unused_cost": 0.0,
+                  "spot_cost": 7.0, "ondemand_cost": 0.0, "split_cost_present": 0,
+                  "cost": 7.0, "used_cost": 7.0}],
+                {"unattributed_batch_cost": 0.0, "unattributed_batch_rows": 0})
+
+    monkeypatch.setattr(mod, "normalize_gcp_cost_rows", fake_extract)
+    out = tmp_path / "bundle"
+    mod.normalize_jsonl(data_dir=data_dir, output_dir=out, gcp_billing_table="p.d.t")
+
+    costs = [json.loads(line) for line in (out / "costs.jsonl").read_text().splitlines()]
+    assert costs[0]["cost"] == 7.0
+    assert captured["table"] == "p.d.t"
+    # The canonical run ids must reach the extractor, or the case remap cannot happen.
+    assert captured["known"] == ["4Bi5xBK6E2Nbhj"]
+
+
+def test_unattributed_batch_spend_is_warned_about(tmp_path, monkeypatch, capsys):
+    import benchmark_report_normalize as mod
+
+    data_dir = tmp_path / "data"
+    _write_run(data_dir)
+    monkeypatch.setattr(mod, "normalize_gcp_cost_rows", lambda *a, **k: (
+        [], {"unattributed_batch_cost": 49.78, "unattributed_batch_rows": 303227}))
+
+    mod.normalize_jsonl(data_dir=data_dir, output_dir=tmp_path / "bundle",
+                        gcp_billing_table="p.d.t")
+    stderr = capsys.readouterr().err
+    assert "49.78" in stderr
+    assert "resourceLabels" in stderr
+
+
+def test_both_cost_sources_is_an_error(tmp_path):
+    import benchmark_report_normalize as mod
+
+    data_dir = tmp_path / "data"
+    _write_run(data_dir)
+    cur = tmp_path / "cur.parquet"
+    cur.write_text("not really parquet")
+    with pytest.raises(ValueError, match="one cost source"):
+        mod.normalize_jsonl(data_dir=data_dir, output_dir=tmp_path / "bundle",
+                            costs_parquet=cur, gcp_billing_table="p.d.t")
