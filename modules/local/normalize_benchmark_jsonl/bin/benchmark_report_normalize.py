@@ -91,10 +91,10 @@ def extract_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for run in runs:
         wf = _run_workflow(run)
-        prog = run.get("progress", {}).get("workflowProgress", {})
+        prog = (run.get("progress") or {}).get("workflowProgress") or {}
         if not prog:
             prog = _compute_progress_from_tasks(run)
-        stats = wf.get("stats", {})
+        stats = wf.get("stats") or {}
         launch = run.get("launch", {}) or {}
         ce = run.get("computeEnv", {}) or {}
 
