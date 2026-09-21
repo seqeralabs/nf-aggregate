@@ -69,6 +69,39 @@ natural anchor for a future improvement: the launcher gives a run id and a time 
 which is what would make hash-based attribution of the task rows safe against the
 content-addressed collisions described in D4.
 
+### Two label producers, two separator conventions
+
+**Corrected 2026-09-21.** This design originally recorded that GCP run labels use dashes,
+generalising from the scheduler-written keys visible in the export at the time. That is
+true of the scheduler and false of user-declared labels, and the mistake silently
+discarded real money.
+
+- The **scheduler** sanitises its own keys with dashes: `seqera-io-platform-workflowid`,
+  `nextflow-io-sessionid`.
+- A user-declared `resourceLabels` map reaches Google **verbatim**. Nextflow rewrites only
+  auto-derived labels (`ResourceLabelPolicy` applies to those alone), and Google permits
+  `_`, so the Batch cost-tracking template lands as `unique_run_id`,
+  `pipeline_session_id`, `pipeline_process`, `task_hash`.
+
+Measured on 2026-09-21: `unique_run_id` carried 117,885 rows and **$29.26** across 4 Google
+Batch runs; `unique-run-id` carried 201 rows and $0.007. With only the dashed spellings
+aliased, that $29.26 was reported as unattributed and the runs showed $0.
+
+Both spellings are now aliased for every field. Neither is derivable from the other, so a
+new label source must be checked against a real export rather than assumed.
+
+### Google Batch can be attributed at task grain
+
+Following from the above: `pipeline_process` and `task_hash` are present on 100% of the
+rows carrying `unique_run_id`. So a Google Batch run with the cost-tracking template gets
+the same `(run_id, session_id, process, hash)` grain as AWS — 39-70 distinct processes per
+run in the real export — not the run-grain this design first assumed.
+
+`task_hash` is written as the full 32-character hash and truncated to 8 in SQL, matching
+`benchmark_report_aggregate.py:57` (`.replace("/", "")[:8]`). The `batch-job-id` regex
+remains the fallback for runs with no explicit label, which is what gives task grain with
+nothing configured at all.
+
 ### Label values are lowercased
 
 Workflow ids arrive as `nnjl9fvczoruf`, `5an9reqdq1wnnr` — 13–14 characters, all lowercase,
@@ -164,7 +197,7 @@ Identical to the AWS `costs.jsonl` contract, so nothing downstream changes:
 | --- | --- |
 | `run_id` | canonical-cased Platform workflow id |
 | `session_id` | `nextflow-io-sessionid` / `pipeline-session-id`, else `""` |
-| `process` | `""` — no process label exists on GCP |
+| `process` | `pipeline_process` when the run's `resourceLabels` set it, else `""` |
 | `hash` | 8-hex task hash from `batch-job-id`, else `""` |
 | `unblended_cost` | `SUM(cost)`, gross |
 | `split_cost`, `unused_cost` | `0.0` |

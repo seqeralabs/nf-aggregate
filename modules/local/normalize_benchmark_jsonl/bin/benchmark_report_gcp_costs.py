@@ -13,24 +13,50 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_GCP_COST_LABEL_ALIASES: dict[str, list[str]] = {
-    # Label keys AS THEY APPEAR IN A BILLING EXPORT. Unlike AWS there is no `user_` prefix,
-    # and — the trap — the separator is a DASH. These labels are applied by the Seqera
-    # scheduler, which sanitises with dashes; Nextflow's own ResourceLabelPolicy.GOOGLE
-    # sanitises with underscores. Verified against a real export (2026-09-18): 53,046 rows
-    # / $133.67 carried `seqera-io-platform-workflowid`, none carried an underscored form.
+    # TWO LABEL PRODUCERS, TWO SEPARATOR CONVENTIONS. Both have to resolve, and neither is
+    # derivable from the other:
     #
-    # `unique-run-id` is the AWS Batch cost-tracking blog template translated to GCP. It
-    # appeared on 177 rows / $0.007 — configured once, essentially unused — so it is tried
-    # after the scheduler label but kept, because it is the ONLY way a Google Batch row
-    # carries a run id at all.
-    "run_id": ["seqera-io-platform-workflowid", "unique-run-id", "workflow-id"],
-    # Session id survives `-resume` where every run-id label names one attempt only.
-    "session_id": ["nextflow-io-sessionid", "pipeline-session-id", "session-id"],
-    # NOT a user label: Google Batch stamps `batch-job-id` on every VM, disk and GPU it
-    # creates, and Nextflow's job id embeds the task hash
-    # (GoogleBatchTaskHandler.groovy:136). So the task grain is free on GCP, with nothing
-    # configured. There is no process-name equivalent, which is why `process` is always "".
-    "task_hash": ["batch-job-id"],
+    #   * The Seqera SCHEDULER tags the VMs it provisions and sanitises its own keys with
+    #     DASHES -- `seqera-io-platform-workflowid`, `nextflow-io-sessionid`.
+    #   * A user-declared `resourceLabels` map is handed to Google VERBATIM. Nextflow never
+    #     rewrites user labels (only auto-derived ones go through ResourceLabelPolicy), and
+    #     Google permits `_`, so the Batch cost-tracking template lands with UNDERSCORES --
+    #     `unique_run_id`, `pipeline_session_id`, `pipeline_process`, `task_hash`.
+    #
+    # Measured in a real export on 2026-09-21: `unique_run_id` carried 117,885 rows and
+    # $29.26 across 4 Google Batch runs, while `unique-run-id` carried 201 rows and $0.007.
+    # An earlier version of this file listed only the dashed spellings, so that $29.26 was
+    # silently discarded as unattributed. Never infer one spelling from the other.
+    #
+    # Google also lowercases label VALUES, so a Platform run id `4Bi5xBK6E2Nbhj` is billed
+    # as `4bi5xbk6e2nbhj` -- see gcp_rows_to_cost_rows for the canonical-case remap.
+    "run_id": [
+        "seqera-io-platform-workflowid",
+        "unique_run_id",
+        "unique-run-id",
+        "workflow_id",
+        "workflow-id",
+    ],
+    # Session id survives `-resume`, where every run-id label names one attempt only.
+    "session_id": [
+        "nextflow-io-sessionid",
+        "pipeline_session_id",
+        "pipeline-session-id",
+        "session_id",
+        "session-id",
+    ],
+    # Present on every labelled Google Batch row in the real export. The scheduler does not
+    # emit it, so a scheduler run simply resolves to '' -- run-grain, as before.
+    "process": ["pipeline_process", "pipeline-process"],
+    # The explicit hash label, written by the user's template as the FULL 32-char hash.
+    # Truncated to 8 in SQL to match the grain the aggregator keys on
+    # (`benchmark_report_aggregate.py:57` -> `.replace("/", "")[:8]`).
+    "task_hash": ["task_hash", "task-hash"],
+    # NOT a user label and not interchangeable with the above: Google Batch stamps this on
+    # every VM, disk and GPU it creates, and Nextflow's job id embeds the task hash
+    # (GoogleBatchTaskHandler.groovy:136). It needs a regex, not a plain read, which is why
+    # it is its own field. It is the fallback that gives task grain with nothing configured.
+    "batch_job_id": ["batch-job-id"],
 }
 
 # `nf-<hash>-<millis>`; the hash is Nextflow's short task hash with the `/` removed.
@@ -164,7 +190,12 @@ def build_gcp_cost_query(table: str, aliases: dict[str, list[str]]) -> str:
     """
     run_id_expr = _label_expr(aliases["run_id"])
     session_expr = _label_expr(aliases["session_id"])
-    hash_expr = _label_expr(aliases["task_hash"])
+    process_expr = _label_expr(aliases["process"])
+    # An explicit `task_hash` label is exact and is tried first; the Batch job id needs a
+    # regex and only exists for Google Batch, so it is the fallback. Both are truncated to
+    # the same 8 characters, so a run carrying both groups identically either way.
+    explicit_hash_expr = _label_expr(aliases["task_hash"])
+    job_id_expr = _label_expr(aliases["batch_job_id"])
 
     # PURCHASE OPTION IS GATED TO MACHINE SKUs, for the same reason the AWS extractor gates
     # on line_item_usage_type: the disks and networking Google labels to the same run are
@@ -179,7 +210,11 @@ def build_gcp_cost_query(table: str, aliases: dict[str, list[str]]) -> str:
                 cost,
                 {run_id_expr}  AS run_id_raw,
                 {session_expr} AS session_id_raw,
-                REGEXP_EXTRACT({hash_expr}, r'^nf-([0-9a-f]+)-[0-9]+$') AS hash_raw,
+                COALESCE(
+                    SUBSTR({explicit_hash_expr}, 1, 8),
+                    SUBSTR(REGEXP_EXTRACT({job_id_expr}, r'^nf-([0-9a-f]+)-[0-9]+$'), 1, 8)
+                )                                          AS hash_raw,
+                {process_expr} AS process_raw,
                 {is_machine} AS is_machine,
                 {is_spot}    AS is_spot
             FROM `{table}`
@@ -187,15 +222,16 @@ def build_gcp_cost_query(table: str, aliases: dict[str, list[str]]) -> str:
         SELECT
             IFNULL(run_id_raw, '')            AS run_id,
             IFNULL(session_id_raw, '')        AS session_id,
-            IFNULL(SUBSTR(hash_raw, 1, 8), '') AS `hash`,
+            IFNULL(process_raw, '')           AS process,
+            IFNULL(hash_raw, '')              AS `hash`,
             SUM(cost)                          AS unblended_cost,
             SUM(IF(is_machine AND is_spot, cost, 0.0))     AS spot_cost,
             SUM(IF(is_machine AND NOT is_spot, cost, 0.0)) AS ondemand_cost,
             COUNT(*)                           AS n_rows
         FROM labelled
         WHERE run_id_raw IS NOT NULL OR hash_raw IS NOT NULL
-        GROUP BY 1, 2, 3
-        ORDER BY 1, 2, 3
+        GROUP BY 1, 2, 3, 4
+        ORDER BY 1, 2, 3, 4
     """
 
 
@@ -249,9 +285,9 @@ def gcp_rows_to_cost_rows(
         cost_rows.append({
             "run_id": canonical.get(run_id.lower(), run_id),
             "session_id": str(row.get("session_id") or ""),
-            # No process label exists on GCP. The field is kept so the row schema is
-            # identical to the AWS one and _load_cost_pools needs no branch.
-            "process": "",
+            # `pipeline_process` when the run's resourceLabels set it (Google Batch with the
+            # cost-tracking template), '' otherwise (scheduler runs, which are run-grain).
+            "process": str(row.get("process") or ""),
             "hash": hash_short,
             "unblended_cost": round(total, 10),
             # GCP has no ECS split-cost-allocation analogue, so there is no second basis

@@ -7,18 +7,72 @@ from benchmark_report_gcp_costs import (
 )
 
 
-def test_default_aliases_use_dash_separators():
-    # The Seqera scheduler sanitises label keys with dashes, NOT the underscores
-    # Nextflow's own ResourceLabelPolicy.GOOGLE would produce. Verified against a real
-    # export: `seqera-io-platform-workflowid`, never `seqera_io_platform_workflowid`.
+def test_default_aliases_cover_both_separators():
+    """Two label producers, two separator conventions — both must resolve.
+
+    The Seqera scheduler writes its own keys with DASHES
+    (`seqera-io-platform-workflowid`). A user-declared `resourceLabels` map is passed to
+    Google VERBATIM — Nextflow never rewrites user labels, and Google permits underscores —
+    so the Batch cost-tracking template lands as `unique_run_id`, `pipeline_session_id`,
+    `pipeline_process`, `task_hash`.
+
+    An earlier version of this file asserted no alias contained an underscore. That was
+    wrong, and it cost $29.26 of real Google Batch spend across 4 runs, silently dropped as
+    unattributed because the reader only looked for `unique-run-id`.
+    """
     assert DEFAULT_GCP_COST_LABEL_ALIASES["run_id"][0] == "seqera-io-platform-workflowid"
     assert DEFAULT_GCP_COST_LABEL_ALIASES["session_id"][0] == "nextflow-io-sessionid"
-    assert DEFAULT_GCP_COST_LABEL_ALIASES["task_hash"] == ["batch-job-id"]
-    assert not any(
-        "_" in alias
-        for aliases in DEFAULT_GCP_COST_LABEL_ALIASES.values()
-        for alias in aliases
+    # Both spellings, for every field a user-declared template can set.
+    for field, dashed, scored in [
+        ("run_id", "unique-run-id", "unique_run_id"),
+        ("session_id", "pipeline-session-id", "pipeline_session_id"),
+        ("process", "pipeline-process", "pipeline_process"),
+        ("task_hash", "task-hash", "task_hash"),
+    ]:
+        assert dashed in DEFAULT_GCP_COST_LABEL_ALIASES[field], f"{field} missing {dashed}"
+        assert scored in DEFAULT_GCP_COST_LABEL_ALIASES[field], f"{field} missing {scored}"
+    # The Batch job id is its own field: it needs regex extraction, not a plain read.
+    assert DEFAULT_GCP_COST_LABEL_ALIASES["batch_job_id"] == ["batch-job-id"]
+
+
+def test_query_reads_the_underscore_label_keys():
+    """The regression guard for the miss above: these exact keys must appear in the SQL."""
+    sql = build_gcp_cost_query("p.d.t", DEFAULT_GCP_COST_LABEL_ALIASES)
+    for key in ("unique_run_id", "pipeline_session_id", "pipeline_process", "task_hash"):
+        assert f"l.key = '{key}'" in sql, f"query never reads {key}"
+
+
+def test_query_prefers_an_explicit_task_hash_over_the_batch_job_id():
+    """An explicit `task_hash` label is exact; the job id needs a regex and can be absent.
+
+    Both truncate to 8 characters, which is the grain the aggregator keys on
+    (`benchmark_report_aggregate.py:57` does `.replace("/", "")[:8]`).
+    """
+    sql = build_gcp_cost_query("p.d.t", DEFAULT_GCP_COST_LABEL_ALIASES)
+    hash_expr = sql[sql.index("AS hash_raw")-700:sql.index("AS hash_raw")]
+    assert "task_hash" in hash_expr
+    assert "nf-([0-9a-f]+)" in hash_expr
+    assert hash_expr.index("task_hash") < hash_expr.index("nf-([0-9a-f]+)"), \
+        "explicit task_hash must be tried before the batch-job-id regex"
+
+
+def test_process_label_is_carried_not_blanked():
+    """`pipeline_process` exists on every labelled Google Batch row in the real export.
+
+    The original implementation hardcoded `process: ""` on the belief that GCP had no
+    process label. It does, so blanking it threw away task-grain attribution.
+    """
+    rows, _ = gcp_rows_to_cost_rows(
+        [_raw(process="nfcore_rnaseq_align", hash="602fa449")], ["nnjl9fvczoruf"]
     )
+    assert rows[0]["process"] == "nfcore_rnaseq_align"
+    assert rows[0]["hash"] == "602fa449"
+
+
+def test_process_absent_stays_blank():
+    """A scheduler run carries no process label; blank must still be the answer there."""
+    rows, _ = gcp_rows_to_cost_rows([_raw()], ["nnjl9fvczoruf"])
+    assert rows[0]["process"] == ""
 
 
 @pytest.mark.parametrize(
