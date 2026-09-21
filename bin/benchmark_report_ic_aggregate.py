@@ -212,6 +212,20 @@ def _classify_missing_cost(reference_ts: Any, now: datetime) -> str:
     return "not_found"
 
 
+def _cost_source(jsonl_dir: Path) -> str | None:
+    """Which cloud's billing export produced ``costs.jsonl``, or None if there is none.
+
+    This is NOT cosmetic: it decides whether the report has one cost basis or two, so it
+    has to come from the data rather than a guess. The GCP extractor stamps every row with
+    ``source``; AWS CUR rows predate the field and carry none, so an absent value means
+    ``aws_cur``. Reading only the first row is enough — a bundle is produced by exactly one
+    extractor, and mixing two clouds' exports is refused back in ``normalize_jsonl``.
+    """
+    for row in _iter_jsonl(jsonl_dir / "costs.jsonl"):
+        return str(row.get("source") or "aws_cur")
+    return None
+
+
 def _purchase_option_split(
     detail: dict[str, Any] | None, compute_type: str
 ) -> tuple[float | None, float | None, float | None]:
@@ -225,15 +239,18 @@ def _purchase_option_split(
     emits those rows with the purchase option blank, so a split-based version would exist only
     on ECS and would silently change basis between runs.
 
-    Intelligent Compute only. AWS Batch labels its ECS tasks but never the machines underneath,
-    so no purchase option can be attributed to a Batch run — reporting 0% spot for it would
-    state "used no spot" when the truth is "not measurable from this export". All three values
-    are None for Batch, and for an IC run whose export carries no machine rows yet.
+    Gated on whether the run HAS machine rows, not on which engine it is. That distinction
+    matters per cloud: on AWS, Batch labels its ECS tasks but never the machines underneath,
+    so its spot/on-demand are structurally zero and it correctly reports nothing — reporting
+    0% spot would state "used no spot" when the truth is "not measurable from this export".
+    On GCP, Batch VMs carry spot SKUs like any other, so a Batch run has a real, measurable
+    split and an engine-name gate would throw it away. The zero-machine check delivers the
+    AWS behaviour without asserting anything about engines.
 
     Note ``spot + ondemand`` is the run's MACHINE spend, which is less than its ``cost``: the
     EBS volumes and data transfer tagged to the same run are not machine rental.
     """
-    if detail is None or compute_type != "intelligent_compute":
+    if detail is None:
         return None, None, None
     spot = round(detail["spot_cost"], 4)
     ondemand = round(detail["ondemand_cost"], 4)
@@ -298,6 +315,9 @@ def build_ic_report_data(
     lineage = _load_run_lineage(jsonl_dir)
     pools = _load_cost_pools(jsonl_dir, lineage)
     cost_details = pools["by_run"]
+    # Decides the basis rule below, so it is resolved once before any run is priced.
+    cost_source = _cost_source(jsonl_dir)
+    single_basis = cost_source == "gcp_billing"
     session_owners = pools["owners"]
     now = datetime.now(timezone.utc)
 
@@ -376,9 +396,24 @@ def build_ic_report_data(
             split_present = bool(detail["split_cost_present"])
             billed = round(detail["unblended_cost"], 4)
             cost = billed if billed else None
-            comparable_cost = (
-                round(detail["split_cost"] + detail["unused_cost"], 4) if split_present else None
-            )
+            # ONE BASIS OR TWO, decided by the cloud rather than the engine.
+            #
+            # AWS emits two bases that describe the same compute and must never be summed,
+            # and they fall on opposite engines: Intelligent Compute has the billed instance
+            # charge, Batch has only the ECS split figure. The comparison views therefore run
+            # on the split basis, the only one Batch reports.
+            #
+            # GCP has no split-cost analogue at all. Both engines bill on the VM charge, so
+            # the billed figure IS the comparable one and there is no second basis to fall
+            # back to. Leaving comparable_cost null here — which is what shipping the AWS
+            # rule unchanged did — emptied every comparison chart on a GCP report while each
+            # run plainly had comparable cost sitting in the run table beside it.
+            if single_basis:
+                comparable_cost = cost
+            else:
+                comparable_cost = (
+                    round(detail["split_cost"] + detail["unused_cost"], 4) if split_present else None
+                )
             used_cost = round(detail["split_cost"], 4) if split_present else None
             unused_cost = round(detail["unused_cost"], 4) if split_present else None
             cost_status = "available"
@@ -403,10 +438,16 @@ def build_ic_report_data(
             earlier_attempts = len(billed_attempts - {run_id})
             session_billed = round(session_pool["unblended_cost"], 4)
             session_cost = session_billed if session_billed else None
+            # Same one-basis rule as above, so a pooled lineage is comparable wherever the
+            # attempt beside it is.
             session_comparable_cost = (
-                round(session_pool["split_cost"] + session_pool["unused_cost"], 4)
-                if session_pool["split_cost_present"]
-                else None
+                session_cost
+                if single_basis
+                else (
+                    round(session_pool["split_cost"] + session_pool["unused_cost"], 4)
+                    if session_pool["split_cost_present"]
+                    else None
+                )
             )
         else:
             attempts = 1
@@ -557,7 +598,7 @@ def build_ic_report_data(
             "n_intelligent_compute": n_ic,
             "n_batch": n_batch,
             # "aws_cur" when real CUR costs were joined onto at least one run, else None.
-            "cost_source": "aws_cur" if cost_details else None,
+            "cost_source": cost_source if cost_details else None,
             # Whether a CUR export was supplied at all (distinguishes "no cost analysis"
             # from "analysis on, but nothing matched this set of runs").
             "cur_supplied": cur_supplied,

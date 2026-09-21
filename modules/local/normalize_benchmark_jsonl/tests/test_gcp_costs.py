@@ -197,6 +197,8 @@ def test_emits_the_aws_cost_row_schema():
         "unblended_cost", "split_cost", "unused_cost",
         "spot_cost", "ondemand_cost", "split_cost_present",
         "cost", "used_cost",
+        # Provenance: the IC aggregator reads this to decide one cost basis vs two.
+        "source",
     }
 
 

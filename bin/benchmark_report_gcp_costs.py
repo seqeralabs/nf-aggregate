@@ -299,6 +299,11 @@ def gcp_rows_to_cost_rows(
             "split_cost_present": 0,
             "cost": round(total, 10),
             "used_cost": round(total, 10),
+            # Provenance travels with the rows, because it decides a REPORTING rule rather
+            # than being a label: GCP has one cost basis where AWS has two, so the aggregator
+            # has to know which export it is reading (see _cost_source). AWS CUR rows predate
+            # this field and its absence is what identifies them.
+            "source": "gcp_billing",
         })
 
     return cost_rows, {

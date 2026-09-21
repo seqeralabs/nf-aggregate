@@ -141,10 +141,33 @@ GCP has no ECS split-cost-allocation analogue, so the double-count that forced
 `unblended_cost = cost = used_cost = SUM(billing.cost)` and leaves `split_cost`,
 `unused_cost` and `split_cost_present` at zero.
 
-The consequence is a *simplification* the report gets for free: on GCP both engines report
-on the same VM-charge basis, so they are directly comparable and `comparable_cost` is
-unnecessary. The IC template renders a blank `comparable_cost` cell, which it already does
-for IC-on-VM runs, and which already means "this basis does not exist for this run".
+The consequence is a *simplification*: on GCP both engines report on the same VM-charge
+basis, so they are directly comparable.
+
+**Implemented 2026-09-21, after shipping it wrong.** The original change stopped at "so
+`comparable_cost` is unnecessary" and left the field null, reasoning that a blank cell
+already means "this basis does not exist". It does — but every cross-engine comparison view
+selects on `comparable_cost` and omits runs lacking it, so a GCP report rendered "No
+comparable cost data" in the Cost section while each run plainly showed cost in the table
+beside it. The comparison is the point of the report, so a null there is not a cosmetic gap.
+
+The aggregator now resolves the basis rule from the cost source rather than the engine:
+`comparable_cost = cost` when `cost_source == "gcp_billing"`, unchanged on AWS. Verified on
+the real export: `n_runs_comparable_cost` went from 0 to 6 across 2 scheduler and 4 Batch
+runs.
+
+This makes `cost_source` load-bearing rather than descriptive, so it is now derived from a
+`source` field stamped on every GCP cost row instead of being hardcoded to `"aws_cur"`.
+
+### The purchase-option split is gated on machine rows, not on engine
+
+Same class of mistake, same fix. `_purchase_option_split` withheld spot/on-demand unless the
+run was Intelligent Compute. That is right on AWS — Batch labels no machines, so a 0% spot
+reading would be a false claim — but wrong on GCP, where Batch VMs carry spot SKUs and the
+figure is real. The gate is now "does this run have machine spend", which delivers the AWS
+behaviour from the data (Batch instance rows carry no run tag, so its machine spend is
+structurally zero) without asserting anything about engines. Verified: `n_runs_purchase_option`
+went from 2 to 6, with the four Batch runs reporting 100% spot against the scheduler's 95-96%.
 
 ### D2 — Gross cost, credits excluded
 
