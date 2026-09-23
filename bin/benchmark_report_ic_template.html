@@ -258,7 +258,7 @@
     <div class="overview">
       <div class="stat accent"><div class="n">{{ ic_overview.n_runs }}</div><div class="l">Total runs</div></div>
       <div class="stat"><div class="n">{{ ic_overview.n_intelligent_compute }}</div><div class="l">Seqera Intelligent Compute</div></div>
-      <div class="stat"><div class="n">{{ ic_overview.n_batch }}</div><div class="l">AWS Batch</div></div>
+      <div class="stat"><div class="n">{{ ic_overview.n_batch }}</div><div class="l">Batch</div></div>
       <div class="stat" id="stat-cost">
         <div class="n muted">—</div>
         <div class="l">Total cost (CUR)<span class="help" data-help="Total spend across every run, from the AWS Cost &amp; Usage Report. Intelligent Compute runs contribute what AWS billed for their machines; AWS Batch runs contribute their ECS split figure, the only basis AWS reports for them. That mixes a billed charge with an amortized allocation, so read it as the best available total rather than an invoice line. The Intelligent Compute split figure below is another view of that same spend, not an addition to it.">?</span></div>
@@ -307,7 +307,7 @@
       </span>
       <span class="hint rchart-ctl" id="resource-chart-hint" style="display:none">
         <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--ic);vertical-align:middle"></span> Seqera Intelligent Compute &nbsp;
-        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--batch);vertical-align:middle"></span> AWS Batch
+        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--batch);vertical-align:middle"></span> Batch
         &nbsp;·&nbsp;
         <span style="display:inline-block;width:11px;height:9px;border-radius:2px;vertical-align:middle;background:#8a8f92;background-image:repeating-linear-gradient(-45deg,transparent,transparent 1.5px,rgba(255,255,255,.7) 1.5px,rgba(255,255,255,.7) 3px)"></span> Requested &nbsp;
         <span style="display:inline-block;width:11px;height:9px;border-radius:2px;vertical-align:middle;background:#8a8f92"></span> Effective
@@ -591,7 +591,7 @@ window.addEventListener("resize", () => {
           : "ECS split cost allocation, shown so it can be read against AWS Batch below. This is an alternative view of the billed cost above, NOT extra spend, so it is not part of the total. Amortized, so not directly comparable with the billed figure."));
     }
     if (has("batch")) {
-      out.push(row("dot-batch", "AWS Batch &middot; split",
+      out.push(row("dot-batch", "Batch &middot; split",
         figure(of(comparable, "batch"), comparableCost),
         "ECS split cost allocation. AWS Batch labels only its tasks, never the machines underneath, so this is the only basis it reports - there is no billed machine charge for it."));
     }
@@ -707,7 +707,7 @@ function tableSizing(runs) {
         formatter: (cell) => { const r = cell.getRow().getData(); const id = r.run_url ? '<a href="' + esc(r.run_url) + '" target="_blank" rel="noopener">' + esc(r.run_id) + '</a>' : esc(r.run_id); return id + resumeBadge(r); } },
       {% if show_group %}{ title: "Group", field: "group", headerFilter: "input" },{% endif %}
       { title: "Compute type", field: "compute_type", headerFilter: "input",
-        formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
+        formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">Batch</span>' },
       { title: "Started", field: "started_at", headerFilter: "input", sorter: "string",
         formatter: (cell) => { const v = cell.getValue(); return v ? String(v).replace("T", " ").slice(0, 16) : '<span class="muted">&mdash;</span>'; } },
       // Executed vs cached tasks. Cached tasks are why a resumed run's cost has to be pooled
@@ -772,7 +772,7 @@ function tableSizing(runs) {
       { title: "Run ID", field: "run_id", headerFilter: "input", minWidth: 130, widthGrow: 2,
         formatter: (cell) => { const r = cell.getRow().getData(); return r.run_url ? '<a href="' + esc(r.run_url) + '" target="_blank" rel="noopener">' + esc(r.run_id) + '</a>' : esc(r.run_id); } },
       { title: "Compute type", field: "compute_type", headerFilter: "input", minWidth: 150, widthGrow: 2,
-        formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">AWS Batch</span>' },
+        formatter: (cell) => cell.getValue() === "intelligent_compute" ? '<span class="badge ic">Seqera Intelligent Compute</span>' : '<span class="badge batch">Batch</span>' },
       { title: helpTitle("CPU req (vCPU-h)", "Requested CPU — how much CPU the run asked for. Measured in vCPU-hours: one virtual CPU busy for one hour."),
         field: "req_cpu_vcpu_h", titleFormatter: "html", hozAlign: "right", sorter: "number", minWidth: helpMinWidth("CPU req (vCPU-h)"), formatter: num(2) },
       { title: helpTitle("CPU eff (vCPU-h)", "Effective CPU — how much CPU was actually used, from measured utilisation. Well below requested means the run reserved more CPU than it needed."),
@@ -845,7 +845,7 @@ function tableSizing(runs) {
         tooltip: { trigger: "axis", axisPointer: { type: "shadow" },
           formatter: (ps) => {
             const i = ps[0].dataIndex;
-            const eng = isIc[i] ? "Seqera Intelligent Compute" : "AWS Batch";
+            const eng = isIc[i] ? "Seqera Intelligent Compute" : "Batch";
             return esc(rows[i].run_id) + '<br/><span style="color:' + colorOf(i) + '">● ' + eng + "</span><br/>" +
               ps.map((s) => s.seriesName + ": <b>" + Number(s.value || 0).toFixed(m.dp) + m.unit + "</b>").join("<br/>");
           } },
@@ -927,7 +927,7 @@ function tableSizing(runs) {
 
   const ENGINES = [
     { key: "intelligent_compute", label: "Seqera Intelligent Compute" },
-    { key: "batch", label: "AWS Batch" },
+    { key: "batch", label: "Batch" },
   ];
   const pipelines = [];
   const runsByPipeline = {};
@@ -1121,7 +1121,7 @@ function tableSizing(runs) {
     }
     if (batch.length) {
       series.push({
-        name: "AWS Batch",
+        name: "Batch",
         type: "line",
         data: batch,
         showSymbol: true,
@@ -1334,7 +1334,7 @@ function tableSizing(runs) {
         yAxis: { type: "category", data: labels, inverse: true, axisLabel: { fontSize: 11, width: 150, overflow: "truncate" } },
         series: [
           { name: "Seqera Intelligent Compute", type: "bar", stack: "t", barMaxWidth: 22, data: icData, itemStyle: { color: IC_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
-          { name: "AWS Batch", type: "bar", stack: "t", barMaxWidth: 22, data: bData, itemStyle: { color: BATCH_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
+          { name: "Batch", type: "bar", stack: "t", barMaxWidth: 22, data: bData, itemStyle: { color: BATCH_COLOR, borderRadius: [0, 3, 3, 0] }, label: barLabel },
         ],
       };
       lazyChart(el, () => { const chart = echarts.init(el, "seqera"); chart.setOption(opt); charts.run.push(chart); });

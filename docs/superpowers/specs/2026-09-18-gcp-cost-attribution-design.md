@@ -1,0 +1,258 @@
+# GCP cost attribution design
+
+- Status: accepted
+- Date: 2026-09-18
+- Scope: Google Cloud only. Azure is explicitly out of scope — see "Why not Azure".
+
+## Summary
+
+Teach the Intelligent Compute report to read real per-run costs from a Google Cloud
+Billing BigQuery export, so a Google Batch run and a Seqera scheduler (SIC) run can be
+compared on money as well as on time and resources.
+
+The whole change lands *behind* `costs.jsonl`. That file is the seam between cost
+extraction and everything that consumes cost: `_load_cost_pools`
+(`bin/benchmark_report_aggregate.py:160`) joins it on `run_id`, and the IC aggregator and
+template read only its output. A GCP source that emits the same row schema therefore
+needs no downstream change at all.
+
+## Findings from the real export
+
+Measured against `tower-cloud-testing.all_billing_data.gcp_billing_export_v1_01F197_9D74B5_BC674D`
+on 2026-09-18 (30 days of data, 368,714 rows, $414 MB).
+
+### The export is the *standard* one, and it expires
+
+The table has no `resource` field, so there is no per-VM instance id — only the
+`labels` / `system_labels` repeated structs. `timePartitioning.expirationMs` is
+`2592000000`, so **partitions expire after 30 days**. Any report covering older runs needs
+a second, unexpired sink. The report must not silently present a truncated window as
+complete.
+
+### Two engines, two different label sets, no overlap
+
+| Population | Rows | Cost | Run identifier |
+| --- | ---: | ---: | --- |
+| Scheduler (SIC) | 51,115 | $133.67 | `seqera-io-platform-workflowid`, `nextflow-io-sessionid` |
+| Google Batch | 303,227 | $49.78 | **none** — only `batch-job-id` |
+| Untagged | 7,921 | $85.31 | — (E2 dev VMs, unattached disks, external IPs) |
+
+The scheduler tags the VMs it provisions itself (`managed-by: seqera-sched`,
+`seqera-sched-cluster-id`), carrying the full `nextflow-io-*` / `seqera-io-platform-*` set.
+This is *not* Nextflow's `ResourceLabelPolicy.GOOGLE`, which sanitises with underscores;
+the scheduler uses dashes. So the GCP alias list is its own thing, never a transform of
+the AWS one.
+
+Google Batch rows carry `batch-job-id` only. Nextflow's job id is
+`"nf-${task.hashLog.replace('/','')}-${currentTimeMillis()}"`
+(`GoogleBatchTaskHandler.groovy:136`), e.g. `nf-5dbefa9a-1789649298737` — the embedded
+8-hex string is exactly the task-hash grain `_normalize_cost_rows` already keys on. Batch
+also stamps that label on every VM, disk and GPU it creates, so disks are attributed too.
+
+`unique-run-id` / `pipeline-session-id` (the AWS Batch blog template, translated) exist on
+177 rows totalling **$0.007** — configured once, essentially unused.
+
+### The Google Batch head job carries a run id, the task jobs do not
+
+Found while validating the built query against the real export. Head-job rows have a
+`batch-job-id` of the form `nf-launcher-<workflowId>-<suffix>` — e.g.
+`nf-launcher-3v7jt5m24puabz-1d630` — where the embedded string is a Platform workflow id in
+the same 13-14 character lowercase base62 shape the scheduler labels carry. Task jobs are
+`nf-<taskHash>-<millis>` and carry no run id at all.
+
+Measured: head jobs are $3.47 across 3,934 rows; task jobs are $46.30 across 299,293 rows.
+
+**Deliberately not used.** Attributing the launcher alone would give a Google Batch run a
+small, confident-looking figure that is roughly 7% of what it actually cost — worse than a
+blank plus a warning, because it reads as complete. It is recorded here because it is the
+natural anchor for a future improvement: the launcher gives a run id and a time window,
+which is what would make hash-based attribution of the task rows safe against the
+content-addressed collisions described in D4.
+
+### Two label producers, two separator conventions
+
+**Corrected 2026-09-21.** This design originally recorded that GCP run labels use dashes,
+generalising from the scheduler-written keys visible in the export at the time. That is
+true of the scheduler and false of user-declared labels, and the mistake silently
+discarded real money.
+
+- The **scheduler** sanitises its own keys with dashes: `seqera-io-platform-workflowid`,
+  `nextflow-io-sessionid`.
+- A user-declared `resourceLabels` map reaches Google **verbatim**. Nextflow rewrites only
+  auto-derived labels (`ResourceLabelPolicy` applies to those alone), and Google permits
+  `_`, so the Batch cost-tracking template lands as `unique_run_id`,
+  `pipeline_session_id`, `pipeline_process`, `task_hash`.
+
+Measured on 2026-09-21: `unique_run_id` carried 117,885 rows and **$29.26** across 4 Google
+Batch runs; `unique-run-id` carried 201 rows and $0.007. With only the dashed spellings
+aliased, that $29.26 was reported as unattributed and the runs showed $0.
+
+Both spellings are now aliased for every field. Neither is derivable from the other, so a
+new label source must be checked against a real export rather than assumed.
+
+### Google Batch can be attributed at task grain
+
+Following from the above: `pipeline_process` and `task_hash` are present on 100% of the
+rows carrying `unique_run_id`. So a Google Batch run with the cost-tracking template gets
+the same `(run_id, session_id, process, hash)` grain as AWS — 39-70 distinct processes per
+run in the real export — not the run-grain this design first assumed.
+
+`task_hash` is written as the full 32-character hash and truncated to 8 in SQL, matching
+`benchmark_report_aggregate.py:57` (`.replace("/", "")[:8]`). The `batch-job-id` regex
+remains the fallback for runs with no explicit label, which is what gives task grain with
+nothing configured at all.
+
+### Label values are lowercased
+
+Workflow ids arrive as `nnjl9fvczoruf`, `5an9reqdq1wnnr` — 13–14 characters, all lowercase,
+against mixed-case Platform ids. The join must be case-insensitive.
+
+### Spot is measurable on both engines
+
+`REGEXP_CONTAINS(sku.description, r"(?i)spot|preemptible")` splits cleanly:
+
+| Engine | Spot | Non-spot |
+| --- | ---: | ---: |
+| Scheduler | $79.58 | $54.08 |
+| Google Batch | $34.67 | $15.10 |
+
+So the AWS `_purchase_option_split` IC-only gate does **not** carry over. On GCP the
+purchase option is a property of the SKU, available for both engines.
+
+The AWS *usage-type* gate does carry over, though, and for the same reason: the split must
+count machine rental only. Disks and networking are labelled to the same run (~$20 of disk
+across both engines in the export) and are not machine rental, so `spot_cost` and
+`ondemand_cost` are summed over SKUs matching `instance (core|ram)` only. As on AWS,
+`spot_cost + ondemand_cost < unblended_cost` is therefore expected, never a bug.
+
+### `system_labels` carries the machine spec
+
+`compute.googleapis.com/machine_spec` is present on 70,582 Compute Engine rows with 105
+distinct values, alongside `cores` and `memory`. Not consumed by this design, but it means
+the machine-type distribution could later be sourced from billing rather than from task
+records.
+
+## Design decisions
+
+### D1 — One cost basis, no split/unused
+
+GCP has no ECS split-cost-allocation analogue, so the double-count that forced
+`unblended_cost` and `split_cost` apart on AWS cannot occur. A GCP cost row sets
+`unblended_cost = cost = used_cost = SUM(billing.cost)` and leaves `split_cost`,
+`unused_cost` and `split_cost_present` at zero.
+
+The consequence is a *simplification*: on GCP both engines report on the same VM-charge
+basis, so they are directly comparable.
+
+**Implemented 2026-09-21, after shipping it wrong.** The original change stopped at "so
+`comparable_cost` is unnecessary" and left the field null, reasoning that a blank cell
+already means "this basis does not exist". It does — but every cross-engine comparison view
+selects on `comparable_cost` and omits runs lacking it, so a GCP report rendered "No
+comparable cost data" in the Cost section while each run plainly showed cost in the table
+beside it. The comparison is the point of the report, so a null there is not a cosmetic gap.
+
+The aggregator now resolves the basis rule from the cost source rather than the engine:
+`comparable_cost = cost` when `cost_source == "gcp_billing"`, unchanged on AWS. Verified on
+the real export: `n_runs_comparable_cost` went from 0 to 6 across 2 scheduler and 4 Batch
+runs.
+
+This makes `cost_source` load-bearing rather than descriptive, so it is now derived from a
+`source` field stamped on every GCP cost row instead of being hardcoded to `"aws_cur"`.
+
+### The purchase-option split is gated on machine rows, not on engine
+
+Same class of mistake, same fix. `_purchase_option_split` withheld spot/on-demand unless the
+run was Intelligent Compute. That is right on AWS — Batch labels no machines, so a 0% spot
+reading would be a false claim — but wrong on GCP, where Batch VMs carry spot SKUs and the
+figure is real. The gate is now "does this run have machine spend", which delivers the AWS
+behaviour from the data (Batch instance rows carry no run tag, so its machine spend is
+structurally zero) without asserting anything about engines. Verified: `n_runs_purchase_option`
+went from 2 to 6, with the four Batch runs reporting 100% spot against the scheduler's 95-96%.
+
+### D2 — Gross cost, credits excluded
+
+`cost` is taken gross. Credits are not subtracted.
+
+The rationale is comparability: a negotiated discount that happens to apply to one engine
+and not the other would taint a Batch-vs-SIC comparison, and the report's job is to compare
+engines, not to reproduce an invoice.
+
+**Known consequence, accepted.** The only credit type present on run-labelled rows in the
+real export is `SUSTAINED_USAGE_DISCOUNT`: −$5.365 on the scheduler (4.0% of its spend) and
+−$0.094 on Google Batch (0.19%). SUD is automatic rather than negotiated, and it accrues to
+long-running on-demand VMs — structurally what the scheduler does and Batch does not. So
+excluding it costs the scheduler about 4% in the comparison. This is a deliberate trade of
+a small known bias for freedom from an unbounded unknown one. The credit filter is
+isolated in one function so the decision can be revisited without touching anything else.
+
+### D3 — Run id is remapped to its canonical case in the extractor
+
+Downstream joins on an exact `run_id` string (`_load_cost_pools`), and the report's run ids
+come from the Platform API in mixed case. Rather than make every consumer
+case-insensitive — a change to shared AWS code paths for a GCP-only problem — the GCP
+extractor receives the set of known run ids and maps each lowercased billing value back to
+its canonical spelling. Unknown ids pass through as-is, so an id absent from the samplesheet
+is still visible as unattributed spend rather than silently renamed.
+
+### D4 — Run id stays a required join key; the task hash is a diagnostic, not a fallback
+
+Rows with no run id are dropped, exactly as on AWS. Attributing Google Batch spend by task
+hash alone is unsafe: Nextflow hashes are content-addressed, so two nightly runs of the
+same pipeline on the same inputs share hashes and would cross-attribute.
+
+But dropping them silently is worse, because today that is *all* Google Batch spend. The
+extractor therefore counts what it dropped and reports it: rows that carry a `batch-job-id`
+but no run id are summed and surfaced as `unattributed_gcp_batch_cost` so the operator sees
+"$49.78 of Google Batch spend carries no run label — set `resourceLabels`" instead of a
+confident zero.
+
+### D5 — Aggregation is pushed into BigQuery
+
+The extractor issues one `GROUP BY` query and receives at most a few thousand rows. It
+never downloads the export. This is strictly better than the AWS path, which scans
+multi-GB parquet inside the task.
+
+## Row schema produced
+
+Identical to the AWS `costs.jsonl` contract, so nothing downstream changes:
+
+| Field | GCP value |
+| --- | --- |
+| `run_id` | canonical-cased Platform workflow id |
+| `session_id` | `nextflow-io-sessionid` / `pipeline-session-id`, else `""` |
+| `process` | `pipeline_process` when the run's `resourceLabels` set it, else `""` |
+| `hash` | 8-hex task hash from `batch-job-id`, else `""` |
+| `unblended_cost` | `SUM(cost)`, gross |
+| `split_cost`, `unused_cost` | `0.0` |
+| `split_cost_present` | `0` |
+| `spot_cost` | `SUM(cost)` over *machine* SKUs where the SKU is spot |
+| `ondemand_cost` | `SUM(cost)` over *machine* SKUs where it is not |
+| `cost`, `used_cost` | `= unblended_cost` |
+
+## Why not Azure
+
+Nextflow writes `resourceLabels` into Azure Batch **pool metadata**
+(`AzBatchService.groovy:759`, applied at `:941`), and Microsoft states tags cannot be
+associated with Batch pools. Pool metadata is a Batch data-plane concept that never reaches
+Cost Management, so there is no path from `resourceLabels` to an Azure cost row.
+Attribution there is pool-grain at best, via a `nf-pool-<hash>-<vmType>` id that must be
+mapped back through the task's queue.
+
+Given the scheduler demonstrably tags its own VMs on GCP, the **Azure Cloud** compute
+environment is the likelier Azure path — the same sched-side mechanism should apply ARM
+tags. That needs verification against a real Azure export before any Azure design work, and
+is not attempted here.
+
+## Labels a pipeline needs
+
+- **SIC / Cloud compute environments: nothing.** The scheduler tags the machines itself.
+- **Google Batch: a run id and session id**, via `process.resourceLabels` or Platform
+  dynamic resource labels (`${workflowId}`, `${sessionId}`) set once at workspace level.
+  The task hash comes free via `batch-job-id`.
+- `tower.autoLabels` (Nextflow PR #7528, merged 2026-09-16) would standardise this but
+  lands in 26.09.0-edge; this repo requires ≥25.10.0, so it is not yet an option.
+- Google constraints when writing labels: lowercase keys and values, 63 characters, 61
+  custom labels per VM.
+
+Until Google Batch runs carry a run id, the Batch side of any Batch-vs-SIC comparison is
+not trustworthy. D4's diagnostic exists to make that visible rather than silent.

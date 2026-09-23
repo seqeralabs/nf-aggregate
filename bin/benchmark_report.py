@@ -30,6 +30,10 @@ def normalize_jsonl_cmd(
     costs: Path = typer.Option(None, help="Optional AWS CUR parquet file"),
     cost_label_map: Path = typer.Option(None, help="Optional YAML file mapping logical CUR labels to custom tag aliases"),
     machines_dir: Path = typer.Option(None, help="Optional machine metrics CSV directory"),
+    gcp_billing_table: str = typer.Option(
+        None,
+        help="Optional GCP billing export table, as project.dataset.table (a bq:// prefix is accepted)",
+    ),
 ) -> None:
     """Normalize raw run JSON into runs/tasks/metrics JSONL files."""
     from benchmark_report_normalize import normalize_jsonl
@@ -40,6 +44,7 @@ def normalize_jsonl_cmd(
         costs_parquet=costs,
         cost_label_map=cost_label_map,
         machines_dir=machines_dir,
+        gcp_billing_table=gcp_billing_table,
     )
 
 

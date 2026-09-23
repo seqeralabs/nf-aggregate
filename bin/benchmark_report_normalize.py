@@ -11,6 +11,8 @@ from typing import Any
 
 import typer
 
+from benchmark_report_gcp_costs import normalize_gcp_cost_rows
+
 DEFAULT_COST_LABEL_ALIASES: dict[str, list[str]] = {
     # Workflow-identifying CUR resource labels, tried in order (first present wins).
     # These are the Seqera/Nextflow run tags `uniqueRunId` and `seqera.io/platform/workflowId`
@@ -807,6 +809,7 @@ def normalize_jsonl(
     costs_parquet: Path | None = None,
     machines_dir: Path | None = None,
     cost_label_map: Path | None = None,
+    gcp_billing_table: str | None = None,
 ) -> None:
     runs = load_run_data(data_dir)
     if not runs:
@@ -822,6 +825,42 @@ def normalize_jsonl(
     _write_jsonl(output_dir / "runs.jsonl", run_rows)
     _write_jsonl(output_dir / "tasks.jsonl", task_rows)
     _write_jsonl(output_dir / "metrics.jsonl", metric_rows)
+
+    # TWO COST SOURCES, NEVER BOTH. The AWS CUR export and a GCP billing export describe
+    # different clouds, and a report mixing them would silently double-count nothing but
+    # would silently compare runs priced on different bases. Refuse rather than guess.
+    if costs_parquet and costs_parquet.name != "NO_FILE" and gcp_billing_table:
+        raise ValueError(
+            "Supply only one cost source: --costs (AWS CUR parquet) or "
+            "--gcp-billing-table (GCP billing export), not both."
+        )
+
+    # GCP COST DATA. Unlike the CUR path there is no staged file to probe — the export is a
+    # BigQuery table read over the API — so the failure modes are authentication and a bad
+    # table reference, both of which raise with their own message. Fatal, like the CUR path:
+    # cost analysis was explicitly requested, and a cost-free report is indistinguishable
+    # from one where no export was supplied at all.
+    if gcp_billing_table:
+        known_run_ids = [row["run_id"] for row in run_rows]
+        cost_rows, diagnostics = normalize_gcp_cost_rows(
+            gcp_billing_table,
+            known_run_ids=known_run_ids,
+            cost_label_map=cost_label_map,
+        )
+        _write_jsonl(output_dir / "costs.jsonl", cost_rows)
+
+        # Today this is ALL Google Batch spend, because Batch rows carry only a
+        # `batch-job-id` and no run label. Saying so is the difference between "Batch cost
+        # nothing" and "Batch cost is not measurable yet".
+        if diagnostics["unattributed_batch_cost"] > 0:
+            typer.echo(
+                f"WARNING: ${diagnostics['unattributed_batch_cost']:.2f} of Google Batch "
+                f"spend across {diagnostics['unattributed_batch_rows']} billing rows "
+                "carries a task hash but no run label, so it cannot be attributed to a run "
+                "and is NOT included in this report. Set a run-id resourceLabels entry on "
+                "Google Batch runs (or a Platform dynamic resource label) to attribute it.",
+                err=True,
+            )
 
     # COST DATA. `NO_FILE` is checked before touching the filesystem: it is a placeholder, and
     # stat'ing a staged path is the fallible step (see _path_status), so the cheap certain test

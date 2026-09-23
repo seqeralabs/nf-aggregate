@@ -194,6 +194,18 @@ workflow NF_AGGREGATE {
             ch_cur_label_map = Channel.value(label_map_file)
         }
 
+        // A BigQuery table needs no staging and no preflight glob — it is read over the API
+        // from inside the task, so the failure modes (auth, a bad table reference) surface
+        // there with their own messages. Refusing both sources here rather than in the task
+        // means the run stops before anything is provisioned.
+        if (params.gcp_billing_table && params.benchmark_aws_cur_report) {
+            error(
+                "Specify only one cost source: --benchmark_aws_cur_report (AWS CUR) or " +
+                "--gcp_billing_table (GCP billing export), not both."
+            )
+        }
+        ch_gcp_billing_table = Channel.value(params.gcp_billing_table ?: '')
+
         // Collect machine metrics CSVs from external runs (if present)
         ch_machines_dir = ch_split.external
             .filter { it.machines }
@@ -217,6 +229,7 @@ workflow NF_AGGREGATE {
             ch_cur,
             ch_cur_label_map,
             ch_machines_dir,
+            ch_gcp_billing_table,
         )
         ch_versions = ch_versions.mix(NORMALIZE_BENCHMARK_JSONL.out.versions)
 

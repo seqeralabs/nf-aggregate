@@ -35,6 +35,7 @@ and never an input.
 | `report_type`                 | `benchmark`                  | `benchmark` or `intelligent_compute`              |
 | `benchmark_aws_cur_report`    | null                          | AWS CUR parquet for cost analysis                 |
 | `benchmark_aws_cur_label_map` | null                          | YAML aliases for custom CUR resource label names  |
+| `gcp_billing_table`           | null                          | GCP billing export table (project.dataset.table)  |
 | `seqera_api_endpoint`         | `https://api.cloud.seqera.io` | Platform API URL                                  |
 | `seqera_web_url`              | `https://cloud.seqera.io`    | Platform web base URL for run deep-links          |
 | `intelligent_compute_core_report` | null                     | Optional core cost report for IC (not yet wired)  |
@@ -107,6 +108,36 @@ uv run --with typer --with pyyaml \
 - **Nextflow `include` statements in `main.nf` must be single-line.** `adamrtalbot/detect-nf-test-changes@v0.0.3` (used by CI) parses include lines and crashes on multi-line blocks. Write `include { A ; B ; C } from '...'` not multi-line blocks.
 - **Repository hygiene:** `.nf-core.yml` should stay absent unless nf-core linting is intentionally restored alongside the required config. When changing CI, docs, or plugin declarations, remove stale nf-core-template remnants and keep labels/docs accurate.
 - **Plugin references must stay synchronized.** If `nextflow.config` plugin entries change, update `CITATIONS.md`, `README.md`, and agent/context files in the same change so pinned plugins such as `nf-core-utils` and `nf-schema` are cited consistently.
+- **GCP billing labels use DASHES, and the values are lowercased.** The run/session labels
+  in a Google billing export are applied by the Seqera scheduler, not by Nextflow's
+  `ResourceLabelPolicy.GOOGLE` — so they are `seqera-io-platform-workflowid` and
+  `nextflow-io-sessionid`, never the underscored forms Nextflow would produce. Google also
+  lowercases label *values*, so a Platform run id `4Bi5xBK6E2Nbhj` is billed as
+  `4bi5xbk6e2nbhj`; `gcp_rows_to_cost_rows` maps it back to the canonical spelling using
+  the run ids already loaded from the API, because `_load_cost_pools` joins on an exact
+  string. Measured on a real export (2026-09-18): 53,046 scheduler rows / $133.67.
+- **Google Batch spend carries NO run id — only `batch-job-id`.** Nextflow's Batch job name
+  is `nf-<hash>-<millis>`, so the task hash is free on GCP with nothing configured, but
+  there is no run label unless `resourceLabels` (or a Platform dynamic resource label) sets
+  one. Attributing by hash alone is unsafe — Nextflow hashes are content-addressed, so two
+  nightly runs of one pipeline over the same inputs share hashes and would cross-attribute.
+  So those rows are dropped and their total is warned about instead ($49.78 across 303,227
+  rows in the real export). A Batch-vs-SIC comparison is not trustworthy until that label
+  is set.
+- **GCP cost is GROSS; credits are never subtracted.** A negotiated discount applying to one
+  engine and not the other would taint an engine comparison. The known cost of this: the
+  only credit type on run-labelled rows is `SUSTAINED_USAGE_DISCOUNT`, worth ~4% of
+  scheduler spend and ~0.2% of Batch spend, and it structurally favours the long-lived VMs
+  the scheduler runs. Deliberate, and isolated in `build_gcp_cost_query`.
+- **GCP has ONE cost basis, unlike AWS.** There is no ECS split-cost-allocation analogue, so
+  `split_cost`/`unused_cost` are always zero and `comparable_cost` renders blank. Both
+  engines bill on the same VM-charge basis, which makes them directly comparable — the
+  opposite of the AWS situation. The purchase-option split is still gated to machine SKUs
+  (`instance (core|ram)`), because disks and networking are labelled to the same run, so
+  `spot + ondemand < unblended` holds on GCP too.
+- **Billing-export partitions commonly expire after 30 days.** The validated table sets
+  `timePartitioning.expirationMs = 2592000000`, so a report covering older runs will find no
+  cost rows for them and mark them `not_found`. That is the export's retention, not a bug.
 - **`nextflow lint -harshil-alignment -format` is destructive on existing files.** Running `-format` on the existing `nextflow.config` / `workflows/nf_aggregate/main.nf` collapses multi-line blocks and deletes inline comments. Only use `-format` on brand-new `.nf` files. For edits to existing config/workflow files, verify with `nextflow lint -harshil-alignment <file>` (no `-format`) and match surrounding style by hand.
 
 ## Cursor Cloud specific instructions
