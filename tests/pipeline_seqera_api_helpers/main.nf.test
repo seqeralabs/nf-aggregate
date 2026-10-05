@@ -1,6 +1,6 @@
 nextflow_pipeline {
     name "SeqeraApi helper smoke"
-    script "run.nf"
+    script "tests/pipeline_seqera_api_helpers/run.nf"
     tag "pipeline"
     tag "nf-aggregate"
     tag "seqera-api"
