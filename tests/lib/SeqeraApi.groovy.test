@@ -1,6 +1,6 @@
 nextflow_function {
     name "SeqeraApi helper functions"
-    script "SeqeraApi.harness.nf"
+    script "tests/lib/SeqeraApi.harness.nf"
 
     test("apiGetAllTasks paginates until the final short page") {
         function "apiGetAllTasksHarness"
