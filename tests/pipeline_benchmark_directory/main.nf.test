@@ -32,6 +32,7 @@ nextflow_pipeline {
                 input                     = INPUT_PATH
                 outdir                    = "$outputDir"
                 generate_benchmark_report = true
+                report_type               = 'benchmark'
             }
         }
 

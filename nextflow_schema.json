@@ -57,7 +57,7 @@
                 },
                 "generate_benchmark_report": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "fa_icon": "fas fa-tachometer-alt",
                     "description": "Compile a benchmarking report for Seqera Platform runs."
                 },
@@ -80,7 +80,7 @@
                 },
                 "report_type": {
                     "type": "string",
-                    "default": "benchmark",
+                    "default": "intelligent_compute",
                     "enum": ["benchmark", "intelligent_compute"],
                     "fa_icon": "fas fa-toggle-on",
                     "description": "Which performance report to generate when reporting is enabled."

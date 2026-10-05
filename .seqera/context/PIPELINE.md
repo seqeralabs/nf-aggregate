@@ -61,7 +61,8 @@ Input CSV (id, workspace, group, logs, platform, token_env)
 | ----------------------------- | ----------------------------- | ----------------------------------------------- |
 | `input`                       | required                      | CSV samplesheet of run IDs / external paths     |
 | `outdir`                      | `results`                     | Output directory                                |
-| `generate_benchmark_report`   | `false`                       | Enable the benchmark pipeline                   |
+| `generate_benchmark_report`   | `true`                        | Enable the benchmark pipeline                   |
+| `report_type`                 | `intelligent_compute`         | `benchmark` or `intelligent_compute`            |
 | `benchmark_aws_cur_report`    | `null`                        | AWS CUR parquet for cost analysis               |
 | `benchmark_aws_cur_label_map` | `null`                        | Optional YAML alias map for CUR resource labels |
 | `seqera_api_endpoint`         | `https://api.cloud.seqera.io` | Platform API base URL                           |
