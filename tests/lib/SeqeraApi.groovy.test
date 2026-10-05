@@ -7,7 +7,7 @@ nextflow_function {
         when {
             function {
                 """
-                SeqeraApi.metaClass.'static'.apiGet = { String url, Map headers ->
+                SeqeraApi.metaClass.'static'.apiGet = { url: String, headers: Map ->
                     if (url.contains('offset=0')) {
                         return [tasks: (1..100).collect { [taskId: it] }]
                     }
@@ -35,7 +35,7 @@ nextflow_function {
         when {
             function {
                 """
-                SeqeraApi.metaClass.'static'.apiGet = { String url, Map headers ->
+                SeqeraApi.metaClass.'static'.apiGet = { url: String, headers: Map ->
                     if (url == 'https://api.example.com/orgs') {
                         return [organizations: [[name: 'acme', orgId: 7], [name: 'other', orgId: 8]]]
                     }
@@ -64,7 +64,7 @@ nextflow_function {
         when {
             function {
                 """
-                SeqeraApi.metaClass.'static'.apiGet = { String url, Map headers ->
+                SeqeraApi.metaClass.'static'.apiGet = { url: String, headers: Map ->
                     if (url == 'https://api.example.com/orgs') {
                         return [organizations: [[name: 'acme', orgId: 7]]]
                     }
