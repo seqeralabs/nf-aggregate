@@ -6,7 +6,7 @@ This directory holds nf-test `nextflow_function` tests for helper code under `li
 
 Current coverage:
 
-- `SeqeraApi.groovy.test` — unit-ish behavioral coverage for `SeqeraApi` helpers using nf-test function tests and inline Groovy stubbing.
+- `../pipeline_seqera_api_helpers/` — inline workflow smoke tests for `SeqeraApi` helpers (nf-test `nextflow_function` cannot compile `fn(*input)` on current Nextflow).
 
 ## Conventions
 
