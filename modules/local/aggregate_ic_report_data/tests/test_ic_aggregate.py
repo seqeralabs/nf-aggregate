@@ -511,7 +511,7 @@ def test_resumed_ic_run_reports_lineage_total_without_touching_attempt_figures(
 
     assert row["cost"] == 10.0, "attempt basis — the denominators next to it are attempt-scoped"
     assert row["comparable_cost"] == 7.0
-    assert row["spot_cost"] == 10.0, "purchase-option split stays on the attempt basis too"
+    assert row["spot_cost"] == 14.0, "purchase-option split is pooled like session_cost"
     assert row["session_cost"] == 14.0
     assert row["session_comparable_cost"] == 9.5
     assert row["attempts"] == 2

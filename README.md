@@ -80,20 +80,20 @@ id,workspace,group
 
 ### Intelligent Compute report
 
-In addition to the benchmark report, nf-aggregate can generate an Intelligent Compute (IC)
-report. Enable reporting with `--generate_benchmark_report` and select the report type with
-`--report_type intelligent_compute` (default `benchmark`):
+By default, nf-aggregate generates an Intelligent Compute (IC) performance report
+(`--generate_benchmark_report` and `--report_type intelligent_compute`). To produce the
+classic benchmark report instead, pass `--report_type benchmark`. To skip report generation
+entirely, pass `--generate_benchmark_report false`.
 
 ```
 nextflow run seqeralabs/nf-aggregate \
     --input run_ids.csv \
-    --outdir ./results \
-    --generate_benchmark_report \
-    --report_type intelligent_compute
+    --outdir ./results
 ```
 
-Or use the `intelligent_compute_report` profile, which bundles those settings so you only
-supply your own `--input`/`--outdir` (and optionally `--benchmark_aws_cur_report`):
+You can also use the `intelligent_compute_report` profile, which matches the defaults and is
+useful when combining with other profiles; supply your own `--input`/`--outdir` (and
+optionally `--benchmark_aws_cur_report`):
 
 ```
 nextflow run seqeralabs/nf-aggregate \
@@ -302,11 +302,11 @@ The results from the pipeline will be published in the path specified by the `--
 
 ```
 ./results
-├── benchmark_report/                        ## when --report_type benchmark (default)
+├── benchmark_report/                        ## when --report_type benchmark
 │   ├── benchmark_report.html                ## Benchmark report
 │   ├── report_data.json                     ## Aggregated report data boundary
 │   └── jsonl_bundle/                        ## Streaming stage handoff (runs/tasks/metrics[/costs].jsonl)
-├── intelligent_compute_report/              ## when --report_type intelligent_compute
+├── intelligent_compute_report/              ## default (--report_type intelligent_compute)
 │   ├── intelligent_compute_report.html      ## Intelligent Compute report
 │   ├── report_data_ic.json                  ## Aggregated IC report data boundary
 │   └── jsonl_bundle/                        ## Streaming stage handoff (runs/tasks/metrics[/costs].jsonl)

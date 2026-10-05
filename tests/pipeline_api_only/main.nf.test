@@ -21,8 +21,9 @@ nextflow_pipeline {
 
         when {
             params {
-                input  = INPUT_PATH
-                outdir = "$outputDir"
+                input                     = INPUT_PATH
+                outdir                    = "$outputDir"
+                generate_benchmark_report = false
             }
         }
 

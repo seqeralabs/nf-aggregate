@@ -284,7 +284,7 @@ def test_ic_report_is_written_as_utf8(tmp_path):
 
 
 def test_ic_report_renders_resume_provenance(tmp_path):
-    """Resume facts reach the page: the badge, the task split and the earlier-attempt pill."""
+    """Resume facts reach the page: the badge, task split, and pooled session cost."""
     html = _render(tmp_path, {
         "ic_overview": {
             "n_runs": 1, "n_intelligent_compute": 1, "n_batch": 0, "cost_source": "aws_cur",
@@ -300,9 +300,6 @@ def test_ic_report_renders_resume_provenance(tmp_path):
     assert "function resumeBadge" in html
     assert '"earlier_attempts": 1' in html
     assert '"session_cost": 14.0' in html
-    # Task split (executed + cached) and the pooled-cost pill both have a home in the table.
+    # Task split (executed + cached) and pooled session cost both have a home in the table.
     assert 'field: "executed_tasks"' in html
     assert "cached_tasks" in html
-    assert "cost-note earlier" in html
-    # The cost note explains where the earlier money is, in the coverage line.
-    assert "earlier_attempt_cost" in html

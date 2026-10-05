@@ -31,18 +31,19 @@ and never an input.
 
 | Param                       | Default                       | Purpose                           |
 | --------------------------- | ----------------------------- | --------------------------------- |
-| `generate_benchmark_report`   | false                         | Enable benchmark/IC report                        |
-| `report_type`                 | `benchmark`                  | `benchmark` or `intelligent_compute`              |
+| `generate_benchmark_report`   | true                          | Enable benchmark/IC report                        |
+| `report_type`                 | `intelligent_compute`        | `benchmark` or `intelligent_compute`              |
 | `benchmark_aws_cur_report`    | null                          | AWS CUR parquet for cost analysis                 |
 | `benchmark_aws_cur_label_map` | null                          | YAML aliases for custom CUR resource label names  |
 | `seqera_api_endpoint`         | `https://api.cloud.seqera.io` | Platform API URL                                  |
 | `seqera_web_url`              | `https://cloud.seqera.io`    | Platform web base URL for run deep-links          |
 | `intelligent_compute_core_report` | null                     | Optional core cost report for IC (not yet wired)  |
 
-The `intelligent_compute_report` profile bundles the IC-report flags
-(`generate_benchmark_report = true`, `report_type = 'intelligent_compute'`) so a run only
-needs `--input`/`--outdir` (and optionally `--benchmark_aws_cur_report`), e.g.
-`-profile docker,intelligent_compute_report`. It intentionally sets no input/output paths.
+The `intelligent_compute_report` profile sets the same flags as the global defaults
+(`generate_benchmark_report = true`, `report_type = 'intelligent_compute'`) for convenience
+when overriding other profiles; a run only needs `--input`/`--outdir` (and optionally
+`--benchmark_aws_cur_report`), e.g. `-profile docker,intelligent_compute_report`. It
+intentionally sets no input/output paths.
 
 ## Plugins
 
@@ -104,7 +105,7 @@ uv run --with typer --with pyyaml \
 - **The CUR location is probed on the head node before anything is staged** (`workflows/nf_aggregate/main.nf`). A directory location is globbed as `<location>/**/*.parquet` with the pipeline's own credentials; a location that cannot be listed, or that holds no parquet, stops the run immediately with the path and the required grants in the message. The task cannot diagnose this itself — from inside the container a prefix it may not LIST is indistinguishable from an empty one, and by then a task has been provisioned and run for minutes. A single `*.parquet` location skips the probe, since it needs only object read. Verified against real Nextflow for trailing slashes, partitioned (`BILLING_PERIOD=`) layouts, empty directories and missing paths.
 - `commit.gpgsign` must be true (SSH signing via 1Password)
 - RTK `buildOutputFiltering` / `testOutputAggregation` can swallow nf-test output — disable to debug
-- **Nextflow `include` statements in `main.nf` must be single-line.** `adamrtalbot/detect-nf-test-changes@v0.0.3` (used by CI) parses include lines and crashes on multi-line blocks. Write `include { A ; B ; C } from '...'` not multi-line blocks.
+- **Nextflow `include` statements in `main.nf` must be single-line.** `adamrtalbot/detect-nf-test-changes` (used by CI) parses include lines and crashes on multi-line blocks. Write `include { A ; B ; C } from '...'` not multi-line blocks.
 - **Repository hygiene:** `.nf-core.yml` should stay absent unless nf-core linting is intentionally restored alongside the required config. When changing CI, docs, or plugin declarations, remove stale nf-core-template remnants and keep labels/docs accurate.
 - **Plugin references must stay synchronized.** If `nextflow.config` plugin entries change, update `CITATIONS.md`, `README.md`, and agent/context files in the same change so pinned plugins such as `nf-core-utils` and `nf-schema` are cited consistently.
 - **`nextflow lint -harshil-alignment -format` is destructive on existing files.** Running `-format` on the existing `nextflow.config` / `workflows/nf_aggregate/main.nf` collapses multi-line blocks and deletes inline comments. Only use `-format` on brand-new `.nf` files. For edits to existing config/workflow files, verify with `nextflow lint -harshil-alignment <file>` (no `-format`) and match surrounding style by hand.
