@@ -120,10 +120,6 @@ class SeqeraApi {
     /**
      * Resolve "org/workspace" string to numeric workspace ID.
      */
-    static Long resolveWorkspaceId(List args) {
-        return resolveWorkspaceId(args[0] as String, args[1] as String, args[2] as Map)
-    }
-
     static Long resolveWorkspaceId(String workspace, String apiEndpoint, Map headers) {
         def (orgName, workspaceName) = workspace.tokenize("/")
 

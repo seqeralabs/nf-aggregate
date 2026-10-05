@@ -2,8 +2,6 @@ nextflow_function {
     name "SeqeraApi helper functions"
 
     test("apiGetAllTasks paginates until the final short page") {
-        function "SeqeraApi.apiGetAllTasks"
-
         when {
             function {
                 """
@@ -17,8 +15,10 @@ nextflow_function {
                     throw new RuntimeException("Unexpected URL: \${url}")
                 }
 
-                input[0] = 'https://example.com/tasks?workspaceId=55'
-                input[1] = [Authorization: 'Bearer test-token']
+                result = SeqeraApi.apiGetAllTasks(
+                    'https://example.com/tasks?workspaceId=55',
+                    [Authorization: 'Bearer test-token']
+                )
                 """
             }
         }
@@ -30,8 +30,6 @@ nextflow_function {
     }
 
     test("resolveWorkspaceId returns the matching workspace id") {
-        function "SeqeraApi.resolveWorkspaceId"
-
         when {
             function {
                 """
@@ -45,7 +43,11 @@ nextflow_function {
                     throw new RuntimeException("Unexpected URL: \${url}")
                 }
 
-                input[0] = ['acme/workspace-b', 'https://api.example.com', [Authorization: 'Bearer test-token']]
+                result = SeqeraApi.resolveWorkspaceId(
+                    'acme/workspace-b',
+                    'https://api.example.com',
+                    [Authorization: 'Bearer test-token']
+                )
                 """
             }
         }
@@ -57,8 +59,6 @@ nextflow_function {
     }
 
     test("resolveWorkspaceId fails when the workspace is missing") {
-        function "SeqeraApi.resolveWorkspaceId"
-
         when {
             function {
                 """
@@ -72,7 +72,11 @@ nextflow_function {
                     throw new RuntimeException("Unexpected URL: \${url}")
                 }
 
-                input[0] = ['acme/workspace-b', 'https://api.example.com', [Authorization: 'Bearer test-token']]
+                SeqeraApi.resolveWorkspaceId(
+                    'acme/workspace-b',
+                    'https://api.example.com',
+                    [Authorization: 'Bearer test-token']
+                )
                 """
             }
         }
