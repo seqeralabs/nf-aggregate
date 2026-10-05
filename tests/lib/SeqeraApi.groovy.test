@@ -45,9 +45,7 @@ nextflow_function {
                     throw new RuntimeException("Unexpected URL: \${url}")
                 }
 
-                input[0] = 'acme/workspace-b'
-                input[1] = 'https://api.example.com'
-                input[2] = [Authorization: 'Bearer test-token']
+                input[0] = ['acme/workspace-b', 'https://api.example.com', [Authorization: 'Bearer test-token']]
                 """
             }
         }
@@ -74,9 +72,7 @@ nextflow_function {
                     throw new RuntimeException("Unexpected URL: \${url}")
                 }
 
-                input[0] = 'acme/workspace-b'
-                input[1] = 'https://api.example.com'
-                input[2] = [Authorization: 'Bearer test-token']
+                input[0] = ['acme/workspace-b', 'https://api.example.com', [Authorization: 'Bearer test-token']]
                 """
             }
         }
