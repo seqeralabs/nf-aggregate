@@ -1,7 +1,10 @@
 nextflow_function {
     name "SeqeraApi helper functions"
+    script "SeqeraApi.harness.nf"
 
     test("apiGetAllTasks paginates until the final short page") {
+        function "apiGetAllTasksHarness"
+
         when {
             function {
                 """
@@ -15,10 +18,10 @@ nextflow_function {
                     throw new RuntimeException("Unexpected URL: \${url}")
                 }
 
-                result = SeqeraApi.apiGetAllTasks(
-                    'https://example.com/tasks?workspaceId=55',
-                    [Authorization: 'Bearer test-token']
-                )
+                input[0] = [
+                    url: 'https://example.com/tasks?workspaceId=55',
+                    headers: [Authorization: 'Bearer test-token'],
+                ]
                 """
             }
         }
@@ -30,6 +33,8 @@ nextflow_function {
     }
 
     test("resolveWorkspaceId returns the matching workspace id") {
+        function "resolveWorkspaceIdHarness"
+
         when {
             function {
                 """
@@ -43,11 +48,11 @@ nextflow_function {
                     throw new RuntimeException("Unexpected URL: \${url}")
                 }
 
-                result = SeqeraApi.resolveWorkspaceId(
-                    'acme/workspace-b',
-                    'https://api.example.com',
-                    [Authorization: 'Bearer test-token']
-                )
+                input[0] = [
+                    workspace: 'acme/workspace-b',
+                    endpoint: 'https://api.example.com',
+                    headers: [Authorization: 'Bearer test-token'],
+                ]
                 """
             }
         }
@@ -59,6 +64,8 @@ nextflow_function {
     }
 
     test("resolveWorkspaceId fails when the workspace is missing") {
+        function "resolveWorkspaceIdHarness"
+
         when {
             function {
                 """
@@ -72,11 +79,11 @@ nextflow_function {
                     throw new RuntimeException("Unexpected URL: \${url}")
                 }
 
-                SeqeraApi.resolveWorkspaceId(
-                    'acme/workspace-b',
-                    'https://api.example.com',
-                    [Authorization: 'Bearer test-token']
-                )
+                input[0] = [
+                    workspace: 'acme/workspace-b',
+                    endpoint: 'https://api.example.com',
+                    headers: [Authorization: 'Bearer test-token'],
+                ]
                 """
             }
         }
