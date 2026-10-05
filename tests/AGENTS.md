@@ -9,7 +9,6 @@ Pipeline-level scenarios live in their own directories:
 - `pipeline_benchmark_tarball/`
 - `pipeline_benchmark_directory/`
 - `pipeline_benchmark_realworld_costs/`
-- `pipeline_seqera_api_helpers/`
 
 Each scenario directory contains:
 
