@@ -140,6 +140,7 @@
   .cost-note { display: inline-block; padding: 1px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; cursor: help; }
   .cost-note.propagating { background: rgba(255, 193, 7, 0.18); color: #997404; }
   .cost-note.not-found { background: rgba(108, 117, 125, 0.14); color: #495057; }
+  .cost-note.earlier { background: var(--accent-surface); color: var(--accent); }
   .cost-coverage { font-size: 12.5px; color: var(--muted); margin: 4px 0 14px; }
   .cost-coverage b { color: var(--ink); font-weight: 600; }
 
@@ -674,6 +675,9 @@ window.addEventListener("resize", () => {
     parts.push(pooled
       ? "Their costs are the final cost of the whole session, every attempt included, which is what the run table and the charts compare."
       : "No earlier attempt was found in this export, so their costs cover the reported attempt only.");
+    if (ov.earlier_attempt_cost != null) {
+      parts.push('<span class="cost-note earlier" title="Earlier attempts in the same session billed this much on top of the reported attempt">earlier attempts ' + fmtCost(ov.earlier_attempt_cost) + "</span>");
+    }
   }
   el.innerHTML = parts.join(" ");
   el.hidden = false;

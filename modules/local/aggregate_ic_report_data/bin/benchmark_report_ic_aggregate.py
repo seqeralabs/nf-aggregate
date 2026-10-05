@@ -413,13 +413,13 @@ def build_ic_report_data(
             earlier_attempts = 0
             session_cost = session_comparable_cost = None
 
-        # Purchase option on the SAME whole-session basis as the costs above. For a resumed run
-        # the machines that ran its cached tasks were rented by an earlier attempt, so splitting
-        # only this attempt's rows priced a few cents of spot against a session that spent
-        # dollars — and the report's headline cost, which is the session's, then had no matching
-        # spot figure. `by_session` sums the same spot/ondemand fields across every attempt.
+        # Purchase option on the same basis as `cost` above: this attempt's CUR rows when they
+        # exist, otherwise the pooled session (earlier attempts only). Session totals live in
+        # `session_cost`; spot/ondemand here stay attempt-scoped when detail is present so they
+        # do not disagree with compute_hours and the per-attempt cost column.
+        purchase_basis = detail if detail is not None else session_pool
         spot_cost, ondemand_cost, spot_pct = _purchase_option_split(
-            session_pool if session_pool is not None else detail, compute_type
+            purchase_basis, compute_type
         )
 
         run_summary.append({
