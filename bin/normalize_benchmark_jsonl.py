@@ -16,6 +16,10 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--costs", type=Path, default=None, help="Optional AWS CUR parquet file")
     parser.add_argument("--cost-label-map", type=Path, default=None, help="Optional YAML mapping for CUR resource label aliases")
     parser.add_argument("--machines-dir", type=Path, default=None, help="Directory containing machine metrics CSVs")
+    # This is the entry point the Nextflow module actually executes (bin/ is what lands on
+    # $PATH), so the GCP flag has to exist here as well as on the typer CLI in
+    # benchmark_report.py — otherwise the module's `--gcp-billing-table` would be rejected.
+    parser.add_argument("--gcp-billing-table", type=str, default=None, help="Optional GCP billing export table (project.dataset.table)")
     args = parser.parse_args(argv)
     normalize_jsonl(
         data_dir=args.data_dir,
@@ -23,6 +27,7 @@ def main(argv: list[str] | None = None) -> None:
         costs_parquet=args.costs,
         cost_label_map=args.cost_label_map,
         machines_dir=args.machines_dir,
+        gcp_billing_table=args.gcp_billing_table,
     )
 
 

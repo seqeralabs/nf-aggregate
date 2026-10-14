@@ -67,6 +67,12 @@
                     "description": "AWS CUR data export for real run costs: a single .parquet file or a directory of .parquet files (read together via DuckDB).",
                     "format": "path"
                 },
+                "gcp_billing_table": {
+                    "type": "string",
+                    "description": "GCP Cloud Billing BigQuery export table for cost analysis, as project.dataset.table.",
+                    "help_text": "Mutually exclusive with benchmark_aws_cur_report. A 'bq://' prefix is accepted. The query is billed to the project owning the export. Note that billing-export partitions commonly expire after 30 days, so older runs may have no cost rows.",
+                    "fa_icon": "fab fa-google"
+                },
                 "include_failed_runs": {
                     "type": "boolean",
                     "default": false,

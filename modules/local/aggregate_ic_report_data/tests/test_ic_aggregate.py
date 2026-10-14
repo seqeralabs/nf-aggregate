@@ -321,12 +321,19 @@ def test_ic_run_cost_never_sums_instance_and_split_bases(tmp_path, make_ic_run, 
     assert data["ic_overview"]["n_runs_comparable_cost"] == 1
 
 
-def test_purchase_option_split_is_intelligent_compute_only(tmp_path, make_ic_run, make_batch_run, write_run_json):
+def test_purchase_option_split_withheld_from_aws_batch(tmp_path, make_ic_run, make_batch_run, write_run_json):
     """Spot vs on-demand is reported for Intelligent Compute and withheld from AWS Batch.
 
     Batch labels only its ECS tasks, never the machines underneath, so no purchase option can
     be read for it. Reporting 0% spot there would state "used no spot" when the truth is "not
     measurable" — so all three fields stay None and the run is left out of the fleet tally.
+
+    WHAT ENFORCES THAT CHANGED. This test used to write the Batch run a row carrying a
+    purchase option — a shape AWS cannot produce — specifically to prove an engine-name gate
+    held. That gate has been replaced by a zero-machine-cost check, because on GCP a Batch
+    run's VMs really do carry spot SKUs and the engine gate discarded a true figure. The AWS
+    guarantee is unchanged and now rests on the data: Batch instance rows carry no run tag,
+    so spot and on-demand are structurally zero, which is the shape asserted below.
     """
     jsonl_dir = _bundle(
         tmp_path,
@@ -337,11 +344,11 @@ def test_purchase_option_split_is_intelligent_compute_only(tmp_path, make_ic_run
         {"run_id": "icRUN0000000001", "process": "", "hash": "",
          "unblended_cost": 12.0, "split_cost": 0.0, "unused_cost": 0.0,
          "spot_cost": 8.0, "ondemand_cost": 2.0, "split_cost_present": False},
-        # A Batch run's rows can never carry a purchase option; even if they somehow did, the
-        # engine gate is what decides, so this row is written with one to prove the gate holds.
+        # The real AWS shape: a Batch run is split-basis only, and its machine spend is zero
+        # because no instance row carries its tag. That zero is what withholds the split.
         {"run_id": "bRUN00000000001", "process": "FOO", "hash": "abcd1234",
          "unblended_cost": 0.0, "split_cost": 4.0, "unused_cost": 1.0,
-         "spot_cost": 3.0, "ondemand_cost": 1.0, "split_cost_present": True},
+         "spot_cost": 0.0, "ondemand_cost": 0.0, "split_cost_present": True},
     ])
     data = build_ic_report_data(jsonl_dir)
     ic = next(r for r in data["run_summary"] if r["run_id"] == "icRUN0000000001")
@@ -612,3 +619,92 @@ def test_unreadable_costs_jsonl_fails_loudly(denied_path):
     with pytest.raises(RuntimeError) as excinfo:
         build_ic_report_data(denied_path.parent)
     assert "s3:ListBucket" in str(excinfo.value)
+
+
+# --- GCP: one cost basis, both engines comparable -------------------------------------
+#
+# On AWS the two bases are disjoint by engine: Intelligent Compute has a billed instance
+# charge, Batch has only the ECS split figure, and the comparison views run on the split
+# basis because it is the only one Batch reports. GCP has no split-cost analogue at all —
+# both engines bill on the VM charge — so the billed figure IS the comparable one. Without
+# this, every comparison chart renders "No comparable cost data" on a GCP report even
+# though every run has directly comparable cost.
+
+
+def _gcp_cost_row(run_id, **over):
+    row = {
+        "run_id": run_id, "session_id": "", "process": "", "hash": "",
+        "unblended_cost": 10.0, "split_cost": 0.0, "unused_cost": 0.0,
+        "spot_cost": 8.0, "ondemand_cost": 1.0, "split_cost_present": 0,
+        "cost": 10.0, "used_cost": 10.0, "source": "gcp_billing",
+    }
+    row.update(over)
+    return row
+
+
+def test_gcp_source_makes_billed_cost_the_comparable_basis(
+    tmp_path, make_ic_run, make_batch_run, write_run_json
+):
+    jsonl_dir = _bundle(
+        tmp_path,
+        [make_ic_run(run_id="icRUN0000000001"), make_batch_run(run_id="batchRUN000001")],
+        write_run_json,
+    )
+    (jsonl_dir / "costs.jsonl").write_text(
+        json.dumps(_gcp_cost_row("icRUN0000000001", unblended_cost=10.0, cost=10.0)) + "\n"
+        + json.dumps(_gcp_cost_row("batchRUN000001", unblended_cost=4.0, cost=4.0)) + "\n"
+    )
+    data = build_ic_report_data(jsonl_dir)
+    by_id = {r["run_id"]: r for r in data["run_summary"]}
+
+    # Both engines carry a comparable figure, and it equals the billed one.
+    assert by_id["icRUN0000000001"]["cost"] == 10.0
+    assert by_id["icRUN0000000001"]["comparable_cost"] == 10.0
+    assert by_id["batchRUN000001"]["cost"] == 4.0
+    assert by_id["batchRUN000001"]["comparable_cost"] == 4.0
+    assert data["ic_overview"]["n_runs_comparable_cost"] == 2
+    assert data["ic_overview"]["cost_source"] == "gcp_billing"
+
+
+def test_gcp_batch_run_reports_its_purchase_option_split(
+    tmp_path, make_batch_run, write_run_json
+):
+    """Google Batch VMs carry spot SKUs, so a Batch run HAS a measurable purchase option.
+
+    The gate that suppressed this was `compute_type != "intelligent_compute"`, correct on
+    AWS (Batch labels no machines there) and wrong on GCP.
+    """
+    jsonl_dir = _bundle(tmp_path, [make_batch_run(run_id="batchRUN000001")], write_run_json)
+    (jsonl_dir / "costs.jsonl").write_text(
+        json.dumps(_gcp_cost_row("batchRUN000001", spot_cost=8.0, ondemand_cost=2.0)) + "\n"
+    )
+    row = build_ic_report_data(jsonl_dir)["run_summary"][0]
+    assert row["spot_cost"] == 8.0
+    assert row["ondemand_cost"] == 2.0
+    assert row["spot_pct"] == 80.0
+
+
+def test_aws_batch_still_reports_no_purchase_option(tmp_path, make_batch_run, write_run_json):
+    """Regression guard for the AWS rule the GCP fix must not erase.
+
+    An AWS Batch run is split-basis only: its instance rows carry no run tag, so spot and
+    on-demand are both zero. Reporting 0% spot would assert "used no spot" when the truth is
+    "not measurable", so all three values must stay None.
+    """
+    jsonl_dir = _bundle(tmp_path, [make_batch_run(run_id="batchRUN000001")], write_run_json)
+    (jsonl_dir / "costs.jsonl").write_text(
+        json.dumps({
+            "run_id": "batchRUN000001", "process": "", "hash": "",
+            "unblended_cost": 0.0, "split_cost": 3.0, "unused_cost": 1.0,
+            "spot_cost": 0.0, "ondemand_cost": 0.0, "split_cost_present": 1,
+        }) + "\n"
+    )
+    data = build_ic_report_data(jsonl_dir)
+    row = data["run_summary"][0]
+    assert row["spot_cost"] is None
+    assert row["ondemand_cost"] is None
+    assert row["spot_pct"] is None
+    # and the AWS two-basis behaviour is untouched
+    assert row["cost"] is None
+    assert row["comparable_cost"] == 4.0
+    assert data["ic_overview"]["cost_source"] == "aws_cur"

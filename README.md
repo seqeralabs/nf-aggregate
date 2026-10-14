@@ -246,6 +246,37 @@ environment's **Allow buckets** list, so the CUR bucket has to be in that list. 
 fails this way, its `.fusion.server.log` in the work directory names the role and the denied
 action.
 
+### Google Cloud cost analysis
+
+For runs on Google Cloud, point the pipeline at a Cloud Billing BigQuery export instead of
+an AWS CUR file:
+
+```bash
+nextflow run seqeralabs/nf-aggregate \
+    --input run_ids.csv \
+    --outdir ./results \
+    --gcp_billing_table my-project.all_billing_data.gcp_billing_export_v1_XXXXXX \
+    -profile docker,intelligent_compute_report
+```
+
+The two cost sources are mutually exclusive. The query runs against BigQuery with the
+pipeline's own credentials and is billed to the project owning the export, so that project
+needs `bigquery.jobs.create` plus read access to the dataset.
+
+Seqera scheduler (Cloud compute environment) runs are attributed automatically. **Google
+Batch runs need a run-id resource label**, set either through Platform dynamic resource
+labels (`${workflowId}`, `${sessionId}`) or in the pipeline config:
+
+```groovy
+process.resourceLabels = [
+    'unique-run-id': "${workflow.runName}",
+    'pipeline-session-id': "${workflow.sessionId}",
+]
+```
+
+Without it, Google Batch spend is reported as unattributed in the run log rather than
+counted.
+
 ### Resumed runs
 
 `-resume` gives a run a new workflow ID, so an earlier attempt's spend is tagged with an ID your
