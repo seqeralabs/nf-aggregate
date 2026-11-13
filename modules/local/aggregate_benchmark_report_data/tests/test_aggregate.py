@@ -1112,6 +1112,11 @@ def test_run_level_cost_is_used_when_no_task_matches(tmp_path):
     )
     data = build_report_data(jsonl_dir)
     assert data["run_costs"][0]["cost"] == 15.05
+    # The run-level row prices every task, so the coverage warning must not fire,
+    # and no per-process cost is invented for the run.
+    assert data["cost_coverage"]["coverage_pct"] == 100.0
+    assert data["cost_coverage"]["runs_with_missing_costs"] == []
+    assert data["cost_overview"] == []
 
 
 def test_run_with_no_cost_data_is_null_not_zero(tmp_path):
@@ -1141,3 +1146,18 @@ def test_zero_duration_runs_are_excluded_from_metrics_but_kept_in_summary(tmp_pa
     data = build_report_data(jsonl_dir)
     assert {r["run_id"] for r in data["run_summary"]} == {"ok", "dead"}
     assert {r["run_id"] for r in data["run_metrics"]} == {"ok"}
+
+
+def test_task_cost_comes_from_matched_cur_row(tmp_path):
+    """Normalized tasks carry cost=None; the task table must show the matched CUR cost."""
+    jsonl_dir = tmp_path / "jsonl_bundle"
+    _write(
+        jsonl_dir,
+        [_run("run1", "a")],
+        [_task("run1", "a", cost=None), _task("run1", "a", hash="zz/999999", name="PROC_A (2)", cost=None)],
+        [{"run_id": "run1", "process": "foo:PROC_A", "hash": "abcdef12", "cost": 1.5,
+          "used_cost": 1.5, "unused_cost": 0.0}],
+    )
+    data = build_report_data(jsonl_dir)
+    costs = {t["Taskhash"]: t["Cost"] for t in data["task_table"]}
+    assert costs == {"ab/cdef12": 1.5, "zz/999999": None}

@@ -117,9 +117,11 @@ The benchmark report can be generated without cost data - simply omit the `--ben
 
 When CUR data is provided, nf-aggregate only joins cost rows that carry the resource labels needed to match a Nextflow task back to a benchmark run. By default the logical fields map to:
 
-- run ID: `user_unique_run_id` or `user_nf_unique_run_id`
+- run ID: `user_unique_run_id`, `user_nf_unique_run_id`, or `user_seqera_io_platform_workflow_id`
 - process name: `user_pipeline_process`
 - task hash: `user_task_hash`
+
+Intelligent Compute VMs carry only the run-level `seqera.io:platform:workflowId` tag, because one VM runs many tasks. Their cost is reported per run, and the per-process cost breakdown stays empty for those runs.
 
 To accept manual/custom label names, create a YAML file listing aliases for the logical fields:
 

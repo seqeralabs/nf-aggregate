@@ -348,6 +348,8 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
             }
 
         cost_row = _lookup_cost(costs_index, run_id=run_id, process=process, process_short=process_short, hash_short=hash_short)
+        # Task cost comes only from a matched CUR row; normalized task rows carry cost=None.
+        task_cost = cost_row.get("cost") if cost_row else None
 
         if cur_supplied:
             total_cost_tasks += 1
@@ -378,7 +380,7 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
             run_cost_acc[run_group_key]["used_cost"] += _cost_or_task(cost_row, "used_cost")
             run_cost_acc[run_group_key]["unused_cost"] += _cost_or_task(cost_row, "unused_cost")
 
-        if has_cost_rows:
+        if cost_row:
             overview_key = (group, process_short)
             cost_group_acc[overview_key]["total_cost"] += _cost_or_task(cost_row, "cost")
             cost_group_acc[overview_key]["used_cost"] += _cost_or_task(cost_row, "used_cost")
@@ -399,7 +401,7 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
                     "Realtime_min": float(t.get("realtime_ms") or 0) / 60000.0,
                     "Realtime_ms": t.get("realtime_ms"),
                     "Duration_ms": t.get("duration_ms"),
-                    "Cost": t.get("cost"),
+                    "Cost": task_cost,
                     "CPUused": t.get("cpus"),
                     "Memoryused_GB": _round(float(t.get("memory_bytes") or 0) / 1e9, 0),
                     "Pcpu": t.get("pcpu"),
@@ -422,7 +424,7 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
                     "name": t.get("name"),
                     "realtime_min": float(t.get("realtime_ms") or 0) / 60000.0,
                     "staging_min": float(t.get("staging_ms") or 0) / 60000.0,
-                    "cost": float(t.get("cost") or 0),
+                    "cost": float(task_cost or 0),
                     "cpus": t.get("cpus"),
                     "memory_gb": float(t.get("memory_bytes") or 0) / 1e9,
                 }
@@ -458,7 +460,7 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
         staging = float(t.get("staging_ms") or 0) / 60000.0
         realtime = float(t.get("realtime_ms") or 0) / 60000.0
         runtime = float(t.get("duration_ms") or 0) / 60000.0
-        cost_value = float(t.get("cost") or 0)
+        cost_value = float(task_cost or 0)
 
         acc["staging_sum"] = float(acc["staging_sum"]) + staging
         acc["staging_sum_sq"] = float(acc["staging_sum_sq"]) + staging * staging
@@ -543,6 +545,13 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
             _acc["cost"] = float(_row.get("cost") or 0.0)
             _acc["used_cost"] = float(_row.get("used_cost") or 0.0)
             _acc["unused_cost"] = float(_row.get("unused_cost") or 0.0)
+            # The run-level row prices every task of the run, so none of them is missing cost.
+            _cov = cost_coverage_runs.get(_key)
+            if _cov:
+                matched_cost_tasks += _cov["missing_tasks"]
+                missing_cost_tasks -= _cov["missing_tasks"]
+                _cov["matched_tasks"] = _cov["total_tasks"]
+                _cov["missing_tasks"] = 0
         elif cur_supplied:
             _acc["cost"] = None
             _acc["used_cost"] = None
