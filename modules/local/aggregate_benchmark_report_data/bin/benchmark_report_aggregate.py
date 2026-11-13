@@ -249,6 +249,13 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
             metrics_row["schedAllocCpuEfficiency"] = _round(vm.get("sched_alloc_cpu_efficiency"), 2)
             metrics_row["schedAllocMemEfficiency"] = _round(vm.get("sched_alloc_mem_efficiency"), 2)
 
+        # A run that died before recording a duration has no usable metrics. It
+        # would render as a 0h bar that the charts then divide by, reporting
+        # that something was "Infinity x faster". Keep it in the run summary,
+        # where the failure is the information, and out of the comparisons.
+        if not metrics_row["duration"]:
+            continue
+
         run_metrics.append(metrics_row)
 
         key = (run_id, group)
@@ -263,6 +270,10 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
     costs_jsonl_path = jsonl_dir / "costs.jsonl"
     cur_supplied = costs_jsonl_path.exists()
     costs_index: dict[tuple[str, str, str], dict[str, Any]] = {}
+    # Runs where at least one task matched a cost row. A run that matched and
+    # totalled 0.00 is a measured zero and must be kept; only runs that matched
+    # nothing are candidates for the run-level fallback below.
+    costed_runs: set[tuple[str, str]] = set()
     has_cost_rows = False
     for c in _iter_jsonl(costs_jsonl_path):
         has_cost_rows = True
@@ -337,6 +348,8 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
             }
 
         cost_row = _lookup_cost(costs_index, run_id=run_id, process=process, process_short=process_short, hash_short=hash_short)
+        # Task cost comes only from a matched CUR row; normalized task rows carry cost=None.
+        task_cost = cost_row.get("cost") if cost_row else None
 
         if cur_supplied:
             total_cost_tasks += 1
@@ -362,11 +375,12 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
                 coverage["missing_process_counts"][missing_process] += 1
 
         if cost_row:
+            costed_runs.add(run_group_key)
             run_cost_acc[run_group_key]["cost"] += _cost_or_task(cost_row, "cost")
             run_cost_acc[run_group_key]["used_cost"] += _cost_or_task(cost_row, "used_cost")
             run_cost_acc[run_group_key]["unused_cost"] += _cost_or_task(cost_row, "unused_cost")
 
-        if has_cost_rows:
+        if cost_row:
             overview_key = (group, process_short)
             cost_group_acc[overview_key]["total_cost"] += _cost_or_task(cost_row, "cost")
             cost_group_acc[overview_key]["used_cost"] += _cost_or_task(cost_row, "used_cost")
@@ -387,7 +401,7 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
                     "Realtime_min": float(t.get("realtime_ms") or 0) / 60000.0,
                     "Realtime_ms": t.get("realtime_ms"),
                     "Duration_ms": t.get("duration_ms"),
-                    "Cost": float(t.get("cost") or 0),
+                    "Cost": task_cost,
                     "CPUused": t.get("cpus"),
                     "Memoryused_GB": _round(float(t.get("memory_bytes") or 0) / 1e9, 0),
                     "Pcpu": t.get("pcpu"),
@@ -410,7 +424,7 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
                     "name": t.get("name"),
                     "realtime_min": float(t.get("realtime_ms") or 0) / 60000.0,
                     "staging_min": float(t.get("staging_ms") or 0) / 60000.0,
-                    "cost": float(t.get("cost") or 0),
+                    "cost": float(task_cost or 0),
                     "cpus": t.get("cpus"),
                     "memory_gb": float(t.get("memory_bytes") or 0) / 1e9,
                 }
@@ -446,7 +460,7 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
         staging = float(t.get("staging_ms") or 0) / 60000.0
         realtime = float(t.get("realtime_ms") or 0) / 60000.0
         runtime = float(t.get("duration_ms") or 0) / 60000.0
-        cost_value = float(t.get("cost") or 0)
+        cost_value = float(task_cost or 0)
 
         acc["staging_sum"] = float(acc["staging_sum"]) + staging
         acc["staging_sum_sq"] = float(acc["staging_sum_sq"]) + staging * staging
@@ -511,6 +525,37 @@ def build_report_data(jsonl_dir: Path, include_failed_runs: bool = False) -> dic
     benchmark_overview.sort(key=lambda x: (str(x.get("pipeline", "")), str(x.get("group", ""))))
     run_summary.sort(key=lambda x: str(x.get("group", "")))
     run_metrics.sort(key=lambda x: str(x.get("group", "")))
+
+    # Cost is accumulated per matched task above, and the lookup keys on the
+    # task hash -- so a cost row carrying no task hash never matches. That is
+    # the normal shape for a VM backend: one instance runs many tasks, the
+    # billing data has no per-task line item, and no task hash can exist.
+    #
+    # Back-fill those runs from their run-level row, keyed (run_id, "", ""),
+    # but only where nothing matched per task, so a run with genuine
+    # task-level cost keeps it and nothing is double counted. Runs with no cost
+    # data at all become None rather than 0.0: null renders as an em-dash and
+    # drops out of the comparisons, whereas 0.0 reads as free and makes every
+    # other run "Infinity x more expensive".
+    for _key, _acc in run_cost_acc.items():
+        if _key in costed_runs:
+            continue
+        _row = costs_index.get((_acc["run_id"], "", ""))
+        if _row:
+            _acc["cost"] = float(_row.get("cost") or 0.0)
+            _acc["used_cost"] = float(_row.get("used_cost") or 0.0)
+            _acc["unused_cost"] = float(_row.get("unused_cost") or 0.0)
+            # The run-level row prices every task of the run, so none of them is missing cost.
+            _cov = cost_coverage_runs.get(_key)
+            if _cov:
+                matched_cost_tasks += _cov["missing_tasks"]
+                missing_cost_tasks -= _cov["missing_tasks"]
+                _cov["matched_tasks"] = _cov["total_tasks"]
+                _cov["missing_tasks"] = 0
+        elif cur_supplied:
+            _acc["cost"] = None
+            _acc["used_cost"] = None
+            _acc["unused_cost"] = None
 
     run_costs = sorted(
         [

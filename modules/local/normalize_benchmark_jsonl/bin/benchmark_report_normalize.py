@@ -12,7 +12,8 @@ from typing import Any
 import typer
 
 DEFAULT_COST_LABEL_ALIASES: dict[str, list[str]] = {
-    "run_id": ["user_unique_run_id", "user_nf_unique_run_id"],
+    # seqera.io:platform:workflowId is the run-level tag Intelligent Compute puts on its VMs.
+    "run_id": ["user_unique_run_id", "user_nf_unique_run_id", "user_seqera_io_platform_workflow_id"],
     "process": ["user_pipeline_process"],
     "task_hash": ["user_task_hash"],
 }
@@ -91,10 +92,10 @@ def extract_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for run in runs:
         wf = _run_workflow(run)
-        prog = run.get("progress", {}).get("workflowProgress", {})
+        prog = (run.get("progress") or {}).get("workflowProgress") or {}
         if not prog:
             prog = _compute_progress_from_tasks(run)
-        stats = wf.get("stats", {})
+        stats = wf.get("stats") or {}
         launch = run.get("launch", {}) or {}
         ce = run.get("computeEnv", {}) or {}
 
@@ -142,7 +143,7 @@ def extract_tasks(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for run in runs:
         run_id = _run_workflow(run)["id"]
         group = _run_group(run)
-        for raw in run.get("tasks", []):
+        for raw in run.get("tasks") or []:
             task = _task_payload(raw)
             status = task.get("status", "")
             if status not in {"COMPLETED", "CACHED"}:
@@ -196,7 +197,7 @@ def extract_metrics(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for run in runs:
         run_id = _run_workflow(run)["id"]
         group = _run_group(run)
-        for metric in run.get("metrics", []):
+        for metric in run.get("metrics") or []:
             row: dict[str, Any] = {
                 "run_id": run_id,
                 "group": group,

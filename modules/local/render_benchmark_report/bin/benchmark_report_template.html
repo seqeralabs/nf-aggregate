@@ -598,7 +598,7 @@ function takeaway(labels, values, opts) {
   if (pairs.length < 2) return '';
   pairs.sort((a, b) => a.value - b.value);
   const lo = pairs[0], hi = pairs[pairs.length - 1];
-  if (hi.value === 0) return '';
+  if (lo.value <= 0) return '';  // a 0 baseline gives an "Infinity×" ratio
   const ratio = (hi.value / lo.value).toFixed(1);
   const prefix = opts.prefix || '';
   const suffix = opts.suffix || '';
@@ -835,7 +835,7 @@ function hbarStacked(elId, title, labels, seriesDefs, opts) {
       }
     });
 
-  const costValues = metrics.map(r => { const c = costs.find(x => x.run_id === r.run_id); return c ? +c.cost : 0; });
+  const costValues = metrics.map(r => { const c = costs.find(x => x.run_id === r.run_id); return c && c.cost != null ? +c.cost : null; });
   hbarChart('chart-est-cost', 'Compute cost', labels, costValues,
     { xName: '$', prefix: '$', subtitle: takeaway(labels, costValues, { lowerBetter: true, adjective: 'cheaper', prefix: '$' }) });
 

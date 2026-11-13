@@ -8,6 +8,7 @@ from benchmark_report_normalize import (
     _load_cost_label_aliases,
     _normalize_cost_rows,
     _summarise_machines,
+    extract_metrics,
     extract_runs,
     extract_tasks,
     load_run_data,
@@ -210,6 +211,28 @@ def test_normalize_cost_rows_prefers_user_aliases_before_defaults(tmp_path):
     assert rows[0]["run_id"] == "run-custom"
 
 
+def test_normalize_cost_rows_reads_intelligent_compute_workflow_tag(tmp_path):
+    """Intelligent Compute VMs carry only seqera.io:platform:workflowId, so the row is run-level."""
+    parquet_path = tmp_path / "costs-ic.parquet"
+    table = pa.table(
+        {
+            "resource_tags": [[("user_seqera_io_platform_workflow_id", "wf1")]],
+            "line_item_unblended_cost": [2.5],
+        },
+        schema=pa.schema(
+            {
+                "resource_tags": pa.map_(pa.string(), pa.string()),
+                "line_item_unblended_cost": pa.float64(),
+            }
+        ),
+    )
+    pq.write_table(table, parquet_path)
+
+    rows = _normalize_cost_rows(parquet_path)
+
+    assert rows == [{"run_id": "wf1", "process": "", "hash": "", "cost": 2.5, "used_cost": 2.5, "unused_cost": 0.0}]
+
+
 def test_load_cost_label_aliases_rejects_unknown_fields(tmp_path):
     label_map_path = tmp_path / "invalid_cur_label_map.yml"
     label_map_path.write_text("unexpected: value\n")
@@ -223,3 +246,19 @@ def test_load_run_data(tmp_path, make_run, write_run_json):
     write_run_json(data_dir, [make_run(), make_run(run_id="run2")])
     rows = load_run_data(data_dir)
     assert len(rows) == 2
+
+
+def test_run_that_failed_before_dispatch_does_not_crash(make_run):
+    """The API sends null stats/progress/tasks for a run that failed before dispatching tasks (#163)."""
+    run = make_run(status="FAILED")
+    run["workflow"]["stats"] = None
+    run["progress"] = None
+    run["tasks"] = None
+    run["metrics"] = None
+
+    rows = extract_runs([run])
+
+    assert rows[0]["succeeded"] == 0
+    assert rows[0]["cpu_efficiency"] is None
+    assert extract_tasks([run]) == []
+    assert extract_metrics([run]) == []
